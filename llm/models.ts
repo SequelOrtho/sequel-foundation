@@ -52,18 +52,49 @@ function isModelUnavailableError(err: unknown): boolean {
   );
 }
 
+// A fallback is invisible by construction: the rescued call returns a perfectly
+// normal response, just from a different model. Callers are free to ignore the
+// returned `model` (most do), so without a log a silent downgrade — a key that
+// lost access to the configured model, say — looks identical to healthy
+// operation in production. These two lines are the only place that difference
+// is observable, so keep them.
+//
+// Naming the error's CLASS rather than its message keeps the repo's
+// never-string-match-errors convention: the class already encodes the status.
+function describeError(err: unknown): string {
+  const name = err instanceof Error ? err.constructor.name : "unknown";
+  const status =
+    err instanceof Anthropic.APIError && typeof err.status === "number"
+      ? ` ${err.status}`
+      : "";
+  return `${name}${status}`;
+}
+
+// Volume is negligible — these are human-triggered AI features, not hot paths —
+// so log the happy path too: "no warning appeared" is only evidence the
+// configured model served the request if the positive case is logged as well.
+// Suppressed under NODE_ENV=test so unit suites stay readable.
+function logServedModel(model: string, viaFallback: boolean): void {
+  if (process.env.NODE_ENV === "test") return;
+  console.info(`[llm] served by ${model}${viaFallback ? " (via fallback)" : ""}`);
+}
+
 export async function withModelFallback<T>(
   primaryModel: string,
   call: (model: string) => Promise<T>,
 ): Promise<{ result: T; model: string }> {
   try {
-    return { result: await call(primaryModel), model: primaryModel };
+    const result = await call(primaryModel);
+    logServedModel(primaryModel, false);
+    return { result, model: primaryModel };
   } catch (err) {
     if (primaryModel !== LLM_FALLBACK_MODEL && isModelUnavailableError(err)) {
-      return {
-        result: await call(LLM_FALLBACK_MODEL),
-        model: LLM_FALLBACK_MODEL,
-      };
+      console.warn(
+        `[llm] ${primaryModel} unavailable (${describeError(err)}) — retrying on ${LLM_FALLBACK_MODEL}`,
+      );
+      const result = await call(LLM_FALLBACK_MODEL);
+      logServedModel(LLM_FALLBACK_MODEL, true);
+      return { result, model: LLM_FALLBACK_MODEL };
     }
     throw err;
   }
