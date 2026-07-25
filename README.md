@@ -72,6 +72,8 @@ Two documents carry the accumulated know-how; read them before building anything
 
 4. **LLM env vars** (all optional overrides): `ANTHROPIC_API_KEY`, `LLM_MODEL_PROSE` (default `claude-opus-5`), `LLM_MODEL_PRESENTATION` (default `claude-opus-5`), `LLM_MODEL_FALLBACK` (default `claude-opus-4-8` — unavailability rescue only, never what a healthy call runs on).
 
+   `withModelFallback` logs which model actually served each call (`[llm] served by <model>`) and warns when a fallback fires (`[llm] <model> unavailable (NotFoundError 404) — retrying on <fallback>`). Callers may ignore the returned `model`, so these lines are the only way a silent downgrade — a key that lost access to the configured model, say — is visible in production logs. The served-model line is suppressed under `NODE_ENV=test`.
+
 5. **Peer deps**: install what the subpaths you use need — `jszip`/`pptx-automizer` for deck-kit, `@anthropic-ai/sdk` for llm, `docx` for docs-kit.
 
 ## Twin-retirement map (Phase C)

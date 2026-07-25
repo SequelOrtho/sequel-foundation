@@ -39,15 +39,81 @@ describe("withModelFallback", () => {
     expect(call).toHaveBeenCalledTimes(1);
   });
 
+  it("warns when a fallback fires, naming both models and the error class", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const call = vi
+      .fn()
+      .mockRejectedValueOnce(fakeError(Anthropic.NotFoundError))
+      .mockResolvedValueOnce("rescued");
+
+    await withModelFallback("claude-opus-5", call);
+
+    // A silent downgrade is the failure this guards against — the warning is
+    // the only signal a caller that discards the returned model would ever see.
+    expect(warn).toHaveBeenCalledTimes(1);
+    const message = warn.mock.calls[0][0] as string;
+    expect(message).toContain("claude-opus-5");
+    expect(message).toContain(LLM_FALLBACK_MODEL);
+    expect(message).toContain("NotFoundError");
+    warn.mockRestore();
+  });
+
+  it("stays quiet on the happy path", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    await withModelFallback("claude-opus-5", vi.fn().mockResolvedValue("ok"));
+    expect(warn).not.toHaveBeenCalled();
+    warn.mockRestore();
+  });
+
+  // The served-model line is suppressed under NODE_ENV=test to keep suites
+  // readable, which would otherwise leave the log that matters most in
+  // production completely untested. Assert it by lifting the suppression.
+  it("logs the served model outside the test environment", async () => {
+    const info = vi.spyOn(console, "info").mockImplementation(() => {});
+    const original = process.env.NODE_ENV;
+    process.env.NODE_ENV = "production";
+    try {
+      await withModelFallback("claude-opus-5", vi.fn().mockResolvedValue("ok"));
+      expect(info).toHaveBeenCalledWith("[llm] served by claude-opus-5");
+    } finally {
+      process.env.NODE_ENV = original;
+      info.mockRestore();
+    }
+  });
+
+  it("marks the served-model line when a fallback produced the result", async () => {
+    const info = vi.spyOn(console, "info").mockImplementation(() => {});
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const original = process.env.NODE_ENV;
+    process.env.NODE_ENV = "production";
+    try {
+      const call = vi
+        .fn()
+        .mockRejectedValueOnce(fakeError(Anthropic.NotFoundError))
+        .mockResolvedValueOnce("rescued");
+      await withModelFallback("claude-opus-5", call);
+      expect(info).toHaveBeenCalledWith(
+        `[llm] served by ${LLM_FALLBACK_MODEL} (via fallback)`,
+      );
+    } finally {
+      process.env.NODE_ENV = original;
+      info.mockRestore();
+      warn.mockRestore();
+    }
+  });
+
   it.each([
     ["NotFoundError", Anthropic.NotFoundError],
     ["PermissionDeniedError", Anthropic.PermissionDeniedError],
     ["BadRequestError", Anthropic.BadRequestError],
   ])("retries on the fallback model when the primary is unavailable (%s)", async (_name, cls) => {
+    // Spied purely to keep the fallback warning out of the suite's output.
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     const call = vi.fn().mockRejectedValueOnce(fakeError(cls)).mockResolvedValueOnce("rescued");
     const out = await withModelFallback("claude-opus-5", call);
     expect(out).toEqual({ result: "rescued", model: LLM_FALLBACK_MODEL });
     expect(call).toHaveBeenLastCalledWith(LLM_FALLBACK_MODEL);
+    warn.mockRestore();
   });
 
   it("does not retry on non-availability errors (e.g. rate limits)", async () => {
