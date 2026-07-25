@@ -1,6 +1,6 @@
 import { llmErrorEvent } from "./http";
 
-// Shared SSE wrapper for the LLM-backed routes. The Anthropic calls (Opus 4.8 +
+// Shared SSE wrapper for the LLM-backed routes. The Anthropic calls (Opus 5 +
 // adaptive thinking) routinely run ~20s — well past the ~10s synchronous
 // function timeout on Netlify, whose edge then returns a 502 before the model
 // responds. The fix, platform-wide: never block a buffered HTTP response on the
