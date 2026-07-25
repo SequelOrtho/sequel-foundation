@@ -24,9 +24,9 @@ describe("modelFor", () => {
     expect(modelFor("presentation")).toBe(LLM_MODEL_PRESENTATION);
   });
 
-  it("defaults: Sonnet 5 for prose, Fable 5 for presentation, Opus 4.8 fallback", () => {
-    expect(LLM_MODEL_PROSE).toBe("claude-sonnet-5");
-    expect(LLM_MODEL_PRESENTATION).toBe("claude-fable-5");
+  it("defaults: Opus 5 for both task classes, Opus 4.8 fallback", () => {
+    expect(LLM_MODEL_PROSE).toBe("claude-opus-5");
+    expect(LLM_MODEL_PRESENTATION).toBe("claude-opus-5");
     expect(LLM_FALLBACK_MODEL).toBe("claude-opus-4-8");
   });
 });
@@ -34,8 +34,8 @@ describe("modelFor", () => {
 describe("withModelFallback", () => {
   it("returns the primary model's result without a second call on success", async () => {
     const call = vi.fn().mockResolvedValue("ok");
-    const out = await withModelFallback("claude-fable-5", call);
-    expect(out).toEqual({ result: "ok", model: "claude-fable-5" });
+    const out = await withModelFallback("claude-opus-5", call);
+    expect(out).toEqual({ result: "ok", model: "claude-opus-5" });
     expect(call).toHaveBeenCalledTimes(1);
   });
 
@@ -45,7 +45,7 @@ describe("withModelFallback", () => {
     ["BadRequestError", Anthropic.BadRequestError],
   ])("retries on the fallback model when the primary is unavailable (%s)", async (_name, cls) => {
     const call = vi.fn().mockRejectedValueOnce(fakeError(cls)).mockResolvedValueOnce("rescued");
-    const out = await withModelFallback("claude-fable-5", call);
+    const out = await withModelFallback("claude-opus-5", call);
     expect(out).toEqual({ result: "rescued", model: LLM_FALLBACK_MODEL });
     expect(call).toHaveBeenLastCalledWith(LLM_FALLBACK_MODEL);
   });
@@ -53,7 +53,7 @@ describe("withModelFallback", () => {
   it("does not retry on non-availability errors (e.g. rate limits)", async () => {
     const err = fakeError(Anthropic.RateLimitError);
     const call = vi.fn().mockRejectedValue(err);
-    await expect(withModelFallback("claude-fable-5", call)).rejects.toBe(err);
+    await expect(withModelFallback("claude-opus-5", call)).rejects.toBe(err);
     expect(call).toHaveBeenCalledTimes(1);
   });
 

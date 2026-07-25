@@ -70,7 +70,7 @@ Two documents carry the accumulated know-how; read them before building anything
    <ThemeToggle storageKey={THEME_KEY} />
    ```
 
-4. **LLM env vars** (all optional overrides): `ANTHROPIC_API_KEY`, `LLM_MODEL_PROSE` (default `claude-sonnet-5`), `LLM_MODEL_PRESENTATION` (default `claude-fable-5`), `LLM_MODEL_FALLBACK` (default `claude-opus-4-8`).
+4. **LLM env vars** (all optional overrides): `ANTHROPIC_API_KEY`, `LLM_MODEL_PROSE` (default `claude-opus-5`), `LLM_MODEL_PRESENTATION` (default `claude-opus-5`), `LLM_MODEL_FALLBACK` (default `claude-opus-4-8` — unavailability rescue only, never what a healthy call runs on).
 
 5. **Peer deps**: install what the subpaths you use need — `jszip`/`pptx-automizer` for deck-kit, `@anthropic-ai/sdk` for llm, `docx` for docs-kit.
 
