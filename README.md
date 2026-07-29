@@ -33,7 +33,7 @@ Two documents carry the accumulated know-how; read them before building anything
    ```jsonc
    // package.json
    "dependencies": {
-     "@sequel/foundation": "github:buckygrad/sequel-foundation#v0.1.0"
+     "@sequel/foundation": "github:buckygrad/sequel-foundation#v0.4.5"
    }
    ```
 
@@ -119,4 +119,18 @@ npm test          # vitest unit suite
 npm run typecheck
 ```
 
-Versioning: tag releases (`v0.x.y`); consumers pin the tag in their git dependency. Changing anything in `ui/`, `theme/`, or `brand/` is a visual change in every consumer — check both hubs before releasing.
+Versioning: tag releases (`v0.x.y`); consumers pin the tag in their git dependency.
+
+### Release checklist
+
+1. `npm test` and `npm run typecheck` green.
+2. If anything in `ui/`, `theme/`, or `brand/` changed, that is a visual change in **every** consumer — check both hubs before releasing.
+3. Bump `version` in `package.json`.
+4. **Bump the version refs in `README.md` and `ADOPTING.md`** — the install command, the `package.json` example, and the "pin a tag" example. These are the first commands a new developer copies, so a stale tag here starts every new app behind. Verify none are left:
+
+   ```bash
+   grep -rnE "#v[0-9]+\.[0-9]+\.[0-9]+" README.md ADOPTING.md
+   ```
+
+5. Commit, then tag: `git tag v0.x.y && git push --tags`.
+6. Bump the pin in each consumer as you choose to take the release: `Sequel_Ortho`, `project-insights`, `sequel-app-template`.
