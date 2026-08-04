@@ -7,8 +7,17 @@ export type { CalloutTone } from "./Callout";
 export { Field } from "./Field";
 export { CheckCircle, ApprovedBadge } from "./StatusBadges";
 export { SaveStateIndicator } from "./SaveState";
-export { useSaveRunner, useFormDirty, SectionSaveBar } from "./SectionSave";
-export type { SaveRunner } from "./SectionSave";
+export { useSaveRunner, useFormDirty, useDraftSave, SectionSaveBar } from "./SectionSave";
+export type { SaveRunner, DraftSave } from "./SectionSave";
+// Tab-close guard for any surface holding unsaved draft state. useDraftSave
+// wires it automatically; call it directly for hand-rolled dirty state.
+export { useUnsavedGuard, hasUnsavedChanges } from "./unsaved-guard";
+// Glyph-only control with a real hit area, a focus ring, and a required label.
+export { IconButton, iconButtonClasses } from "./IconButton";
+export type { IconButtonTone } from "./IconButton";
+// Brand palette for chart/SVG code, which cannot take a Tailwind class and so
+// cannot follow data-theme on its own.
+export { useBrandColors, useSeriesColors, useThemeName } from "./brand-colors";
 export { formSnapshot, snapshotEqual, snapshotChangedKeys, shallowDirty } from "./form-dirty";
 export type { FormSnapshot } from "./form-dirty";
 export { Toast } from "./Toast";
