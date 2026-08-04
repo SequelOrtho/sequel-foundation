@@ -9,9 +9,17 @@ export type FormSnapshot = Record<string, string | string[]>;
 export function formSnapshot(form: HTMLFormElement): FormSnapshot {
   const out: FormSnapshot = {};
   const data = new FormData(form);
-  for (const key of new Set(data.keys())) {
-    const values = data.getAll(key).map((v) => (typeof v === "string" ? v : v.name));
-    out[key] = values.length === 1 ? values[0] : values;
+  // One pass over the entries. Calling data.getAll(key) inside a loop over the
+  // keys re-scans the whole entry list per key (O(keys x entries)) — on a
+  // 60-field form that is ~3,600 comparisons per snapshot, and a snapshot is
+  // taken on every input event. Single-valued keys stay bare strings; a name
+  // only becomes an array on its second occurrence.
+  for (const [key, raw] of data.entries()) {
+    const value = typeof raw === "string" ? raw : raw.name;
+    const seen = out[key];
+    if (seen === undefined) out[key] = value;
+    else if (Array.isArray(seen)) seen.push(value);
+    else out[key] = [seen, value];
   }
   return out;
 }

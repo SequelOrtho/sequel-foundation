@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect } from "react";
+import { Suspense, useEffect, useRef } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 import {
   clickStartsNavigation,
@@ -28,11 +28,21 @@ function NavProgressBinding() {
   const searchParams = useSearchParams();
   const search = searchParams.toString();
 
+  // The rendered route, kept in a ref so the listeners below can read it
+  // without being torn down and re-registered on every navigation.
+  const routeRef = useRef("");
+
   // The rendered route changed — the navigation the bar was tracking landed.
   useEffect(() => {
+    routeRef.current = pathname + (search ? `?${search}` : "");
     endNavProgress();
   }, [pathname, search]);
 
+  // Registered once for the lifetime of the app. Neither handler closes over
+  // the render scope: onClick reads window.location at click time, and onPop
+  // reads the route through routeRef. Keying this on [pathname, search] meant
+  // a document-level click listener was removed and re-added on every single
+  // navigation, in a component mounted once in the root layout.
   useEffect(() => {
     // Bubble phase (not capture) so a handler that preventDefault()s — menus,
     // in-page toggles wrapped in <a> — has already run.
@@ -59,8 +69,7 @@ function NavProgressBinding() {
     // hash-only popstate never re-renders, so the bar would hang).
     const onPop = () => {
       const moved =
-        window.location.pathname + window.location.search !==
-        pathname + (search ? `?${search}` : "");
+        window.location.pathname + window.location.search !== routeRef.current;
       if (moved) startNavProgress();
     };
     document.addEventListener("click", onClick);
@@ -69,7 +78,7 @@ function NavProgressBinding() {
       document.removeEventListener("click", onClick);
       window.removeEventListener("popstate", onPop);
     };
-  }, [pathname, search]);
+  }, []);
 
   const { phase, generation } = useNavProgress();
   if (phase === "idle") return null;
