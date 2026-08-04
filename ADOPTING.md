@@ -8,7 +8,7 @@ Create your repo from the template — it boots already themed, with working sam
 
 ```bash
 gh repo create my-new-app --private \
-  --template buckygrad/sequel-app-template --clone
+  --template SequelOrtho/sequel-app-template --clone
 cd my-new-app && npm install && npm run dev
 ```
 
@@ -19,7 +19,7 @@ Then work through the short **Template checklist** at the bottom of the template
 **1. Install** (public repo — no tokens needed anywhere):
 
 ```bash
-npm i "@sequel/foundation@github:buckygrad/sequel-foundation#v0.4.5"
+npm i "@sequel/foundation@github:SequelOrtho/sequel-foundation#v0.4.6"
 ```
 
 ```ts
@@ -35,7 +35,7 @@ transpilePackages: ["@sequel/foundation"],
 @source "../node_modules/@sequel/foundation";
 ```
 
-**3. Layout** — load Montserrat + Geist Mono via `next/font`, render `themeInitScript(<your key>)` as the first element of `<body>`, and put `<ThemeToggle storageKey={…}/>` in your header. Mount `<NavProgress/>` (route-transition top bar) and `<ToastViewport/>` once in `<body>` too. Copy the exact wiring from the template's [`app/layout.tsx`](https://github.com/buckygrad/sequel-app-template/blob/main/app/layout.tsx).
+**3. Layout** — load Montserrat + Geist Mono via `next/font`, render `themeInitScript(<your key>)` as the first element of `<body>`, and put `<ThemeToggle storageKey={…}/>` in your header. Mount `<NavProgress/>` (route-transition top bar) and `<ToastViewport/>` once in `<body>` too. Copy the exact wiring from the template's [`app/layout.tsx`](https://github.com/SequelOrtho/sequel-app-template/blob/main/app/layout.tsx).
 
 ## What's in the box
 
@@ -56,13 +56,13 @@ The full subpath reference and consumption details are in the [README](README.md
 - **Saves stay in place, disabled until dirty.** A successful save never navigates away (toast + SaveState chip confirm in place; redirects are for create flows), Save buttons disable until the form actually changed, and scroll-length forms carry a per-section `SectionSaveBar` — §3's save conventions, with the code in `ui/SectionSave.tsx`.
 - **Every action confirms; no page dead-ends.** Mutations pop a `toastSaved` confirmation — with an action link (`{ action: { label, href } }`) when there's a natural next step — and every leaf page links onward. Before shipping a PR that adds or moves a screen, run the §5a nav/flow review checklist in DESIGN-CONVENTIONS.md.
 - **Never copy foundation code into your app.** To change anything shared, make the change in this repo, tag a release, and bump the version pin in each app. That's what keeps every tool consistent.
-- **Pin a tag, not main.** Your `package.json` references a version tag (e.g. `#v0.4.5`), so foundation changes never reach your app until you choose to take them.
+- **Pin a tag, not main.** Your `package.json` references a version tag (e.g. `#v0.4.6`), so foundation changes never reach your app until you choose to take them.
 - **AI calls follow the pattern.** Models come from configuration (`modelFor` + `withModelFallback`), responses stream (`streamJob` / `consumeLlmStream`), errors are typed. The template's `ai-demo` route is the reference.
 
 ## Links
 
-- [sequel-foundation](https://github.com/buckygrad/sequel-foundation) — this package + the two convention docs
-- [sequel-app-template](https://github.com/buckygrad/sequel-app-template) — the new-app starter (GitHub template repo)
+- [sequel-foundation](https://github.com/SequelOrtho/sequel-foundation) — this package + the two convention docs
+- [sequel-app-template](https://github.com/SequelOrtho/sequel-app-template) — the new-app starter (GitHub template repo)
 - Live examples: [Project Hub](https://sequelorthoprojects.com) and the [Acquisition Hub](https://sequelorthoplaybook.com) both run on the foundation in production.
 
 *Questions or a change you need in the shared layer? Bring it to the platform owner — small foundation releases ship same-day.*
