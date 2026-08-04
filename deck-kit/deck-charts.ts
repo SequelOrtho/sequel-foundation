@@ -86,6 +86,10 @@ export function waterfall(
   const max = Math.max(...bars.map((b) => b.end), target ?? 0) * 1.12 || 1;
   const sy = (v: number) => (v / max) * plotH;
   const n = bars.length;
+  // Loop-invariant: the zero-suppression test compares each bar's formatted
+  // progress against formatted zero, and fmtProgress is caller-supplied (cost
+  // unknown). Compute it once instead of once per bar.
+  const zeroProgress = fmtProgress ? fmtProgress(0) : null;
   const gap = Math.min(0.3, w * 0.03);
   const bw = (w - gap * (n - 1)) / n;
   const axisY = y + plotH;
@@ -118,8 +122,12 @@ export function waterfall(
     // category label below the axis (long pillar names wrap — deterministic 8pt)
     t(g, b.label, { x: bx - 0.12, y: axisY + 0.06, w: bw + 0.24, h: fmtProgress ? 0.4 : 0.56, align: "center", valign: "top", fontSize: 8, color: BODY });
     // per-bar achieved line (zero-suppressed; increments only)
-    if (fmtProgress && b.kind === "increment" && (b.achieved ?? 0) > 0 && fmtProgress(b.achieved!) !== fmtProgress(0)) {
-      t(g, `▲ ${fmtProgress(b.achieved!)}`, { x: bx - 0.12, y: axisY + 0.5, w: bw + 0.24, h: 0.24, align: "center", fontSize: 8.5, bold: true, color: NAVY });
+    const achieved = b.achieved ?? 0;
+    if (fmtProgress && b.kind === "increment" && achieved > 0) {
+      const progress = fmtProgress(achieved);
+      if (progress !== zeroProgress) {
+        t(g, `▲ ${progress}`, { x: bx - 0.12, y: axisY + 0.5, w: bw + 0.24, h: 0.24, align: "center", fontSize: 8.5, bold: true, color: NAVY });
+      }
     }
   });
 }

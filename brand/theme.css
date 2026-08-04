@@ -159,13 +159,14 @@
     opacity: 1;
   }
 }
+/* Pure opacity fade. The bar is already at its base scaleX(1) once the crawl
+   animation is removed, so declaring the same transform at both ends did
+   nothing but imply a width change that never happens. */
 @keyframes seq-nav-progress-done {
-  0% {
-    transform: scaleX(1);
+  from {
     opacity: 1;
   }
-  100% {
-    transform: scaleX(1);
+  to {
     opacity: 0;
   }
 }
