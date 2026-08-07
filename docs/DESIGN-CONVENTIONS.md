@@ -42,6 +42,7 @@ The UX rules that make Project Hub and the Acquisition Hub feel like one product
 
 ## 5. Navigation & structure
 
+- **The header logo links home.** The logo + app title in the header are one `<Link href="/">` (with an accessible label) on every page — there is always a way back to the landing page without the browser back button. A bare `<div>` around the logo is a defect, not a style choice (surfaced by the Incident Hub tester review, Aug 2026).
 - **Tile ↔ menu parity.** Every hub tile appears in that section's nav dropdown, added in the same PR, both rendered from one shared registry — locked by a parity unit test so a hand-edited menu can't drift.
 - **Breadcrumbs on nested routes** (code: `ui/Breadcrumbs.tsx`); the last crumb is the current page, unlinked, `aria-current`.
 - **Origin-aware back-nav via a strict allow-list registry.** Deep links into an entity page carry `?from=<origin-key>`; the page resolves the key against a registry (`{ key → { label, href } }`) to render "← Back to {label}", and threads the key through edit round-trips (`returnHref`). Never echo the raw param into an href; guard lookups with `Object.hasOwn`; unknown keys fall back to the default back target. A subpage may consume a *single* origin key by strict equality when only one flow lands there — comment it as deliberately not generalized.
