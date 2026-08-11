@@ -34,7 +34,7 @@ export function Field({
         )}
       </span>
       {children}
-      {hint && <span className="text-xs text-zinc-500">{hint}</span>}
+      {hint && <span className="text-xs text-brand-muted">{hint}</span>}
       {error && (
         <span role="alert" className="text-xs text-brand-danger">
           {error}

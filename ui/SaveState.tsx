@@ -14,7 +14,7 @@ export function SaveStateIndicator({
   savedAt: number | null;
 }) {
   if (saving) {
-    return <span className="text-xs text-zinc-500">Saving…</span>;
+    return <span className="text-xs text-brand-muted">Saving…</span>;
   }
   if (dirty) {
     return (

@@ -217,9 +217,84 @@
   }
 }
 
+/* color-scheme keeps NATIVE chrome (scrollbars, date pickers, select popups,
+ * form-control defaults) in step with the app theme — without it a dark page
+ * still gets light scrollbars and light native pickers. */
+:root {
+  color-scheme: light;
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+}
+
+/* The theme layer owns the page ground. Before this rule every app had to
+ * remember body-level bg/text classes in its own layout; the ones that forgot
+ * rendered dark cards on a white canvas and inputs inheriting black text in
+ * dark mode. In @layer base so an app's own body utilities (e.g. the
+ * Acquisition Hub's bg-brand-surface) still win. */
+@layer base {
+  body {
+    background: var(--background);
+    color: var(--foreground);
+  }
+}
+
 body {
   font-family:
     var(--font-montserrat), "Montserrat", ui-sans-serif, system-ui, sans-serif;
+}
+
+/* ---- Dark-mode contrast rescue -------------------------------------------
+ * Safety net for raw mid-gray TEXT utilities written without a dark: pair —
+ * the single most common dark-mode bug across the hubs (helper text set in
+ * text-zinc-500 is near-invisible on a near-black card). Scoped to
+ * [data-theme="dark"], and deliberately UNLAYERED so it outranks Tailwind's
+ * layered utilities; elements that already declare any dark:text-* /
+ * dark:border-* class are excluded via :not([class*="…"]) — an author who
+ * thought about dark mode keeps full control.
+ *
+ * Values converge with the sane hand-written pairs (500→zinc-400, 600/700→
+ * zinc-300, 800+→zinc-100), so even a rescued element matches its properly
+ * paired neighbors. This is a net, not a license: new code should use
+ * text-brand-muted (or a real dark: pair), and sweeps should keep retiring
+ * raw grays. */
+[data-theme="dark"]
+  :where(
+    .text-gray-400, .text-slate-400, .text-zinc-400, .text-neutral-400, .text-stone-400,
+    .text-gray-500, .text-slate-500, .text-zinc-500, .text-neutral-500, .text-stone-500
+  ):not([class*="dark:text"]) {
+  color: #a1a1aa;
+}
+[data-theme="dark"]
+  :where(
+    .text-gray-600, .text-slate-600, .text-zinc-600, .text-neutral-600, .text-stone-600,
+    .text-gray-700, .text-slate-700, .text-zinc-700, .text-neutral-700, .text-stone-700
+  ):not([class*="dark:text"]) {
+  color: #d4d4d8;
+}
+[data-theme="dark"]
+  :where(
+    .text-gray-800, .text-slate-800, .text-zinc-800, .text-neutral-800, .text-stone-800,
+    .text-gray-900, .text-slate-900, .text-zinc-900, .text-neutral-900, .text-stone-900,
+    .text-gray-950, .text-slate-950, .text-zinc-950, .text-neutral-950, .text-stone-950,
+    .text-black
+  ):not([class*="dark:text"]) {
+  color: #f4f4f5;
+}
+/* Light borders left unpaired glare on a dark ground; converge them onto the
+ * values the hand-written pairs already use (200→zinc-800, 300→zinc-700). */
+[data-theme="dark"]
+  :where(
+    .border-gray-100, .border-slate-100, .border-zinc-100, .border-neutral-100, .border-stone-100,
+    .border-gray-200, .border-slate-200, .border-zinc-200, .border-neutral-200, .border-stone-200
+  ):not([class*="dark:border"]) {
+  border-color: #27272a;
+}
+[data-theme="dark"]
+  :where(
+    .border-gray-300, .border-slate-300, .border-zinc-300, .border-neutral-300, .border-stone-300
+  ):not([class*="dark:border"]) {
+  border-color: #3f3f46;
 }
 
 /* Keyboard-focus baseline: a visible brand focus ring on every keyboard-focused
