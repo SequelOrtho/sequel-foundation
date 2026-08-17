@@ -51,3 +51,5 @@ export type { BackToTopState } from "./back-to-top-state";
 export { Breadcrumbs } from "./Breadcrumbs";
 export type { Crumb } from "./Breadcrumbs";
 export { ExportBar } from "./ExportBar";
+export { SearchCombobox } from "./SearchCombobox";
+export { comboMatches, type ComboOption } from "./combo-match";
