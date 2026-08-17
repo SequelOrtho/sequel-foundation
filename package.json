@@ -1,6 +1,6 @@
 {
   "name": "@sequel/foundation",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "private": true,
   "description": "Shared Sequel Ortho design system, UX conventions, branded deck/document kit, and LLM plumbing — extracted from Project Hub (project-insights) and the Acquisition Hub (Sequel_Ortho).",
   "type": "module",
