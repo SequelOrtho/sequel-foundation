@@ -12,6 +12,7 @@
     "./theme/ThemeToggle": "./theme/ThemeToggle.tsx",
     "./ui": "./ui/index.ts",
     "./llm": "./llm/index.ts",
+    "./holidays": "./holidays/index.ts",
     "./deck-kit": "./deck-kit/index.ts",
     "./deck-kit/brand-deck": "./deck-kit/brand-deck.ts",
     "./deck-kit/deck-charts": "./deck-kit/deck-charts.ts",
