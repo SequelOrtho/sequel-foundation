@@ -29,6 +29,15 @@ describe("SearchCombobox", () => {
     fireEvent.keyDown(input, { key: "Enter" });
     expect(onChange).toHaveBeenCalledWith(2);
   });
+  it("hideLabel keeps the label for screen readers only", () => {
+    render(
+      <SearchCombobox options={options} value={null} onChange={() => {}} label="Sponsor" hideLabel />,
+    );
+    // Still reachable by accessible name…
+    expect(screen.getByRole("combobox", { name: "Sponsor" })).toBeTruthy();
+    // …but the visible label span is sr-only.
+    expect(screen.getByText("Sponsor").className).toContain("sr-only");
+  });
   it("caps rendering at maxVisible with an overflow hint", () => {
     const many = Array.from({ length: 60 }, (_, i) => ({ id: i, label: `Person ${i}` }));
     render(<SearchCombobox options={many} value={null} onChange={() => {}} label="Resource" maxVisible={50} />);
