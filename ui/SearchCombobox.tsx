@@ -11,11 +11,15 @@ import { comboMatches, type ComboOption } from "./combo-match";
 export function SearchCombobox({
   options, value, onChange, label,
   placeholder = "Type to search…", disabled = false, help, maxVisible = 50,
+  hideLabel = false,
 }: {
   options: ComboOption[]; value: number | string | null;
   onChange: (id: number | string | null) => void;
   label: string; placeholder?: string; disabled?: boolean;
   help?: string; maxVisible?: number;
+  // Render the label for screen readers only — for filter bars whose sibling
+  // controls are unlabeled, where a visible label breaks row alignment.
+  hideLabel?: boolean;
 }) {
   const listboxId = useId();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -53,9 +57,14 @@ export function SearchCombobox({
 
   return (
     <div className="relative">
-      <span className="mb-1 block text-xs font-medium text-brand-muted">{label}</span>
+      {/* Label geometry replicates the hubs' native fields exactly — an
+          INLINE span (so it centers in the container's inherited line box
+          the same way sibling labels do) with the field carrying mt-0.5.
+          A block label with its own margin can never line up with those
+          neighbors across contexts. */}
+      <span className={hideLabel ? "sr-only" : "text-xs text-brand-muted"}>{label}</span>
       {selected && !open ? (
-        <div className="flex items-center justify-between gap-2 rounded-md border border-brand-line bg-brand-surface px-2 py-1.5">
+        <div className={`${hideLabel ? "" : "mt-0.5 "}flex items-center justify-between gap-2 rounded-md border border-brand-line bg-brand-surface px-2 py-1.5`}>
           <div className="min-w-0">
             <div className="truncate text-sm font-medium text-brand-navy">{selected.label}</div>
             {selected.sublabel && <div className="truncate text-xs text-brand-muted">{selected.sublabel}</div>}
@@ -81,7 +90,7 @@ export function SearchCombobox({
           onFocus={() => setOpen(true)}
           onBlur={() => setTimeout(() => setOpen(false), 150)}
           onKeyDown={onKeyDown}
-          className="block w-full rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-transparent px-2 py-1.5 text-sm focus:border-brand focus:outline-none"
+          className={`${hideLabel ? "" : "mt-0.5 "}block w-full rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-transparent px-2 py-1.5 text-sm focus:border-brand focus:outline-none`}
         />
       )}
       {help && <span className="mt-1 block text-xs text-brand-muted">{help}</span>}
