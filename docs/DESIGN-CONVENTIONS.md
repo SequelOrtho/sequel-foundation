@@ -42,6 +42,7 @@ The UX rules that make Project Hub and the Acquisition Hub feel like one product
 - **Typed exceptions, never string-matching** (code: `llm/http.ts`). Map SDK error classes to `{status, error}`.
 - **Streaming beats platform timeouts** (code: `llm/stream.ts` + `stream-client.ts`). Any LLM-backed route streams SSE with heartbeats (`streamJob`), and the browser collapses it back to one awaited value (`consumeLlmStream`). Jobs that exceed the streamed-function cap (~60s on Netlify) go to a background function returning **202 + poll**.
 - **Registry-driven surfaces.** Exports, admin areas, and home tiles are data (a registry array), and the UI renders the registry. Adding a capability = appending a descriptor, not hand-editing three components.
+- **Layout-rendered helpers fail soft on DB errors.** Anything the root layout renders on every page (header nav, scope/role resolution, session-to-person lookups) must catch database errors and degrade — empty list, null person, claim-derived role — never rethrow. A hard failure in the layout 500s *every* route, including public ones a DB outage must not take down (e.g. the Incident Hub's anonymous-reporting pages, Aug 2026). Page bodies may still fail on their own queries; the layout may not. Hide dependent chrome (selectors, badges) when the degraded value is empty rather than rendering hollow controls.
 
 ## 5. Navigation & structure
 
