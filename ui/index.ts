@@ -45,6 +45,8 @@ export {
 } from "./nav-progress";
 export type { NavProgressPhase, NavProgressSnapshot, NavClickInfo } from "./nav-progress";
 export { LinkPendingHint } from "./LinkPendingHint";
+// Header brand link (logo + title → Home) with the standard departure toast.
+export { HomeLink, toastHomeNav, HOME_TOAST_MESSAGE } from "./HomeLink";
 export { BackToTop } from "./BackToTop";
 export { nextBackToTopState } from "./back-to-top-state";
 export type { BackToTopState } from "./back-to-top-state";

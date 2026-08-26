@@ -18,7 +18,7 @@ Two documents carry the accumulated know-how; read them before building anything
 | `@sequel/foundation/brand/assets/*` | Logo PNGs (navy / white / banner) — see `brand/BRAND.md` |
 | `@sequel/foundation/theme` | Theme model: modes, `resolveTheme`, `themeInitScript(storageKey)` |
 | `@sequel/foundation/theme/ThemeToggle` | The Light / Dark / Browser header toggle (client component) |
-| `@sequel/foundation/ui` | Button (incl. the accent hand-off variant), Callout, Field, StatusBadges, SaveStateIndicator, Toast + viewport/store, ShowMore, Breadcrumbs, ExportBar, NavProgress + LinkPendingHint (route-transition pending feedback), BackToTop, `SearchCombobox` + `comboMatches` (searchable APG editable-combobox-with-list primitive — type-to-filter, keyboard nav, optional group headers, capped render with overflow hint), `useScrollToEdit` (scroll-into-view + focus hook for jump-to-edit UX) |
+| `@sequel/foundation/ui` | Button (incl. the accent hand-off variant), Callout, Field, StatusBadges, SaveStateIndicator, Toast + viewport/store, `HomeLink` + `toastHomeNav` (header brand link with the standard "Bringing you back to Home…" departure toast), ShowMore, Breadcrumbs, ExportBar, NavProgress + LinkPendingHint (route-transition pending feedback), BackToTop, `SearchCombobox` + `comboMatches` (searchable APG editable-combobox-with-list primitive — type-to-filter, keyboard nav, optional group headers, capped render with overflow hint), `useScrollToEdit` (scroll-into-view + focus hook for jump-to-edit UX) |
 | `@sequel/foundation/llm` | `getClient`, `modelFor`/`withModelFallback` (task-class model config), `llmErrorEvent`, `streamJob`/`consumeLlmStream` |
 | `@sequel/foundation/holidays` | US observed company-holiday calendar — pure, no `Date.now()`; fixed-date holidays shift Sat/Sun to the nearest weekday, floating (Monday/Thursday-anchored) holidays never shift |
 | `@sequel/foundation/deck-kit` | Native-shape chart primitives (`deck-charts`), the branded-deck engine (`createBrandDeckEngine` + table/status/card primitives), `slimPresentationZip` (dedupe + prune), brand `FONT` |
@@ -34,7 +34,7 @@ Two documents carry the accumulated know-how; read them before building anything
    ```jsonc
    // package.json
    "dependencies": {
-     "@sequel/foundation": "github:SequelOrtho/sequel-foundation#v0.7.1"
+     "@sequel/foundation": "github:SequelOrtho/sequel-foundation#v0.8.0"
    }
    ```
 

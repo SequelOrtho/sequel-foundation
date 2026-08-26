@@ -19,7 +19,7 @@ Then work through the short **Template checklist** at the bottom of the template
 **1. Install** (public repo — no tokens needed anywhere):
 
 ```bash
-npm i "@sequel/foundation@github:SequelOrtho/sequel-foundation#v0.7.1"
+npm i "@sequel/foundation@github:SequelOrtho/sequel-foundation#v0.8.0"
 ```
 
 ```ts
@@ -35,7 +35,7 @@ transpilePackages: ["@sequel/foundation"],
 @source "../node_modules/@sequel/foundation";
 ```
 
-**3. Layout** — load Montserrat + Geist Mono via `next/font`, render `themeInitScript(<your key>)` as the first element of `<body>`, and put `<ThemeToggle storageKey={…}/>` in your header. Mount `<NavProgress/>` (route-transition top bar) and `<ToastViewport/>` once in `<body>` too. Copy the exact wiring from the template's [`app/layout.tsx`](https://github.com/SequelOrtho/sequel-app-template/blob/main/app/layout.tsx).
+**3. Layout** — load Montserrat + Geist Mono via `next/font`, render `themeInitScript(<your key>)` as the first element of `<body>`, and put `<ThemeToggle storageKey={…}/>` in your header. Render the header logo + app title as one `<HomeLink>` (fires the standard "Bringing you back to Home…" toast on the way back). Mount `<NavProgress/>` (route-transition top bar) and `<ToastViewport/>` once in `<body>` too. Copy the exact wiring from the template's [`app/layout.tsx`](https://github.com/SequelOrtho/sequel-app-template/blob/main/app/layout.tsx).
 
 ## What's in the box
 
@@ -43,7 +43,7 @@ transpilePackages: ["@sequel/foundation"],
 |---|---|
 | `…/brand/theme.css` | Brand tokens with dark mode, RYG status colors, focus ring, print rules |
 | `…/theme` | Light / Dark / Browser theme with a no-flash pre-hydration script |
-| `…/ui` | Button (incl. the chartreuse assign/hand-off variant), `IconButton` (glyph-only controls with a real hit area + focus ring + required label), Callout, Field, badges, toasts (with next-step action links), the save-surface kit (`useSaveRunner` / `useFormDirty` / `useDraftSave` / `SectionSaveBar` + `SaveStateIndicator` + `useUnsavedGuard` — dirty-disabled, save-in-place, per-section saves, tab-close warning), ShowMore, Breadcrumbs, ExportBar, `NavProgress` + `LinkPendingHint` (route-transition pending feedback), `BackToTop`, `useBrandColors` (themed palette for chart/SVG code) |
+| `…/ui` | Button (incl. the chartreuse assign/hand-off variant), `IconButton` (glyph-only controls with a real hit area + focus ring + required label), Callout, Field, badges, toasts (with next-step action links), `HomeLink` (the header brand link home, with the family-standard departure toast), the save-surface kit (`useSaveRunner` / `useFormDirty` / `useDraftSave` / `SectionSaveBar` + `SaveStateIndicator` + `useUnsavedGuard` — dirty-disabled, save-in-place, per-section saves, tab-close warning), ShowMore, Breadcrumbs, ExportBar, `NavProgress` + `LinkPendingHint` (route-transition pending feedback), `BackToTop`, `useBrandColors` (themed palette for chart/SVG code) |
 | `…/brand/palette` | The brand palette as JavaScript — for charts and exporters, which can't take a Tailwind class. Kept in sync with `theme.css` by a test that parses the CSS |
 | `…/llm` | Claude client seam, per-task model configuration with fallback, streaming that survives serverless timeouts |
 | `…/deck-kit` | Branded PowerPoint engine (approved template, native editable charts, auto-slimming) |
@@ -57,7 +57,7 @@ The full subpath reference and consumption details are in the [README](README.md
 - **Saves stay in place, disabled until dirty.** A successful save never navigates away (toast + SaveState chip confirm in place; redirects are for create flows), Save buttons disable until the form actually changed, and scroll-length forms carry a per-section `SectionSaveBar` — §3's save conventions, with the code in `ui/SectionSave.tsx`.
 - **Every action confirms; no page dead-ends.** Mutations pop a `toastSaved` confirmation — with an action link (`{ action: { label, href } }`) when there's a natural next step — and every leaf page links onward. Before shipping a PR that adds or moves a screen, run the §5a nav/flow review checklist in DESIGN-CONVENTIONS.md.
 - **Never copy foundation code into your app.** To change anything shared, make the change in this repo, tag a release, and bump the version pin in each app. That's what keeps every tool consistent.
-- **Pin a tag, not main.** Your `package.json` references a version tag (e.g. `#v0.7.1`), so foundation changes never reach your app until you choose to take them.
+- **Pin a tag, not main.** Your `package.json` references a version tag (e.g. `#v0.8.0`), so foundation changes never reach your app until you choose to take them.
 - **AI calls follow the pattern.** Models come from configuration (`modelFor` + `withModelFallback`), responses stream (`streamJob` / `consumeLlmStream`), errors are typed. The template's `ai-demo` route is the reference.
 
 ## Links
