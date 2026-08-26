@@ -35,7 +35,7 @@ transpilePackages: ["@sequel/foundation"],
 @source "../node_modules/@sequel/foundation";
 ```
 
-**3. Layout** — load Montserrat + Geist Mono via `next/font`, render `themeInitScript(<your key>)` as the first element of `<body>`, and put `<ThemeToggle storageKey={…}/>` in your header. Mount `<NavProgress/>` (route-transition top bar) and `<ToastViewport/>` once in `<body>` too. Copy the exact wiring from the template's [`app/layout.tsx`](https://github.com/SequelOrtho/sequel-app-template/blob/main/app/layout.tsx).
+**3. Layout** — load Montserrat + Geist Mono via `next/font`, render `themeInitScript(<your key>)` as the first element of `<body>`, and put `<ThemeToggle storageKey={…}/>` in your header. Render the header logo + app title as one `<HomeLink>` (fires the standard "Bringing you back to Home…" toast on the way back). Mount `<NavProgress/>` (route-transition top bar) and `<ToastViewport/>` once in `<body>` too. Copy the exact wiring from the template's [`app/layout.tsx`](https://github.com/SequelOrtho/sequel-app-template/blob/main/app/layout.tsx).
 
 ## What's in the box
 
@@ -43,7 +43,7 @@ transpilePackages: ["@sequel/foundation"],
 |---|---|
 | `…/brand/theme.css` | Brand tokens with dark mode, RYG status colors, focus ring, print rules |
 | `…/theme` | Light / Dark / Browser theme with a no-flash pre-hydration script |
-| `…/ui` | Button (incl. the chartreuse assign/hand-off variant), `IconButton` (glyph-only controls with a real hit area + focus ring + required label), Callout, Field, badges, toasts (with next-step action links), the save-surface kit (`useSaveRunner` / `useFormDirty` / `useDraftSave` / `SectionSaveBar` + `SaveStateIndicator` + `useUnsavedGuard` — dirty-disabled, save-in-place, per-section saves, tab-close warning), ShowMore, Breadcrumbs, ExportBar, `NavProgress` + `LinkPendingHint` (route-transition pending feedback), `BackToTop`, `useBrandColors` (themed palette for chart/SVG code) |
+| `…/ui` | Button (incl. the chartreuse assign/hand-off variant), `IconButton` (glyph-only controls with a real hit area + focus ring + required label), Callout, Field, badges, toasts (with next-step action links), `HomeLink` (the header brand link home, with the family-standard departure toast), the save-surface kit (`useSaveRunner` / `useFormDirty` / `useDraftSave` / `SectionSaveBar` + `SaveStateIndicator` + `useUnsavedGuard` — dirty-disabled, save-in-place, per-section saves, tab-close warning), ShowMore, Breadcrumbs, ExportBar, `NavProgress` + `LinkPendingHint` (route-transition pending feedback), `BackToTop`, `useBrandColors` (themed palette for chart/SVG code) |
 | `…/brand/palette` | The brand palette as JavaScript — for charts and exporters, which can't take a Tailwind class. Kept in sync with `theme.css` by a test that parses the CSS |
 | `…/llm` | Claude client seam, per-task model configuration with fallback, streaming that survives serverless timeouts |
 | `…/deck-kit` | Branded PowerPoint engine (approved template, native editable charts, auto-slimming) |
