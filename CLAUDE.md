@@ -4,7 +4,7 @@ Guidance for Claude Code when working in this repository.
 
 ## What this repo is
 
-`@sequel/foundation` — the shared platform layer every Sequel Ortho application builds on: brand theme, UI primitives, UX conventions, deck/docs export kits, LLM plumbing. Consumed as a git dependency pinned to a version tag. **Read [docs/DESIGN-CONVENTIONS.md](docs/DESIGN-CONVENTIONS.md) before any UI work and [docs/DECK-CRAFT.md](docs/DECK-CRAFT.md) before deck/exporter work** — they carry the accumulated family rules; new conventions land there in the same PR as the code that embodies them.
+`@sequel/foundation` — the shared platform layer every Sequel Ortho application builds on: brand theme, UI primitives, UX conventions, deck/docs export kits, LLM plumbing. Consumed as a git dependency pinned to a version tag. **Read [docs/DESIGN-CONVENTIONS.md](docs/DESIGN-CONVENTIONS.md) before any UI work, [docs/DECK-CRAFT.md](docs/DECK-CRAFT.md) before deck/exporter work, and [docs/AI-CRAFT.md](docs/AI-CRAFT.md) before any AI-feature work** — they carry the accumulated family rules; new conventions land there in the same PR as the code that embodies them. The `/ai-production-audit` skill (`.claude/skills/`) runs AI-CRAFT's 5-gate scorecard against an app; it is stack-aware (Postgres/Neon vs Azure SQL / MS SQL, Netlify vs Azure), so audits stay valid as hubs migrate infrastructure.
 
 ## Commands
 

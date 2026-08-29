@@ -4,10 +4,11 @@ The shared foundation for Sequel Ortho applications: brand tokens and theme, the
 
 **New here? Start with [ADOPTING.md](ADOPTING.md)** — the quick start for building a new Sequel app on the foundation or wiring it into an existing one.
 
-Two documents carry the accumulated know-how; read them before building anything user-facing or deck-shaped:
+Three documents carry the accumulated know-how; read them before building anything user-facing, deck-shaped, or AI-backed:
 
 - **[docs/DESIGN-CONVENTIONS.md](docs/DESIGN-CONVENTIONS.md)** — the UX rules that make Sequel apps feel like one family.
 - **[docs/DECK-CRAFT.md](docs/DECK-CRAFT.md)** — everything learned generating board-quality pptx/docx/xlsx at runtime.
+- **[docs/AI-CRAFT.md](docs/AI-CRAFT.md)** — the demo-to-production rules for AI features: the five system boundaries, the 5-gate audit, and the per-infrastructure (Postgres/Neon vs Azure SQL, Netlify vs Azure) mapping. The `/ai-production-audit` skill (`.claude/skills/`) runs its scorecard against an app.
 
 ## Contents
 
@@ -19,7 +20,7 @@ Two documents carry the accumulated know-how; read them before building anything
 | `@sequel/foundation/theme` | Theme model: modes, `resolveTheme`, `themeInitScript(storageKey)` |
 | `@sequel/foundation/theme/ThemeToggle` | The Light / Dark / Browser header toggle (client component) |
 | `@sequel/foundation/ui` | Button (incl. the accent hand-off variant), Callout, Field, StatusBadges, SaveStateIndicator, Toast + viewport/store, `HomeLink` + `toastHomeNav` (header brand link with the standard "Bringing you back to Home…" departure toast), ShowMore, Breadcrumbs, ExportBar, NavProgress + LinkPendingHint (route-transition pending feedback), BackToTop, `SearchCombobox` + `comboMatches` (searchable APG editable-combobox-with-list primitive — type-to-filter, keyboard nav, optional group headers, capped render with overflow hint), `useScrollToEdit` (scroll-into-view + focus hook for jump-to-edit UX) |
-| `@sequel/foundation/llm` | `getClient`, `modelFor`/`withModelFallback` (task-class model config), `llmErrorEvent`, `streamJob`/`consumeLlmStream` |
+| `@sequel/foundation/llm` | `getClient` (with hard timeout budget + pinned retry policy), `modelFor`/`withModelFallback` (task-class model config), `llmErrorEvent`, `streamJob`/`consumeLlmStream` (heartbeats + status stages), `gateLlmInput`/`redactSecrets` (deterministic input gate), `parseLlmJson`/`extractJsonPayload` (output contract) |
 | `@sequel/foundation/holidays` | US observed company-holiday calendar — pure, no `Date.now()`; fixed-date holidays shift Sat/Sun to the nearest weekday, floating (Monday/Thursday-anchored) holidays never shift |
 | `@sequel/foundation/deck-kit` | Native-shape chart primitives (`deck-charts`), the branded-deck engine (`createBrandDeckEngine` + table/status/card primitives), `slimPresentationZip` (dedupe + prune), brand `FONT` |
 | `@sequel/foundation/docs-kit/guide-contents` | Bookmarked-outline Contents machinery for generated .docx guides |
@@ -34,7 +35,7 @@ Two documents carry the accumulated know-how; read them before building anything
    ```jsonc
    // package.json
    "dependencies": {
-     "@sequel/foundation": "github:SequelOrtho/sequel-foundation#v0.8.0"
+     "@sequel/foundation": "github:SequelOrtho/sequel-foundation#v0.9.0"
    }
    ```
 
@@ -71,7 +72,7 @@ Two documents carry the accumulated know-how; read them before building anything
    <ThemeToggle storageKey={THEME_KEY} />
    ```
 
-4. **LLM env vars** (all optional overrides): `ANTHROPIC_API_KEY`, `LLM_MODEL_PROSE` (default `claude-opus-5`), `LLM_MODEL_PRESENTATION` (default `claude-opus-5`), `LLM_MODEL_FALLBACK` (default `claude-opus-4-8` — unavailability rescue only, never what a healthy call runs on).
+4. **LLM env vars** (all optional overrides): `ANTHROPIC_API_KEY`, `LLM_MODEL_PROSE` (default `claude-opus-5`), `LLM_MODEL_PRESENTATION` (default `claude-opus-5`), `LLM_MODEL_FALLBACK` (default `claude-opus-4-8` — unavailability rescue only, never what a healthy call runs on), `LLM_TIMEOUT_MS` (default `120000` — the hard per-call time budget; a fired budget surfaces as a typed 504 so routes can degrade deterministically), `LLM_MAX_RETRIES` (default `2`, the SDK's backoff retries on 408/429/5xx), `LLM_INPUT_MAX_CHARS` (default `32000` — the input gate's size cap; per-call `maxChars` overrides for real long-document features).
 
    `withModelFallback` logs which model actually served each call (`[llm] served by <model>`) and warns when a fallback fires (`[llm] <model> unavailable (NotFoundError 404) — retrying on <fallback>`). Callers may ignore the returned `model`, so these lines are the only way a silent downgrade — a key that lost access to the configured model, say — is visible in production logs. The served-model line is suppressed under `NODE_ENV=test`.
 

@@ -15,7 +15,13 @@ export class LlmStreamError extends Error {
   }
 }
 
-export async function consumeLlmStream<T>(res: Response): Promise<T> {
+// `onStatus` receives the progress-stage labels a route's job emits (see
+// streamJob) so the UI can replace a bare spinner with live stage text.
+// Old servers that never emit status events simply never call it.
+export async function consumeLlmStream<T>(
+  res: Response,
+  opts?: { onStatus?: (label: string) => void },
+): Promise<T> {
   const contentType = res.headers.get("content-type") ?? "";
 
   // Gate / validation / empty-case responses come back as plain JSON, before any
@@ -52,7 +58,13 @@ export async function consumeLlmStream<T>(res: Response): Promise<T> {
       const dataLine = rawEvent.split("\n").find((line) => line.startsWith("data:"));
       if (!dataLine) continue;
 
-      let evt: { type?: string; result?: unknown; status?: number; error?: string };
+      let evt: {
+        type?: string;
+        label?: string;
+        result?: unknown;
+        status?: number;
+        error?: string;
+      };
       try {
         evt = JSON.parse(dataLine.slice(5).trim());
       } catch {
@@ -60,6 +72,10 @@ export async function consumeLlmStream<T>(res: Response): Promise<T> {
       }
 
       if (evt.type === "heartbeat") continue;
+      if (evt.type === "status") {
+        if (typeof evt.label === "string") opts?.onStatus?.(evt.label);
+        continue;
+      }
       if (evt.type === "error") {
         throw new LlmStreamError(evt.error ?? "AI service error.", evt.status ?? 502);
       }

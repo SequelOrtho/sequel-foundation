@@ -20,16 +20,24 @@ function sse(event: unknown): Uint8Array {
 
 // SSE event shapes the client (consumeLlmStream) understands:
 //   { type: "heartbeat" }                          — keep-alive, ignored
+//   { type: "status", label: <stage> }             — human-readable progress stage
 //   { type: "result", result: <payload> }          — the resolved job value
 //   { type: "error", status: number, error: string } — typed failure
 export type LlmStreamEvent =
   | { type: "heartbeat" }
+  | { type: "status"; label: string }
   | { type: "result"; result: unknown }
   | { type: "error"; status: number; error: string };
 
 // Wrap an async job (the deterministic-data load is done by the caller; `job`
 // is just the LLM call + payload assembly) in a streamed SSE response.
-export function streamJob<T>(job: () => Promise<T>): Response {
+//
+// Multi-step jobs should narrate their stages: a static spinner past ~4s reads
+// as frozen, and users re-submit — spawning duplicate concurrent LLM calls.
+// The job receives a `progress` callback; each call emits a status event the
+// client surfaces via consumeLlmStream's onStatus ("Querying policy docs…" →
+// "Analyzing…" → "Formatting…"). Zero-arg jobs keep working unchanged.
+export function streamJob<T>(job: (progress: (label: string) => void) => Promise<T>): Response {
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
       let open = true;
@@ -50,8 +58,11 @@ export function streamJob<T>(job: () => Promise<T>): Response {
         HEARTBEAT_MS,
       );
 
+      const progress = (label: string) =>
+        enqueue(sse({ type: "status", label } satisfies LlmStreamEvent));
+
       try {
-        const result = await job();
+        const result = await job(progress);
         enqueue(sse({ type: "result", result } satisfies LlmStreamEvent));
       } catch (err) {
         enqueue(sse({ type: "error", ...llmErrorEvent(err) } satisfies LlmStreamEvent));
