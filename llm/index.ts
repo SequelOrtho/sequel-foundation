@@ -17,6 +17,26 @@ export { llmErrorEvent } from "./http";
 export { extractJsonPayload, parseLlmJson, LlmOutputError } from "./output";
 export { gateLlmInput, redactSecrets, LLM_INPUT_MAX_CHARS } from "./input-gate";
 export type { LlmInputGateResult, LlmRedactionKind } from "./input-gate";
+export { startLlmTrace, emitLlmTrace, sanitizedPreview, consoleTraceSink } from "./trace";
+export type { LlmTrace, LlmTraceRecord, LlmTraceSink, LlmTraceOutcome } from "./trace";
+export {
+  checkRateBudget,
+  clientIpFrom,
+  identityRateKey,
+  globalRateKey,
+  retryAfterSeconds,
+  RATE_WINDOW_MS_DEFAULT,
+} from "./rate-limit";
+export type { FixedWindowStore, RateBudget, RateDecision, RateWindowRow } from "./rate-limit";
+export {
+  runGoldenSet,
+  formatGoldenReport,
+  assertGoldenPass,
+  fieldEquals,
+  fieldOneOf,
+  fieldMatches,
+} from "./golden";
+export type { GoldenCase, GoldenCheck, GoldenFailure, GoldenReport } from "./golden";
 export { streamJob } from "./stream";
 export type { LlmStreamEvent } from "./stream";
 export { consumeLlmStream, LlmStreamError } from "./stream-client";
