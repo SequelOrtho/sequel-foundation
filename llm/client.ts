@@ -11,6 +11,18 @@ import Anthropic from "@anthropic-ai/sdk";
 // under the SDK's HTTP timeout while leaving room for structured output.
 export const LLM_MAX_TOKENS = 16_000;
 
+// Hard timeout budget + explicit retry policy — configuration, not code, like
+// model selection. Without a budget, a degraded provider leaves the user on a
+// perpetual spinner; with one, the call fails fast into the typed-error path
+// (llmErrorEvent maps the SDK's timeout error to a clear 504) and the route
+// can degrade to its deterministic fallback. 120s default: comfortably above
+// the ~20s a healthy Opus 5 + adaptive-thinking call runs, far below the SDK's
+// 10-minute default, which is not a budget anyone chose. Retries stay at the
+// SDK's own default (2, with backoff, on 408/429/5xx/connection errors) but
+// are pinned here explicitly so the policy is visible and overridable.
+export const LLM_TIMEOUT_MS = Number(process.env.LLM_TIMEOUT_MS ?? 120_000);
+export const LLM_MAX_RETRIES = Number(process.env.LLM_MAX_RETRIES ?? 2);
+
 let _client: Anthropic | null = null;
 
 export function getClient(): Anthropic {
@@ -21,7 +33,11 @@ export function getClient(): Anthropic {
         "ANTHROPIC_API_KEY is not set. Add it to .env (see .env.example).",
       );
     }
-    _client = new Anthropic({ apiKey });
+    _client = new Anthropic({
+      apiKey,
+      timeout: LLM_TIMEOUT_MS,
+      maxRetries: LLM_MAX_RETRIES,
+    });
   }
   return _client;
 }

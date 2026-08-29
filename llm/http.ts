@@ -1,4 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
+import { LlmOutputError } from "./output";
 
 // Shared mapping of typed Anthropic SDK exceptions to a {status, error} pair for
 // the LLM-backed routes. Never string-match error messages — map the typed
@@ -23,8 +24,27 @@ export function llmErrorEvent(err: unknown): { status: number; error: string } {
       error: "AI service access denied — the configured API key lacks permission for this model. Check ANTHROPIC_API_KEY.",
     };
   }
+  // The hard timeout budget fired (LLM_TIMEOUT_MS in llm/client.ts). Checked
+  // before the generic APIError branch — it's a subclass with no status, and
+  // "AI service error (unknown)" hides the one thing the user can act on.
+  if (err instanceof Anthropic.APIConnectionTimeoutError) {
+    return {
+      status: 504,
+      error: "The AI service did not respond within its time budget. Try again — if it persists, the provider is degraded.",
+    };
+  }
   if (err instanceof Anthropic.APIError) {
     return { status: 502, error: `AI service error (${err.status ?? "unknown"}).` };
+  }
+  // The model answered, but the payload failed the output contract
+  // (llm/output.ts): preamble-wrapped, truncated, or shape-invalid JSON.
+  // Deterministic fallback message instead of a crashed panel; retrying is
+  // legitimate — generation is probabilistic and usually succeeds next call.
+  if (err instanceof LlmOutputError) {
+    return {
+      status: 502,
+      error: "The AI response did not match the expected format. Try again.",
+    };
   }
   if (err instanceof Error && err.message.includes("ANTHROPIC_API_KEY")) {
     return { status: 503, error: "AI service is not configured (missing API key)." };
