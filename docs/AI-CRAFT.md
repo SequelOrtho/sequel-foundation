@@ -51,6 +51,7 @@ Routing every interaction to a frontier reasoning model destroys margins; most q
 - **Never resend unbounded history.** Chat-style features cap and compact context; the input gate's size cap is the floor, deliberate history pruning is the feature's job. By turn 10 an uncompacted history is 8–15k tokens per turn — an order-of-magnitude cost and latency multiplier.
 - **A hard timeout budget is configuration** (code: `llm/client.ts` `LLM_TIMEOUT_MS`, default 120s): when the budget fires, the typed 504 surfaces and the route degrades to its deterministic path (keyword search, cached answer, human hand-off) — never an indefinite spinner.
 - **Know your cost per resolved task** before beta, not from the first invoice (§4, Gate 4).
+- **Spend alarms are a five-minute console task — do them at rollout, not after the first surprise invoice.** (1) Anthropic Console → the workspace's *Limits*: set a monthly spend cap and a notification threshold below it (per workspace, so one hub's runaway can't drain the org). (2) The deploy platform's usage alert (Netlify: Account → Billing → usage notifications; Azure: a Cost Management budget + alert on the resource group). (3) With v0.10 traces in place, a scheduled query over the trace table (`SUM(inputTokens), SUM(outputTokens) per feature per day`) is the per-feature early-warning line the consoles can't give you.
 
 ### 2.5 Output contract ("the quality inspector") — validate before display
 
