@@ -86,7 +86,7 @@ Per flow:
 
 ## 7. Writing & labels
 
-- **Title-case for buttons, tiles, and nav items**; sentence case for body and hints.
+- **Title Case for buttons, tiles, and nav items** — every word of a multi-word label is capitalized ("Portfolio Hub", "Audit Log", never "Portfolio hub"), across the top-nav menus and menu entries of every hub; sentence case for body and hints. (Owner ruling 2026-09-01, after sentence-case labels crept into the Project Hub's Portfolio and Admin menus.)
 - **The arrow (→) means hand-off** — pair it with accent actions; plain views stay arrow-less.
 - Say what unlocks a locked thing ("Complete due diligence to unlock"), not just that it's locked.
 - Error messages name the likely cause and the fix ("the configured API key lacks permission for this model — check ANTHROPIC_API_KEY").
