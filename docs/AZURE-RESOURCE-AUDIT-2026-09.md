@@ -235,8 +235,6 @@ Other external egress (unchanged, code-derived):
 
 Data-transfer notes: Neon's egress counter (`data_transfer_bytes`) replaced the §4 estimate; Netlify's bandwidth counter remains unread. Neon's `written_data_bytes` reported 0 on every branch and was ignored.
 
-**Owner action after this pass:** delete the `Resource Audit Sept 2026` Admin API key in the Anthropic console.
-
 ---
 
 *Source material: the five repositories at their main-branch heads on 2026-09-02, one real production build of `incident-event-hub`, Neon / Netlify platform documentation fetched the same day, and the live readings described in §7 taken on 2026-09-02 between 16:50 and 17:15 UTC. Per-hub working notes (query-by-query tables, byte-per-row derivations) are in the audit session and can be attached on request.*
