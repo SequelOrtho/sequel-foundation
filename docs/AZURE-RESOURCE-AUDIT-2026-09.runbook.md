@@ -70,6 +70,20 @@ Record per workspace (or per API key if everything sits in the default workspace
 `workspace_id: null`): requests, uncached input, cached input, cache-creation, output tokens,
 and USD cost. Map workspaces/keys to hubs by name. Never print the key; never write it to a file.
 
+**Fallback when `ANTHROPIC_ADMIN_KEY` is unset or returns 401.** Do not stop. In the Neon pass,
+on the Project Hub and Incident & Event Hub databases (the two with an `LlmTrace` table; the
+Acquisition Hub's `dbo.llm_traces` is on Azure SQL and unreachable here), run read-only:
+```sql
+SELECT feature, model, count(*) AS calls,
+       sum("inputTokens") AS input_tokens, sum("outputTokens") AS output_tokens,
+       percentile_cont(0.5) WITHIN GROUP (ORDER BY "latencyMs") AS p50_ms,
+       min("createdAt") AS first_seen, max("createdAt") AS last_seen
+FROM "LlmTrace" GROUP BY feature, model ORDER BY calls DESC;
+```
+Report tokens per hub and per feature as **Measured** (from app traces) and keep the cost line
+as an estimate at list price, tagged Derived, noting that the Console usage report was not
+available.
+
 ## D. Update the report
 
 1. Edit `docs/AZURE-RESOURCE-AUDIT-2026-09.md` in place: swap figures, change tags from
