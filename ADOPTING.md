@@ -19,7 +19,7 @@ Then work through the short **Template checklist** at the bottom of the template
 **1. Install** (public repo — no tokens needed anywhere):
 
 ```bash
-npm i "@sequel/foundation@github:SequelOrtho/sequel-foundation#v0.11.0"
+npm i "@sequel/foundation@github:SequelOrtho/sequel-foundation#v0.11.1"
 ```
 
 ```ts
@@ -58,7 +58,7 @@ The full subpath reference and consumption details are in the [README](README.md
 - **Dropdowns over 12 items are searchable.** Render any select whose list can grow (people, projects, entities, sites) as `<AdaptiveSelect>` — it stays a native `<select>` up to 12 options and becomes the fuzzy `SearchCombobox` beyond that, automatically. Hard-coded enums stay native. §3 in DESIGN-CONVENTIONS.md.
 - **Every action confirms; no page dead-ends.** Mutations pop a `toastSaved` confirmation — with an action link (`{ action: { label, href } }`) when there's a natural next step — and every leaf page links onward. Before shipping a PR that adds or moves a screen, run the §5a nav/flow review checklist in DESIGN-CONVENTIONS.md.
 - **Never copy foundation code into your app.** To change anything shared, make the change in this repo, tag a release, and bump the version pin in each app. That's what keeps every tool consistent.
-- **Pin a tag, not main.** Your `package.json` references a version tag (e.g. `#v0.11.0`), so foundation changes never reach your app until you choose to take them.
+- **Pin a tag, not main.** Your `package.json` references a version tag (e.g. `#v0.11.1`), so foundation changes never reach your app until you choose to take them.
 - **AI calls follow the pattern.** Models come from configuration (`modelFor` + `withModelFallback`), input passes the gate (`gateLlmInput`) before the call, responses stream with progress stages (`streamJob` / `consumeLlmStream`), structured output passes the contract (`parseLlmJson` + your type guard), errors are typed, and every call has a time budget. The template's `ai-demo` route is the reference. Before an AI feature reaches beta, it passes the 5-gate audit in [AI-CRAFT.md](docs/AI-CRAFT.md) — identity-filtered retrieval, a golden eval set (`runGoldenSet` + your cases), a rendered failure path, known unit economics with the route metered (`checkRateBudget` + your store), and replayable traces (`startLlmTrace` + your sink).
 
 ## Links
