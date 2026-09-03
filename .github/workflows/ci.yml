@@ -21,3 +21,36 @@ jobs:
       - run: npm ci
       - run: npm run typecheck
       - run: npm test
+
+  # Release tagging (CLAUDE.md "Releasing"): every merge to main whose
+  # package.json version has no matching tag gets `v<version>` cut on that
+  # exact commit as a GitHub Release. Remote Claude Code sessions cannot push
+  # tags (the git proxy limits pushes to work branches), so the version bump in
+  # the PR is the release action and this job does the tagging. Idempotent: a
+  # merge that does not bump the version is a no-op.
+  tag:
+    needs: test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Cut v<version> if package.json moved past the last tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          version=$(node -p "require('./package.json').version")
+          tag="v$version"
+          if git ls-remote --exit-code --tags origin "refs/tags/$tag" >/dev/null 2>&1; then
+            echo "$tag already exists — nothing to do."
+            exit 0
+          fi
+          echo "Cutting $tag at $GITHUB_SHA"
+          gh release create "$tag" \
+            --target "$GITHUB_SHA" \
+            --title "$tag" \
+            --generate-notes
+          git ls-remote --exit-code --tags origin "refs/tags/$tag"
+          echo "::notice title=Released::$tag → $GITHUB_SHA. Fleet pins: github:SequelOrtho/sequel-foundation#$tag"

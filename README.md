@@ -8,7 +8,7 @@ Three documents carry the accumulated know-how; read them before building anythi
 
 - **[docs/DESIGN-CONVENTIONS.md](docs/DESIGN-CONVENTIONS.md)** — the UX rules that make Sequel apps feel like one family.
 - **[docs/DECK-CRAFT.md](docs/DECK-CRAFT.md)** — everything learned generating board-quality pptx/docx/xlsx at runtime.
-- **[docs/AI-CRAFT.md](docs/AI-CRAFT.md)** — the demo-to-production rules for AI features: the five system boundaries, the 5-gate audit, and the per-infrastructure (Postgres/Neon vs Azure SQL, Netlify vs Azure) mapping. The `/ai-production-audit` skill (`.claude/skills/`) runs its scorecard against an app.
+- **[docs/AI-CRAFT.md](docs/AI-CRAFT.md)** — the demo-to-production rules for AI features: the five system boundaries, the 5-gate audit, and the per-infrastructure (Postgres/Neon vs Azure SQL, Netlify vs Azure) mapping. The `/ai-production-audit` skill (`.claude/skills/`) runs its scorecard against an app. The `/foundation-release` skill ships a release end to end (version-bump PR → CI auto-tag → fleet pin-bump PRs via `scripts/pin-foundation.sh`).
 
 ## Contents
 
@@ -35,7 +35,7 @@ Three documents carry the accumulated know-how; read them before building anythi
    ```jsonc
    // package.json
    "dependencies": {
-     "@sequel/foundation": "github:SequelOrtho/sequel-foundation#v0.11.1"
+     "@sequel/foundation": "github:SequelOrtho/sequel-foundation#v0.11.2"
    }
    ```
 
@@ -136,5 +136,5 @@ Versioning: tag releases (`v0.x.y`); consumers pin the tag in their git dependen
    grep -rnE "#v[0-9]+\.[0-9]+\.[0-9]+" README.md ADOPTING.md
    ```
 
-5. Commit, then tag: `git tag v0.x.y && git push --tags`.
-6. Bump the pin in each consumer as you choose to take the release: `Sequel_Ortho`, `project-insights`, `sequel-app-template`.
+5. Open the PR and squash-merge it. CI's `tag` job cuts `v0.x.y` as a GitHub Release on the merge commit automatically (it fires whenever `package.json`'s version has no tag yet). Confirm: `git ls-remote --tags origin v0.x.y`.
+6. Bump the pin in each fleet app (see CLAUDE.md's fleet table) with `scripts/pin-foundation.sh <app-dir> v0.x.y` — it uses the explicit `npm install <name>@<spec>` form, the only one that re-resolves a git dependency after a spec change — then run that app's gate and open its PR.

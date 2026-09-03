@@ -4,7 +4,7 @@ Guidance for Claude Code when working in this repository.
 
 ## What this repo is
 
-`@sequel/foundation` — the shared platform layer every Sequel Ortho application builds on: brand theme, UI primitives, UX conventions, deck/docs export kits, LLM plumbing. Consumed as a git dependency pinned to a version tag. **Read [docs/DESIGN-CONVENTIONS.md](docs/DESIGN-CONVENTIONS.md) before any UI work, [docs/DECK-CRAFT.md](docs/DECK-CRAFT.md) before deck/exporter work, and [docs/AI-CRAFT.md](docs/AI-CRAFT.md) before any AI-feature work** — they carry the accumulated family rules; new conventions land there in the same PR as the code that embodies them. The `/ai-production-audit` skill (`.claude/skills/`) runs AI-CRAFT's 5-gate scorecard against an app; it is stack-aware (Postgres/Neon vs Azure SQL / MS SQL, Netlify vs Azure), so audits stay valid as hubs migrate infrastructure.
+`@sequel/foundation` — the shared platform layer every Sequel Ortho application builds on: brand theme, UI primitives, UX conventions, deck/docs export kits, LLM plumbing. Consumed as a git dependency pinned to a version tag. **Read [docs/DESIGN-CONVENTIONS.md](docs/DESIGN-CONVENTIONS.md) before any UI work, [docs/DECK-CRAFT.md](docs/DECK-CRAFT.md) before deck/exporter work, and [docs/AI-CRAFT.md](docs/AI-CRAFT.md) before any AI-feature work** — they carry the accumulated family rules; new conventions land there in the same PR as the code that embodies them. The `/ai-production-audit` skill (`.claude/skills/`) runs AI-CRAFT's 5-gate scorecard against an app; it is stack-aware (Postgres/Neon vs Azure SQL / MS SQL, Netlify vs Azure), so audits stay valid as hubs migrate infrastructure. The `/foundation-release` skill runs the release flow below end to end (version-bump PR → auto-tag → fleet pin-bump PRs).
 
 ## Commands
 
@@ -13,14 +13,15 @@ Guidance for Claude Code when working in this repository.
 
 ## Releasing
 
-The flow that shipped v0.8.0 (Aug 2026):
+The version bump **is** the release. Everything else is automatic or scripted (`/foundation-release` skill).
 
 1. **One PR** carries the code, tests, and every doc surface: the README contents table, the ADOPTING.md "what's in the box" row (and layout step if wiring changed), and the DESIGN-CONVENTIONS entry when the change is a convention.
-2. **Version in the same PR**: bump `package.json` `"version"` and the `#vX.Y.Z` pin examples in README.md/ADOPTING.md.
-3. **Squash-merge** (history convention: one-line `type(scope): subject (#N)`), then tag the merge commit on main and push the tag:
-   `git tag vX.Y.Z <merge-sha> && git push origin vX.Y.Z`
-   - Remote Claude Code sessions cannot push tags (the git proxy limits pushes to work branches) — ask the owner to run the command, or cut a GitHub Release from the web UI targeting main (creates the tag server-side).
-   - Interim trick that keeps downstream PRs installable/green before the tag exists: pin apps to the **full merge-commit SHA** (`github:SequelOrtho/sequel-foundation#<40-char sha>` — npm resolves full-SHA committish without any ref), then swap the spec string to `#vX.Y.Z` once the tag is up: 2-line diff per app, the lockfile's resolved SHA doesn't change.
+2. **Version in the same PR**: bump `package.json` `"version"` (patch = additive prop/fix, minor = new primitive or convention, major = breaking) and the `#vX.Y.Z` pin examples in README.md/ADOPTING.md.
+3. **Squash-merge** (history convention: one-line `type(scope): subject (#N)`). The `tag` job in `.github/workflows/ci.yml` then cuts `vX.Y.Z` as a GitHub Release on the merge commit whenever `package.json`'s version has no tag yet (idempotent; a merge without a bump is a no-op). Confirm with `git ls-remote --tags origin vX.Y.Z`.
+   - Remote Claude Code sessions cannot push tags or delete branches (the git proxy limits pushes to work branches) — that is why CI tags. If the job ever fails, the owner fallback is `git tag vX.Y.Z <merge-sha> && git push origin vX.Y.Z` from a local clone, or a Release from the web UI targeting main.
+   - Interim trick while a tag is missing: pin apps to the **full merge-commit SHA** (`github:SequelOrtho/sequel-foundation#<40-char sha>`), then swap the spec to `#vX.Y.Z` later — the lockfile's resolved SHA does not change.
+4. **Fleet pin-bumps** go through `scripts/pin-foundation.sh <app-dir> vX.Y.Z`, which runs the explicit `npm install "@sequel/foundation@github:…#vX.Y.Z"` and fails unless the lockfile re-resolved to the tag's SHA. A plain `npm install` after a hand-edited spec reports "up to date" and silently keeps the old SHA.
+5. **Rulesets require up-to-date branches**: a green PR whose branch is behind main is refused with "Required status check 'test' is expected" — merge `origin/main` into the branch (merge commit, never rebase a shared branch), let CI re-run, then merge.
 
 ## The fleet (apps pinning this package)
 
@@ -28,13 +29,13 @@ A shared-behavior change is one PR here + tag, then one pin-bump PR per app, eac
 
 | Repo | App | Rollout notes |
 |---|---|---|
-| `project-insights` | Project Hub | PR template enforces the §5a checklist + full local gate (typecheck · lint · test · build); guide-regen rule applies only when the guide's prose covers the changed surface. Squash merges. |
-| `Sequel_Ortho` | Acquisition Hub | Imports UI through the `components/ui/index.ts` shim — a new foundation export used by this app must be re-exported there. **Merge commits**, not squash. |
+| `project-insights` | Project Hub | PR template enforces the §5a checklist + full local gate (typecheck · lint · test · build); guide-regen rule applies only when the guide's prose covers the changed surface. Squash merges. Largest CI (~6 min); forms use a local uppercase `labelCls` — pass it as `labelClassName` on converted dropdowns. |
+| `Sequel_Ortho` | Acquisition Hub | Imports UI through the `components/ui/index.ts` shim — a new foundation export used by this app must be re-exported there. Phase editors' `Select<T>` wrapper in `editors/_shared.tsx` fronts ~70 dropdowns (`EDITOR_SELECT_CLASS` / `EDITOR_LABEL_CLASS`) — change it once, not per site. **Merge commits**, not squash. |
 | `sequel-doc-hub` | Document Hub | **Merge commits**, not squash. |
-| `scheduler-hub` | Scheduler Hub | Squash. Header title hidden on phones — keep that treatment when touching the brand link. |
+| `scheduler-hub` | Scheduler Hub | Squash. Header title hidden on phones — keep that treatment when touching the brand link. Apex is Cloudflare-fronted — validate live via the deploy permalink. |
 | `incident-event-hub` | Incident & Event Hub | Squash. |
-| `sequel-audit-hub` | Audit Hub | Squash. |
-| `workers-comp-portal` | (unnamed) | Squash. ★ TEMPLATE checklist never completed — header/CLAUDE.md/README still say "Sequel App Template"; rename pending with the owner. |
+| `sequel-audit-hub` | Audit Hub | Squash. Apex domain is Cloudflare-fronted — validate live via the Netlify deploy permalink. |
+| `workers-comp-portal` | (unnamed) | Squash. ★ TEMPLATE checklist never completed — header/CLAUDE.md/README still say "Sequel App Template"; rename pending with the owner. No deploy target yet (template step 7), so nothing to validate live. |
 | `sequel-app-template` | new-app starter | Squash. ADOPTING.md points here for canonical layout wiring — keep `app/layout.tsx` current. |
 
 ## Lessons learned (Aug 2026, HomeLink rollout)
@@ -58,3 +59,13 @@ A shared-behavior change is one PR here + tag, then one pin-bump PR per app, eac
 - **`<label htmlFor>` is slow in jsdom.** Moving labels from wrapping to `htmlFor` made `getByLabelText` walk the whole document per label; a 130-dropdown questionnaire went from ~50 ms to ~8 s (Acquisition Hub). Query by control id/role in such tests; it is a jsdom artifact, not a runtime cost.
 - **Foundation label geometry is fixed** (`text-xs text-brand-muted`, `mt-0.5`). Hubs with their own uppercase `labelCls` show a mixed-case inconsistency on converted fields; a `labelClassName` prop on `AdaptiveSelect`/`SearchCombobox` is the fix if the owner wants parity.
 - **Live validation from a remote session:** Netlify's `get-project` → `currentDeploy` plus `get-deploy` `title` ("gh-actions: <sha> on main") proves which commit is live; fetch the deploy permalink, not the apex — Cloudflare bot-challenges the container (403) on some hub domains while the site is healthy.
+
+## Lessons learned (Sep 2026, v0.11.1 label pass + release automation)
+
+- **A hand-edited git-dep spec does not re-resolve.** After changing `"@sequel/foundation": "github:…#v0.11.1"` in package.json, `npm install` prints "up to date" and keeps the previous resolved SHA in the lockfile. Only `npm install "@sequel/foundation@github:…#v0.11.1"` re-resolves — `scripts/pin-foundation.sh` wraps that and asserts the SHA.
+- **CI tags, humans don't.** Sessions can't push tags or delete branches through the git proxy; the `tag` job now cuts `v<version>` on merge, so the version bump in the PR is the whole release action. Branch cleanup still happens from a local clone.
+- **"Required status check 'test' is expected" on a green PR means the branch is behind main** under a strict ruleset — merge main into it and let CI re-run; nothing is wrong with the check.
+- **Squash-merged branches read "1 ahead, 1 behind" forever.** That is the squash SHA differing, not unmerged work; verify with the PR's `merged_at` before deleting, and inspect any branch with no PR (the Azure resource audit sat unmerged that way).
+- **Match sibling label typography, don't restyle the control.** `labelClassName` exists so a converted dropdown's label matches its neighbours (`Field` = `text-sm text-zinc-600 dark:text-zinc-400`; Project Hub `labelCls`; Audit Hub navy labels); pass only typography utilities, never the wrapper's `flex flex-col gap-1`. Sites whose neighbours already use the foundation default, and every `hideLabel` site, need nothing.
+- **Hub `Field` labels vs. foundation control labels differ by design** (`text-sm` vs `text-xs`); a form that mixes `Field`-wrapped inputs with foundation controls will look uneven unless the control is told which style to match.
+
