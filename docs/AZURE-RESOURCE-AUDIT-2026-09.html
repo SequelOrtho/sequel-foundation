@@ -1,0 +1,348 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Sequel Fleet Resource Audit</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&family=Geist+Mono:wght@400;500&display=swap">
+<style>
+:root{
+  --ground:#ffffff; --surface:#f5f6f9; --surface-2:#eceef5; --line:#d9dce8; --line-strong:#b9bed3;
+  --ink:#1a1c3a; --ink-2:#4a4d6a; --muted:#707372;
+  --navy:#0f1263; --primary:#009ddd; --primary-ink:#006a9c; --lime:#cad400; --lime-ink:#7f8700;
+  --tag-measured-bg:#e6f6fc; --tag-measured-fg:#006a9c;
+  --tag-derived-bg:#f4f7d6; --tag-derived-fg:#5f6600;
+  --tag-assumed-bg:#f1f1f1; --tag-assumed-fg:#5c5e5d;
+  --warn-bg:#fff4e5; --warn-fg:#8a4b00;
+  --band:#0f1263; --band-ink:#ffffff; --band-sub:#c3eaf8;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --ground:#0b0c26; --surface:#13153a; --surface-2:#1b1e4a; --line:#2a2e5e; --line-strong:#3d4278;
+    --ink:#e6e8f4; --ink-2:#b8bcd6; --muted:#9a9db5;
+    --navy:#c3eaf8; --primary:#54c5ec; --primary-ink:#8fd9f2; --lime:#cad400; --lime-ink:#dfe66a;
+    --tag-measured-bg:#0e2b3d; --tag-measured-fg:#8fd9f2;
+    --tag-derived-bg:#2a2e0e; --tag-derived-fg:#dfe66a;
+    --tag-assumed-bg:#24263a; --tag-assumed-fg:#c2c4d4;
+    --warn-bg:#3a2a10; --warn-fg:#ffd08a;
+    --band:#080a3a; --band-ink:#ffffff; --band-sub:#8fd9f2;
+  }
+}
+:root[data-theme="dark"]{
+  --ground:#0b0c26; --surface:#13153a; --surface-2:#1b1e4a; --line:#2a2e5e; --line-strong:#3d4278;
+  --ink:#e6e8f4; --ink-2:#b8bcd6; --muted:#9a9db5;
+  --navy:#c3eaf8; --primary:#54c5ec; --primary-ink:#8fd9f2; --lime:#cad400; --lime-ink:#dfe66a;
+  --tag-measured-bg:#0e2b3d; --tag-measured-fg:#8fd9f2;
+  --tag-derived-bg:#2a2e0e; --tag-derived-fg:#dfe66a;
+  --tag-assumed-bg:#24263a; --tag-assumed-fg:#c2c4d4;
+  --warn-bg:#3a2a10; --warn-fg:#ffd08a;
+  --band:#080a3a; --band-ink:#ffffff; --band-sub:#8fd9f2;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--ground);color:var(--ink);font-family:"Montserrat",ui-sans-serif,system-ui,sans-serif;font-size:15px;line-height:1.6;-webkit-font-smoothing:antialiased}
+a{color:var(--primary-ink);text-decoration:none;border-bottom:1px solid var(--line-strong)}
+a:hover{border-bottom-color:var(--primary)}
+a:focus-visible,button:focus-visible{outline:2px solid var(--primary);outline-offset:2px}
+.band{background:var(--band);color:var(--band-ink);padding:44px 24px 40px}
+.band .in{max-width:1200px;margin:0 auto;display:grid;grid-template-columns:1fr auto;gap:24px;align-items:end}
+.eyebrow{font-size:11.5px;letter-spacing:.14em;text-transform:uppercase;font-weight:600;color:var(--band-sub)}
+.band h1{font-size:clamp(28px,4vw,40px);line-height:1.1;margin:10px 0 12px;font-weight:800;letter-spacing:-.01em;text-wrap:balance}
+.band p{margin:0;max-width:64ch;color:var(--band-sub);font-size:14.5px}
+.meta{font-family:"Geist Mono",ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12.5px;color:var(--band-sub);text-align:right;line-height:1.7}
+.meta b{color:var(--band-ink);font-weight:500}
+.wrap{max-width:1200px;margin:0 auto;padding:8px 24px 72px;display:grid;grid-template-columns:190px minmax(0,1fr);gap:36px}
+nav.toc{position:sticky;top:20px;align-self:start;padding-top:36px;font-size:13px}
+nav.toc .eyebrow{color:var(--muted);margin-bottom:10px}
+nav.toc a{display:block;border:0;padding:5px 0 5px 12px;border-left:2px solid var(--line);color:var(--ink-2)}
+nav.toc a:hover{border-left-color:var(--primary);color:var(--ink)}
+nav.toc a.q{font-weight:600}
+main{min-width:0}
+section{padding-top:36px}
+h2{font-size:22px;font-weight:800;color:var(--navy);margin:0 0 6px;letter-spacing:-.01em;text-wrap:balance}
+h2 .n{font-family:"Geist Mono",ui-monospace,monospace;font-weight:500;color:var(--primary);font-size:15px;margin-right:10px;vertical-align:2px}
+h3{font-size:16px;font-weight:700;color:var(--ink);margin:28px 0 8px}
+p{max-width:72ch;margin:0 0 14px}
+p.lede{font-size:16.5px;color:var(--ink-2)}
+ul,ol{max-width:72ch;padding-left:22px;margin:0 0 14px}
+li{margin:4px 0}
+strong{font-weight:700}
+code{font-family:"Geist Mono",ui-monospace,monospace;font-size:.88em;background:var(--surface-2);padding:1px 5px;border-radius:3px}
+pre{font-family:"Geist Mono",ui-monospace,monospace;font-size:12.5px;line-height:1.55;background:var(--surface);border:1px solid var(--line);padding:12px 14px;overflow-x:auto;margin:0 0 14px;max-width:100%}
+.tag{display:inline-block;font-size:10.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:2px 7px;border-radius:3px;vertical-align:1px;white-space:nowrap}
+.tag.m{background:var(--tag-measured-bg);color:var(--tag-measured-fg)}
+.tag.d{background:var(--tag-derived-bg);color:var(--tag-derived-fg)}
+.tag.a{background:var(--tag-assumed-bg);color:var(--tag-assumed-fg)}
+.legend{display:flex;flex-wrap:wrap;gap:10px 22px;margin:12px 0 4px;font-size:13.5px;color:var(--ink-2)}
+.legend span{display:flex;gap:8px;align-items:center}
+/* answers */
+.answers{display:grid;gap:0;border-top:2px solid var(--navy);margin:18px 0 8px}
+.ans{display:grid;grid-template-columns:56px 220px minmax(0,1fr);gap:18px;padding:16px 0;border-bottom:1px solid var(--line);align-items:start}
+.ans .num{font-family:"Geist Mono",ui-monospace,monospace;font-size:26px;font-weight:500;color:var(--primary);line-height:1}
+.ans .q{font-weight:700;color:var(--navy);font-size:14px;line-height:1.4}
+.ans .a{font-size:14.5px;color:var(--ink);max-width:none}
+.ans .a p{max-width:none;margin:0}
+.ans .a .big{font-family:"Geist Mono",ui-monospace,monospace;font-size:15px;font-weight:500;color:var(--ink);background:linear-gradient(transparent 62%,color-mix(in srgb,var(--lime) 45%,transparent) 62%)}
+.callout{border-left:4px solid var(--lime);background:var(--surface);padding:14px 18px;margin:20px 0;max-width:none}
+.callout p{max-width:none;margin:0}
+.warn{border-left:4px solid #e0a600;background:var(--warn-bg);color:var(--warn-fg);padding:12px 16px;margin:14px 0}
+.warn p{margin:0;max-width:none;color:inherit}
+/* tables */
+.tbl{overflow-x:auto;margin:12px 0 18px;border:1px solid var(--line);border-radius:4px}
+table{border-collapse:collapse;width:100%;font-size:13px;line-height:1.45}
+th,td{padding:8px 10px;text-align:left;vertical-align:top;border-bottom:1px solid var(--line)}
+th{background:var(--surface);font-size:11.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-2);font-weight:700;white-space:nowrap}
+tr:last-child td{border-bottom:0}
+td.num,th.num{font-variant-numeric:tabular-nums;white-space:nowrap}
+td b{color:var(--ink)}
+tr.total td{background:var(--surface-2);font-weight:700}
+.small{font-size:13px;color:var(--muted)}
+footer{max-width:1200px;margin:0 auto;padding:24px;border-top:1px solid var(--line);color:var(--muted);font-size:12.5px}
+@media (max-width:1000px){.wrap{grid-template-columns:1fr}nav.toc{display:none}.band .in{grid-template-columns:1fr}.meta{text-align:left}.ans{grid-template-columns:44px 1fr}.ans .a{grid-column:2}}
+@media (prefers-reduced-motion:reduce){*{scroll-behavior:auto}}
+</style>
+</head><body>
+
+<header class="band">
+  <div class="in">
+    <div>
+      <div class="eyebrow">Sequel Ortho · Platform engineering</div>
+      <h1>Sequel Fleet Resource Audit</h1>
+      <p>Compute, database, and traffic baselines for the five production hubs, prepared ahead of the move to the Azure operating environment.</p>
+    </div>
+    <div class="meta">
+      <div><b>2 September 2026</b></div>
+      <div><b>Measured on 2 September 2026</b> — Neon and Netlify connectors, Anthropic Admin API; read-only</div>
+      <div>In scope: Project Hub · Incident &amp; Event Hub · Scheduler Hub · Acquisition Hub · Audit Hub</div>
+      <div>Excluded by request: Document Hub · Legal-UI · Workers-Comp · event-reporter</div>
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+<nav class="toc" aria-label="Contents">
+  <div class="eyebrow">Contents</div>
+  <a href="#answers">The five answers</a>
+  <a href="#q1" class="q">1 · Web applications</a>
+  <a href="#q2" class="q">2 · Databases</a>
+  <a href="#q3" class="q">3 · Database server</a>
+  <a href="#q4" class="q">4 · App ↔ database traffic</a>
+  <a href="#q5" class="q">5 · App ↔ user traffic</a>
+  <a href="#plan">Items to plan for</a>
+  <a href="#verify">Measurement pass</a>
+</nav>
+
+<main>
+<section id="answers">
+  <h2>How to read this</h2>
+  <p class="lede">The first edition of this report (2 September, morning) was derived from the code, schemas, seeds, deploy configuration, one real production build, and platform documentation. This edition replaces those figures with live readings wherever a connector or API exposed one: the Neon API for every project and database, the Netlify API for every site and its production deploy, and the Anthropic Admin API usage and cost reports for the 30 days ending today. Each number still carries a confidence tag. Where a measurement differed from the original estimate by more than 2×, the line keeps a short "estimate was" note. The last section records which checks completed and which the connectors could not return.</p>
+  <div class="legend">
+    <span><span class="tag m">Measured</span> read from a live API or SQL reading, code, config, or a real build</span>
+    <span><span class="tag d">Derived</span> computed from measured inputs (rows × bytes per row, page loads × payload, tokens × list price)</span>
+    <span><span class="tag a">Assumed</span> a stated planning assumption; the derived figure moves with it</span>
+  </div>
+
+  <h3>The five answers at a glance</h3>
+  <div class="answers">
+    <div class="ans"><div class="num">1</div><div class="q">Number and stats of the web applications (CPU, memory)</div>
+      <div class="a"><p><span class="big">5 deployed apps</span>, all Next.js 16 on Netlify (team plan <b>Pro</b> <span class="tag m">Measured</span>). Each runs as one serverless function at <span class="big">1,024 MB RAM / ≈0.6 vCPU-equivalent</span> — the 1,024 MB is now read from every production deploy record — scale-to-zero, no reserved instances. Two apps run a background function; one has a scheduled function whose schedule the deploy record does not list (see Section 1). Node runtimes are mixed: 20, 22 and 24. Two further repos (the shared foundation library and the app template) consume no runtime resources.</p></div></div>
+    <div class="ans"><div class="num">2</div><div class="q">Number and size of the databases</div>
+      <div class="a"><p><span class="big">4 Neon Postgres databases + 1 document store</span> (Netlify Blobs; an Azure SQL adapter is written but not provisioned). Fleet total <span class="big">52 MB of database size today</span> <span class="tag m">Measured</span> (15 + 11 + 16 + 9.8 MB), 150 MB of Neon-billed storage including history; <span class="big">≈0.4–0.6 GB at 12 months</span> stays <span class="tag d">Derived</span> and the measured growth rates point to the low end. Attachments in Blobs today: 2 files, 101 KB.</p></div></div>
+    <div class="ans"><div class="num">3</div><div class="q">Size of the database server</div>
+      <div class="a"><p>Neon <span class="big">Scale plan (paid)</span>, one project per hub, each compute configured <span class="big">0.25 → 8 CU</span> autoscaling (1 CU = 1 vCPU + 4 GB), default 5-minute suspend. Measured for the current consumption period: <span class="big">≈10 active compute-hours and ≈2.7 CU-hours fleet-wide</span>, so the computes average 0.26 CU while awake and sit suspended the rest of the time. <span class="small">Estimate was "Free plan, capped at 2 CU".</span></p></div></div>
+    <div class="ans"><div class="num">4</div><div class="q">Data between applications and databases</div>
+      <div class="a"><p><span class="big">≈52 MB of Neon-metered egress fleet-wide for the current period</span> <span class="tag m">Measured</span> (Project Hub 44 MB, Audit Hub 4.8 MB, Incident Hub 2.5 MB, Scheduler Hub 0.6 MB). <span class="small">Estimate was ≈15–25 GB per month; the whole measured month is below one estimated peak hour.</span> The 12-month figures are kept as Derived worst cases for the unbounded read paths, not as forecasts.</p></div></div>
+    <div class="ans"><div class="num">5</div><div class="q">Data between applications and users at peak</div>
+      <div class="a"><p><span class="big">≈0.3–0.45 GB per peak hour</span> fleet-wide (≈25–35 GB per month), still <span class="tag d">Derived</span>: the Netlify connector exposes no bandwidth, invocation or GB-hour usage. Client payload sizes remain Measured from a real build. Given how far the measured database and LLM traffic fell below the estimates, treat this as an upper bound.</p></div></div>
+  </div>
+
+  <div class="callout"><p><strong>Bottom line for Azure sizing.</strong> This is a low-concurrency, small-data fleet running at pilot-level load today: the measurements sit one to two orders of magnitude below the code-derived estimates. The binding constraints are unchanged: memory for in-process Office-file generation and ingest (1 GB minimum, 2 GB comfortable), request timeouts for 60–120 second AI calls, a job runner for three long-running lanes, and connection pooling. CPU, storage, and bandwidth are not constraints at any tier. One new item from the measurement: three of the four databases sit in a different AWS region from the functions that call them (Section 3).</p></div>
+</section>
+
+<section id="q1">
+  <h2><span class="n">01</span>Web applications</h2>
+  <h3>Inventory <span class="tag m">Measured</span> <span class="small">Netlify API, 2 Sep 2026</span></h3>
+  <div class="tbl"><table>
+    <tr><th>App</th><th>Repo</th><th>Netlify site → production host</th><th>Production deploy</th><th class="num">Node</th><th class="num">Pages / API routes</th><th>Users <span class="tag a">Assumed</span></th><th>Peak concurrent <span class="tag a">Assumed</span></th></tr>
+    <tr><td><b>Project Hub</b></td><td><code>project-insights</code></td><td>project-insights-seq → sequelorthoprojects.com (Cloudflare-fronted)</td><td>2 Sep 2026 16:35 UTC, from main</td><td class="num">20</td><td class="num">75 / 121</td><td>~40–60 active; 147 Person rows and 42 authoritative members <span class="tag m">Measured</span> today (was 165 / 41 in July)</td><td>10–15 (2–3× in the monthly status week)</td></tr>
+    <tr><td><b>Incident &amp; Event Hub</b></td><td><code>incident-event-hub</code></td><td>sequel-incident-hub → sequelincidenthub.com</td><td>2 Sep 2026 13:36 UTC</td><td class="num">22</td><td class="num">26 / 79</td><td>10–25 named staff across 13 roles; every employee as an anonymous reporter</td><td>5–15</td></tr>
+    <tr><td><b>Scheduler Hub</b></td><td><code>scheduler-hub</code></td><td>sequel-scheduler-hub → sequelscheduler.com</td><td>2 Sep 2026 00:48 UTC</td><td class="num">22</td><td class="num">21 / 18</td><td>~10 coordinators and admins; 100 providers (100 Provider rows <span class="tag m">Measured</span>)</td><td>5–15</td></tr>
+    <tr><td><b>Acquisition Hub</b></td><td><code>Sequel_Ortho</code></td><td>sequel-ortho-playbook → <b>sequelorthoplaybook.com</b> (a custom domain is configured; the code audit had found none)</td><td>29 Aug 2026 17:01 UTC, from main</td><td class="num">24</td><td class="num">16 / 15</td><td>Deal team, IMO leads, steering committee: 3–10</td><td>3–5</td></tr>
+    <tr><td><b>Audit Hub</b></td><td><code>sequel-audit-hub</code></td><td>sequel-audit-hub → sequelaudit.com (Cloudflare IP allow-list)</td><td>29 Aug 2026 15:19 UTC</td><td class="num">22</td><td class="num">12 / 13</td><td>~30 therapy staff plus 3–5 leadership uploaders</td><td>5–10</td></tr>
+    <tr><td class="small">—</td><td><code>sequel-foundation</code></td><td class="small">Not deployed: shared library consumed as git dependency v0.10.0</td><td class="small">—</td><td class="num">—</td><td class="num">—</td><td>—</td><td>—</td></tr>
+    <tr><td class="small">—</td><td><code>sequel-app-template</code></td><td class="small">Not deployed: starter template</td><td class="small">—</td><td class="num">—</td><td class="num">—</td><td>—</td><td>—</td></tr>
+  </table></div>
+  <p>The team (buckygrad, plan <b>Pro</b>, one member) has seven sites. Besides the five above: <code>sequel-doc-hub</code> → sequeldocs.com (excluded by request) and <code>settleiq</code> (settleiq.netlify.app, last deployed March 2026, not a Sequel hub; out of scope, noted for completeness). Every site has the Netlify observability extension and skew protection enabled; none uses Forms, password protection, or team SSO.</p>
+  <p>All five share one stack: Next.js 16.2 App Router, React 19, the foundation package v0.10.0, and Auth.js v5 with Microsoft Entra ID using JWT sessions (no session table). Four use Prisma 7 over Postgres. The Acquisition Hub uses a store interface with memory, Netlify Blobs, and Azure SQL adapters. All five deploy through the Netlify Next.js plugin 5.15.13.</p>
+
+  <h3>Compute today on Netlify <span class="tag m">Measured</span> <span class="small">production deploy records</span></h3>
+  <div class="tbl"><table>
+    <tr><th>Component</th><th>Allocation</th><th>Notes</th></tr>
+    <tr><td>Server function (SSR + API routes), one per app</td><td><b>1,024 MB RAM on all five</b> (memory: 1024 on every server handler), streaming invocation mode. CPU is proportional to memory on the underlying AWS Lambda: <b>≈0.6 vCPU-equivalent</b> at 1,024 MB.</td><td>Synchronous limit 60 s (documented; the deploy record does not expose the timeout). Function region <b>us-east-2 (cmh)</b> for Project, Incident, Scheduler, and Audit Hubs; <b>us-east-1 (iad)</b> for the Acquisition Hub. Bundle sizes 24–37 MB.</td></tr>
+    <tr><td>Edge function (middleware), one per app</td><td>Netlify edge runtime</td><td>Present on four sites. <b>The Audit Hub deploys no edge function</b>, consistent with its no-auth-layer posture.</td></tr>
+    <tr><td>Background functions</td><td>1,024 MB, <b>15-minute</b> cap, 256 KB payload</td><td>Project Hub AI-job worker (Node 20, background mode) and Acquisition Hub full-playbook narrative worker (Node 24, background mode), both present.</td></tr>
+    <tr><td>Scheduled function</td><td>30 s cap</td><td>Scheduler Hub nightly horizon is deployed (built 15 Aug, runtime API v1) <b>but the production deploy's schedule list is empty</b>, and the database shows no schedule-assignment or audit rows since 27 Aug (Section 2). Verify in the Netlify UI that the 03:00 Central schedule is still registered before assuming the nightly lane works.</td></tr>
+    <tr><td>GitHub Actions crons</td><td>n/a</td><td>Project Hub: daily alerts run (13:00 UTC) and weekly AI-job prune (Sunday 06:00 UTC). Both reach the app or the database directly from GitHub runners. All five production deploys are published by GitHub Actions.</td></tr>
+  </table></div>
+  <p><span class="tag m">Measured</span> Calibration build of the Incident &amp; Event Hub in this session: client JavaScript <b>389 KB gzipped across all chunks</b> (a typical page loads 120–260 KB), server build output <b>45 MB</b>, dependency tree <b>1.2 GB</b> (Prisma 172 MB, Next 173 MB, ExcelJS 23 MB, recharts 10 MB, docx 7 MB).</p>
+
+  <h3>Memory- and time-heavy work per app</h3>
+  <div class="tbl"><table>
+    <tr><th>App</th><th>Heaviest in-process work</th><th>Long-running paths</th></tr>
+    <tr><td><b>Project Hub</b></td><td>PowerPoint decks from a 4.9 MB brand template (0.5–1.5 MB output; est. 200–400 MB peak memory); ExcelJS workbook imports and exports; Word guides</td><td>10 AI routes at 120 s; Opus-class calls take 20–60 s; background AI-job lane up to 15 min (<b>0 AI-job rows and 0 LLM-trace rows in production today</b>; the lane has not been exercised)</td></tr>
+    <tr><td><b>Incident &amp; Event Hub</b></td><td>ExcelJS register export up to 5,000 rows (est. 50–150 MB); 4 MiB uploads buffered in memory</td><td>AI assists 5–60 s <b>synchronously</b>; no background lane. One production trace so far: categorize, 14.0 s.</td></tr>
+    <tr><td><b>Scheduler Hub</b></td><td>Dashboard loads nested assignment rows (est. 50–100 MB heap at 8,000 rows; <b>368 assignment rows today</b>); ExcelJS weekly export</td><td>Nightly horizon regeneration: ~500 statements in one interactive transaction, est. 10–20 s at 100 providers</td></tr>
+    <tr><td><b>Acquisition Hub</b></td><td>PowerPoint from a <b>10.9 MB</b> template plus a 1.9 MB pitch library (1–4 MB output); streamed responses observed failing at 2.3–4.5 MB on Netlify</td><td>Full-playbook augment 60–120 s and more, background up to 15 min; the browser polls every 3 s</td></tr>
+    <tr><td><b>Audit Hub</b></td><td>ExcelJS ingest parses the whole workbook in memory (est. 5–10× file size, so 300–600 MB for a 6 MB upload); charge exports 5–15 MB at 12 months</td><td>Ingest commit: a delete-and-insert inside one interactive transaction (23 batches, 629 rows total so far <span class="tag m">Measured</span>)</td></tr>
+  </table></div>
+
+  <h3>Suggested Azure equivalents (recommendation, not a measurement)</h3>
+  <ul>
+    <li><strong>Web tier.</strong> One App Service Linux plan <b>P1v3 (2 vCPU / 8 GB)</b> hosting all five apps as separate web apps, or <b>P0v3 (1 vCPU / 4 GB) per app</b> if isolation matters. Measured load is far below one request per second. Memory headroom for Office-file generation drives the size, not CPU. Keep one always-on instance per app: every page is rendered on demand, so 1–3 s cold starts are user-visible.</li>
+    <li><strong>Job tier.</strong> One Container Apps Job or Functions (Premium or Flex) runner for the three long lanes (Project Hub AI jobs, Acquisition Hub augment, Scheduler nightly horizon) and the two GitHub-cron tasks. All three lanes are already token-gated HTTP callbacks, so only the trigger moves.</li>
+    <li><strong>Request timeout.</strong> At least 120 s on the web tier for AI routes, with streaming enabled and response buffering off.</li>
+    <li><strong>Pin one Node major</strong> (22 or 24) across the fleet during the move; today three majors are in production.</li>
+  </ul>
+</section>
+
+<section id="q2">
+  <h2><span class="n">02</span>Databases</h2>
+  <h3>Inventory and size <span class="tag m">Measured</span> <span class="small">Neon API and read-only SQL, 2 Sep 2026</span></h3>
+  <div class="tbl"><table>
+    <tr><th>App</th><th>Neon project · region · PG</th><th class="num">Tables</th><th class="num">Database size today</th><th class="num">Neon storage incl. history</th><th class="num">Size at 12 months <span class="tag d">Derived</span></th><th>Growth driver, measured today</th></tr>
+    <tr><td><b>Project Hub</b></td><td><code>bold-cherry-02731021</code> · us-east-2 · PG 18</td><td class="num">72</td><td class="num"><b>15 MB</b><br><span class="small">Project 640 kB, AlertLog 400 kB, AuditLog 312 kB, AiJob 272 kB</span></td><td class="num">39.8 MB</td><td class="num"><b>60–120 MB</b></td><td>Audit log <b>710 rows since 18 Jun (≈9 a day, ≈3.4k a year)</b>; 739 alert rows; 514 projects; LLM-trace and AI-job tables both <b>empty</b></td></tr>
+    <tr><td><b>Incident &amp; Event Hub</b></td><td><code>flat-resonance-94441967</code> · us-east-1 · PG 17 · <b>HIPAA enabled, extended audit logging</b></td><td class="num">47</td><td class="num"><b>11 MB</b><br><span class="small">ComplianceMeasureEntry 600 kB (1,527 rows), AuditLog 192 kB</span></td><td class="num">34.8 MB</td><td class="num"><b>50–80 MB</b></td><td>Audit log <b>371 rows in 29 days (≈13 a day, ≈4.7k a year)</b>. <span class="small">Estimate was 75–150k rows a year.</span> 19 incident events; 1 LLM trace</td></tr>
+    <tr><td><b>Scheduler Hub</b></td><td><code>late-river-90207517</code> · us-east-1 · PG 18</td><td class="num">25</td><td class="num"><b>16 MB</b><br><span class="small">AuditLog <b>6.6 MB (41% of the database)</b>, ScheduleAssignment 432 kB</span></td><td class="num">41.1 MB</td><td class="num"><b>~200 MB</b></td><td>Audit log <b>21,269 rows</b>, all between 6 and 27 Aug (bulk generation), <b>2 rows in the last 7 days</b>; schedule assignments <b>368 rows</b>, last written 27 Aug. <span class="small">Estimate was ~1,000 rows a week.</span> No rows of either since 27 Aug (see the nightly schedule note in Section 1)</td></tr>
+    <tr><td><b>Audit Hub</b></td><td><code>damp-wave-17284476</code> · us-east-1 · PG 18</td><td class="num">18</td><td class="num"><b>9.8 MB</b><br><span class="small">ChargeLine 728 kB (480 rows), Denial 136 kB</span></td><td class="num">34.0 MB</td><td class="num"><b>15–150 MB</b></td><td>480 charge lines with service dates 21 May–17 Aug (seeded); 23 ingest batches / 629 rows 17–31 Aug; 4 PI-feed snapshots; <b>no audit-log table</b> in this app</td></tr>
+    <tr><td><b>Acquisition Hub</b></td><td>Netlify Blobs (JSON documents). Azure SQL adapter written, DDL as a comment, <b>not provisioned</b></td><td class="num">5 in the DDL</td><td class="num"><b>&lt;5 MB</b><br><span class="small">38 KB base playbook from code; blob size not exposed by the connector</span></td><td class="num">—</td><td class="num"><b>≤10 MB</b></td><td>10–20 deals a year <span class="tag a">Assumed</span></td></tr>
+    <tr class="total"><td>Fleet total</td><td></td><td></td><td class="num">52 MB<br><span class="small">estimate was ≈0.1 GB</span></td><td class="num">150 MB</td><td class="num">≈0.4–0.6 GB<br><span class="small">measured growth points to the low end</span></td><td></td></tr>
+  </table></div>
+  <p>All four projects report history retention of 6 hours and a 16 TB logical-size limit; the API's written-data counter reads 0 on every branch and was not used. The Audit Hub project carries a second branch with its own compute endpoint, idle since 17 Aug, and its default branch was in Neon's <b>archived</b> state at measurement time (Neon parks idle branches in cold storage; the first connection un-archives it and pays an extra cold start).</p>
+  <p>No database stores binary files. File content lives outside the databases:</p>
+  <div class="tbl"><table>
+    <tr><th>Store</th><th>Contents</th><th>Limit</th><th>Today <span class="tag m">Measured</span></th><th class="num">Est. at 12 months <span class="tag d">Derived</span></th></tr>
+    <tr><td>Netlify Blobs <code>attachments</code> (Incident &amp; Event Hub)</td><td>Uploaded evidence (images, PDF, Office, audio) and generated letters</td><td>4 MiB per file</td><td><b>2 files, 101 KB</b> from the attachment table (feedback and privacy attachment tables empty). The connector does not expose Blob store size directly.</td><td class="num"><b>0.3–0.6 GB</b> at the spec's assumed upload rate</td></tr>
+    <tr><td>Netlify Blobs (Acquisition Hub)</td><td>Playbook and deal-analysis documents</td><td>—</td><td>not exposed</td><td class="num">&lt;10 MB</td></tr>
+    <tr><td>Netlify Blobs <code>ai-jobs</code> (Project Hub)</td><td>Fallback only; production keeps AI jobs in Postgres</td><td>—</td><td>~0 (AI-job table empty)</td><td class="num">~0</td></tr>
+  </table></div>
+  <p>Every database fits the smallest Azure tier by volume. Provision for connections and IOPS, not gigabytes: the 32 GB minimum Flexible Server disk is more than a decade of headroom at the specs' stated ceilings, and more than two centuries at the measured run-rate.</p>
+</section>
+
+<section id="q3">
+  <h2><span class="n">03</span>Database server</h2>
+  <h3>Neon today <span class="tag m">Measured</span> <span class="small">Neon API, 2 Sep 2026</span></h3>
+  <div class="tbl"><table>
+    <tr><th>Property</th><th>Value</th></tr>
+    <tr><td>Organisation and plan</td><td>Org <code>org-falling-cell-70790666</code> ("Mike"), <b>Scale plan</b> (paid). <span class="small">Estimate was Free.</span></td></tr>
+    <tr><td>Model</td><td>Serverless Postgres, <b>one Neon project per hub</b> (four in scope; a fifth, sequel-doc-hub, is excluded). Project Hub in <b>aws-us-east-2</b>; Incident, Scheduler, and Audit Hubs in <b>aws-us-east-1</b></td></tr>
+    <tr><td>Compute Unit</td><td><b>1 CU = 1 vCPU + 4 GB RAM</b></td></tr>
+    <tr><td>Configured autoscaling</td><td><b>min 0.25 CU → max 8 CU on every project</b> (from the project default endpoint settings and each endpoint). <span class="small">Estimate was "capped at 2 CU on Free".</span></td></tr>
+    <tr><td>Scale-to-zero</td><td>Suspend timeout 0 = the platform default of <b>5 minutes</b>. Every endpoint was idle at measurement time; each one's suspended-at is 5–6 minutes after its last-active.</td></tr>
+    <tr><td>Measured consumption, current period (see note)</td><td>Active time / compute time / egress. Project Hub <b>3.6 h / 0.98 CU-h / 44.2 MB</b>; Incident Hub <b>1.7 h / 0.44 CU-h / 2.5 MB</b>; Scheduler Hub <b>0.34 h / 0.09 CU-h / 0.6 MB</b>; Audit Hub <b>4.6 h / 1.17 CU-h / 4.8 MB</b>. <b>Fleet: ≈10.2 active hours, ≈2.7 CU-hours, ≈52 MB egress.</b> Compute time ÷ active time = <b>0.26 CU average while awake</b>: the computes never leave the floor.</td></tr>
+    <tr><td>Postgres version</td><td>18 on three projects, <b>17 on the Incident &amp; Event Hub</b></td></tr>
+    <tr><td>Compliance settings</td><td>Incident &amp; Event Hub: HIPAA on (since 26 Aug), extended audit logging, maintenance window Saturday 08:00–09:00 UTC. The other three: HIPAA off.</td></tr>
+    <tr><td>Connection path</td><td>All four apps use the <b>pooled</b> (PgBouncer, transaction mode) host; Prisma 7 with the pg driver adapter, one pool per warm function instance. Passwordless access is enabled on every endpoint.</td></tr>
+  </table></div>
+  <p class="small">Consumption-period note: the API reports these counters for the current billing period with a quota reset on 1 October 2026 and does not expose the period start. The excluded Document Hub project still shows non-zero usage despite no activity since 29 Aug, so the counters were not reset on 1 September; treat the window as roughly August to date (≈30 days). Three of the four projects were created in August anyway (Incident 4 Aug, Scheduler 6 Aug, Audit 8 Aug; Project Hub 9 Jun).</p>
+  <div class="warn"><p><strong>Region mismatch (new finding).</strong> The Incident, Scheduler, and Audit Hub functions run in Netlify's us-east-2 region while their Neon computes are in us-east-1, so every query crosses AWS regions (roughly 10–15 ms extra per round-trip). The Project Hub (us-east-2 on both sides) and the Acquisition Hub (us-east-1 functions, no Neon) are aligned. On Azure, keep the web tier and the database in the same region and the problem disappears.</p></div>
+  <p>The honest "current database server size" is therefore <b>≈0.25 vCPU / 1 GB per hub</b>, with an 8 CU ceiling that has never been approached: 2.7 CU-hours across ≈10 active hours means the fleet has not needed more than the floor.</p>
+
+  <h3>Azure equivalents (recommendation)</h3>
+  <div class="tbl"><table>
+    <tr><th>Option</th><th>Fit</th></tr>
+    <tr><td><b>Azure Database for PostgreSQL Flexible Server, Burstable B2s (2 vCPU / 4 GB), one server, four databases</b></td><td>Matches today's aggregate load with a wide margin (the measured fleet averages 0.26 CU, about a quarter of a vCPU, while awake). Enable the built-in PgBouncer; 32 GB storage. Simplest to operate.</td></tr>
+    <tr><td>Burstable <b>B1ms (1 vCPU / 2 GB) per hub</b></td><td>If per-hub isolation or separate backup policies are required (the Incident &amp; Event Hub's HIPAA flag argues for isolating it).</td></tr>
+    <tr><td><b>Azure SQL</b> for the Acquisition Hub: serverless General Purpose 0.5–1 vCore with auto-pause, or Basic/S0</td><td>The adapter and DDL already exist. Two mssql pools per process at driver defaults (max 10 each).</td></tr>
+  </table></div>
+  <p>Two Prisma patterns need a session-mode or direct connection rather than transaction-mode PgBouncer: the Scheduler Hub horizon transaction (~500 statements) and the Audit Hub ingest commit. Give the job lane its own direct connection string.</p>
+</section>
+
+<section id="q4">
+  <h2><span class="n">04</span>Data between applications and databases</h2>
+  <p><span class="tag m">Measured</span> Neon-metered egress from each default branch for the current period (≈30 days): Project Hub <b>44.2 MB</b>, Audit Hub <b>4.8 MB</b>, Incident &amp; Event Hub <b>2.5 MB</b>, Scheduler Hub <b>0.6 MB</b>, so <b>≈52 MB fleet-wide for the whole period</b>. <span class="small">The original estimate was ≈15–25 GB a month; the measured month is below what the estimate allowed for a single peak hour.</span> Neon exposes no per-hour or per-query breakdown through the connector, so the peak-hour columns below remain the code-derived model, kept as an <b>upper bound</b> with its assumptions (<span class="tag a">Assumed</span> 5–15 concurrent users per app at peak, one session per user per peak hour) explicitly unverified; the measured egress implies usage today is a small fraction of that.</p>
+  <div class="tbl"><table>
+    <tr><th>App</th><th>Per session <span class="tag d">Derived</span></th><th class="num">Peak hour today <span class="tag d">Derived</span> upper bound</th><th class="num">Peak hour at 12-month adoption <span class="tag d">Derived</span></th><th class="num">Measured egress, current period <span class="tag m">Measured</span></th><th class="num">Queries at peak <span class="tag d">Derived</span></th></tr>
+    <tr><td><b>Project Hub</b></td><td>5–12 MB, 120–150 queries</td><td class="num">40–80 MB<br><span class="small">150–250 MB in the monthly status week</span></td><td class="num">same</td><td class="num"><b>44.2 MB</b></td><td class="num">1–2k / hr</td></tr>
+    <tr><td><b>Incident &amp; Event Hub</b></td><td>1.5–3 MB, 60–90 queries</td><td class="num">30–50 MB<br><span class="small">+15 MB per 5,000-row register export</span></td><td class="num">50–80 MB</td><td class="num"><b>2.5 MB</b></td><td class="num">1–1.5k / hr</td></tr>
+    <tr><td><b>Scheduler Hub</b></td><td>6 MB today → 30 MB at 100 providers</td><td class="num">~60 MB</td><td class="num">~310 MB<br><span class="small">incl. 11 MB calendar-feed polling</span></td><td class="num"><b>0.6 MB</b></td><td class="num">2.6k / hr</td></tr>
+    <tr><td><b>Acquisition Hub</b></td><td>10–15 MB<br><span class="small">augment polling dominates</span></td><td class="num">50–150 MB</td><td class="num">same</td><td class="num">n/a<br><span class="small">Blobs; not metered by the connector</span></td><td class="num">&lt;1 req / s</td></tr>
+    <tr><td><b>Audit Hub</b></td><td>0.3 MB today; 65 MB at 12 months when a charges page is opened</td><td class="num">~20 MB</td><td class="num">100 MB bounded<br>up to 1.3 GB if the charges and productivity pages keep reading every charge row</td><td class="num"><b>4.8 MB</b></td><td class="num">~100 views / hr</td></tr>
+    <tr class="total"><td>Fleet</td><td></td><td class="num">≈0.2–0.35 GB / hr (upper bound)</td><td class="num">≈0.6–0.9 GB / hr<br><span class="small">≈2 GB/hr worst case</span></td><td class="num">≈52 MB / period</td><td class="num">&lt;2 queries / s</td></tr>
+  </table></div>
+  <p>Monthly app-to-database transfer: <b>≈0.05 GB measured today</b> (estimate was ≈15–25 GB); ≈40–70 GB at 12 months stays as the Derived worst case. Within Azure, app-to-database traffic inside a region is not metered, so this figure sizes the database's network and IOPS envelope rather than a bill, and at the measured rate it sizes nothing.</p>
+  <h3>The heaviest single reads <span class="tag m">Measured</span></h3>
+  <ol>
+    <li><strong>Audit Hub</strong> charges, productivity, and charge exports: every charge-line row for the entity, no date window (480 rows today; est. 63 MB per view at 12 months if ingest reaches spec volume).</li>
+    <li><strong>Scheduler Hub</strong> dashboard: 8 weeks of assignments with room and capability includes (368 assignment rows today; ~8,000 at the spec's 100-provider horizon).</li>
+    <li><strong>Project Hub</strong> projects list and its API: all 514 projects with 7 relations, no active-only filter (2–3 MB).</li>
+    <li><strong>Scheduler Hub</strong> nightly horizon: ~13 MB read, ~300 writes, once a night (not observed running since 27 Aug).</li>
+    <li><strong>Incident &amp; Event Hub</strong> audit admin page: a whole-table count and group-by on the audit log per view (371 rows today).</li>
+  </ol>
+</section>
+
+<section id="q5">
+  <h2><span class="n">05</span>Data between applications and users at peak</h2>
+  <div class="warn"><p><strong>Not measured.</strong> The Netlify connector's read operations (teams, projects, deploys, forms, user, extensions) return no bandwidth, function-invocation, or GB-hour usage, so this section keeps the code-derived model and its tags. The Netlify Team → Usage screen remains the place to read it (last section).</p></div>
+  <p><span class="tag a">Assumed</span> first visit ≈0.5–1 MB (JavaScript, CSS, HTML), subsequent pages 50–150 KB gzipped, plus exports and uploads as noted. Client JavaScript is <span class="tag m">Measured</span> from a real build: 389 KB gzipped across all chunks, 120–260 KB on a typical page.</p>
+  <div class="tbl"><table>
+    <tr><th>App</th><th class="num">Per session</th><th class="num">Peak hour</th><th class="num">Daily</th><th>Largest transfers</th></tr>
+    <tr><td><b>Project Hub</b></td><td class="num">2–4 MB</td><td class="num"><b>30–60 MB</b></td><td class="num">100–250 MB</td><td>PowerPoint decks 0.5–1.5 MB; projects page ~100 KB gzipped; five Word guides in the public folder (1.3 MB total)</td></tr>
+    <tr><td><b>Incident &amp; Event Hub</b></td><td class="num">2–3 MB staff<br>~0.5 MB + attachments anonymous</td><td class="num"><b>50–70 MB</b><br><span class="small">incl. ~10 MB uploads and exports</span></td><td class="num">~150 MB</td><td>Attachment uploads up to 4 MiB (2 uploaded to date, 101 KB <span class="tag m">Measured</span>); Excel registers 50–500 KB; queue pages 150–300 KB of HTML</td></tr>
+    <tr><td><b>Scheduler Hub</b></td><td class="num">1.5–2 MB</td><td class="num"><b>~30 MB</b><br><span class="small">7 MB of it calendar feeds</span></td><td class="num">~0.3 GB<br><span class="small">55% is hourly ICS polling from ~100 subscribed calendars, uncacheable</span></td><td>ICS feed ~70 KB per fetch; week grid ~80 KB gzipped; weekly Excel export ~150 KB</td></tr>
+    <tr><td><b>Acquisition Hub</b></td><td class="num">~15 MB<br><span class="small">augment polling ~10 MB, two exports ~3 MB</span></td><td class="num"><b>150–200 MB</b></td><td class="num">~0.3 GB</td><td>PowerPoint exports 1–4 MB; full playbook JSON 50–250 KB per view and per poll; 4.5 MB of pitch-graphics PNGs (static, cacheable)</td></tr>
+    <tr><td><b>Audit Hub</b></td><td class="num">~0.8 MB</td><td class="num"><b>40–60 MB</b><br><span class="small">incl. up to 24 MB of uploads; each file is sent twice, preview then commit</span></td><td class="num">~0.1 GB</td><td>Ingest uploads up to 6 MB; charge-integrity Excel 5–15 MB at 12 months</td></tr>
+    <tr class="total"><td>Fleet</td><td class="num"></td><td class="num">≈0.3–0.45 GB / hr <span class="small">(Derived, upper bound)</span></td><td class="num">≈1–1.2 GB / day</td><td></td></tr>
+  </table></div>
+  <p>Monthly app-to-user transfer: <b>≈25–35 GB</b> (Derived, upper bound). This sits comfortably inside any App Service or Front Door egress allowance. The one design-level item is the Scheduler Hub calendar feed, which is served with no-store caching and regenerated on every poll; a 5–15 minute cache would remove roughly half that app's daily traffic.</p>
+
+  <h3>External egress: Anthropic <span class="tag m">Measured</span> <span class="small">Admin API usage and cost reports, 3 Aug – 2 Sep 2026</span></h3>
+  <p>The organisation has no named workspaces; everything bills to the default workspace, so usage is attributed by API key. Model in use: <b>Opus 5 only</b>; no fallback (Opus 4.8) traffic was recorded. Traffic occurred on <b>11 of the 30 days</b>.</p>
+  <div class="tbl"><table>
+    <tr><th>API key → hub</th><th class="num">Active days</th><th class="num">Uncached input</th><th class="num">Cache read</th><th class="num">Cache write (5 min)</th><th class="num">Output</th><th class="num">Cost at list price <span class="tag d">Derived</span></th></tr>
+    <tr><td><code>Incident_Hub</code> → Incident &amp; Event Hub</td><td class="num">10</td><td class="num">1,152</td><td class="num">19,542</td><td class="num">48,566</td><td class="num">8,666</td><td class="num">≈$0.54</td></tr>
+    <tr><td><code>sequel-ortho-netlify-rotated</code> → Acquisition Hub</td><td class="num">2</td><td class="num">18</td><td class="num">0</td><td class="num">91,246</td><td class="num">5,267</td><td class="num">≈$0.70</td></tr>
+    <tr><td><code>sequel-ortho-playbook-prod</code> → Acquisition Hub</td><td class="num">0</td><td class="num">0</td><td class="num">0</td><td class="num">0</td><td class="num">0</td><td class="num">$0</td></tr>
+    <tr><td>Project Hub</td><td class="num">—</td><td colspan="4">no key carries traffic; the production LLM-trace table is empty</td><td class="num">$0</td></tr>
+    <tr class="total"><td>Fleet</td><td class="num">11</td><td class="num">1,170</td><td class="num">19,542</td><td class="num">139,812</td><td class="num">13,933</td><td class="num">$1.24 <span class="tag m">Measured</span></td></tr>
+  </table></div>
+  <p>The cost report reconciles to Opus 5 list price ($5 / $0.50 / $6.25 / $25 per million tokens for the four columns), which confirms the split. Request counts are not part of the usage report; the token volumes correspond to a few dozen calls at most. The Incident Hub's key saw traffic on 10 days but its production trace table holds <b>one</b> call (categorize, 42 in / 306 out, 14.0 s), so most of that key's use came from outside production (local or preview). <span class="small">The original estimate was 1–2k calls a month fleet-wide; measured usage is well under that.</span> Only five keys exist: the two above with traffic, the playbook-prod key, and two archived ones (the old Netlify key and the audit key created today).</p>
+
+  <h3>Other external egress (unchanged, code-derived)</h3>
+  <div class="tbl"><table>
+    <tr><th>Target</th><th>Apps</th><th>Volume</th></tr>
+    <tr><td>Microsoft Entra ID (sign-in)</td><td>All five when Entra mode is on. It is <b>off everywhere today</b>; the Audit Hub has no auth layer and relies on the Cloudflare allow-list.</td><td>Negligible</td></tr>
+    <tr><td>Microsoft Graph (mail, calendar)</td><td>Project Hub only, both modes off today</td><td>5–50 mails a day when enabled</td></tr>
+    <tr><td>EMR FHIR (Cerner, athena)</td><td>Incident &amp; Event Hub patient lookup</td><td>Est. 100–300 searches a month, 2–5 KB each</td></tr>
+    <tr><td>Cross-hub feeds</td><td>Project Hub reads the Acquisition Hub pipeline (5-minute cache, ~10 KB); Audit Hub reads the Project Hub therapy feed (per page view, 2–5 KB; 4 snapshot rows to date)</td><td>Tens of calls a day</td></tr>
+    <tr><td>GitHub Actions to databases</td><td>All four Prisma apps push schema from GitHub runners on every deploy (all five production deploys are GitHub-Actions-published <span class="tag m">Measured</span>); Project Hub prune and import workflows open direct DB connections</td><td>The Azure network path for runners (or a self-hosted/VNet runner) must exist before cut-over</td></tr>
+  </table></div>
+</section>
+
+<section id="plan">
+  <h2>Items the move should plan for</h2>
+  <ol>
+    <li><strong>Three long-running lanes need a runner.</strong> Project Hub AI jobs, Acquisition Hub augment, Scheduler Hub nightly horizon. Each is a token-gated HTTP callback today; only the trigger and duration cap change. <b>Check the nightly-horizon schedule first</b>: the production deploy lists no function schedule and the database has had no horizon writes since 27 Aug.</li>
+    <li><strong>Netlify Blobs has two consumers to replace.</strong> Incident &amp; Event Hub attachments need a BAA-covered Azure Blob container (2 files / 101 KB to migrate today). Acquisition Hub documents move to Azure SQL, whose adapter exists but needs its one-time DDL run and tests.</li>
+    <li><strong>Connection pooling.</strong> One pg pool per instance today. Use Flexible Server's PgBouncer for web traffic and a direct connection for the two interactive-transaction lanes.</li>
+    <li><strong>Bound the four unbounded reads before user growth.</strong> Audit Hub charges and productivity, Scheduler dashboard, Project Hub projects list, Incident Hub audit admin page. At today's row counts none of them hurts; they decide whether app-to-database traffic stays under 1 GB an hour once data reaches spec volume.</li>
+    <li><strong>Audit-log retention.</strong> Two hubs append audit rows with no pruning (Project Hub and Incident &amp; Event Hub, both at single-digit rows a day today); the Scheduler Hub's 21k-row log came from bulk generation and is already 41% of that database.</li>
+    <li><strong>Request timeouts and streaming.</strong> AI routes need at least 120 s. Acquisition Hub exports need streamed responses above 4.5 MB to work, which they do not on Netlify today.</li>
+    <li><strong>Auth go-live is a gate, not a migration task.</strong> All five apps run with auth off; the Audit Hub's only protection is a Cloudflare IP allow-list, and it deploys no edge middleware at all. Entra should be on before any Azure endpoint is public.</li>
+    <li><strong>Co-locate database and web tier.</strong> Three hubs cross AWS regions today (Section 3); pick one Azure region for both.</li>
+    <li><strong>Carry the HIPAA posture across.</strong> The Incident &amp; Event Hub's Neon project is HIPAA-enabled with extended audit logging; the Azure equivalent (BAA, auditing on Flexible Server) must be in place before that database moves.</li>
+  </ol>
+</section>
+
+<section id="verify">
+  <h2>Measurement pass: what was completed (2 September 2026)</h2>
+  <div class="tbl"><table>
+    <tr><th>Check</th><th>Result</th><th>Replaced</th></tr>
+    <tr><td>Storage per project, configured compute min/max, plan tier, consumption for the period</td><td><b>Done</b> via the Neon connector (list projects, default branch, endpoints): Scale plan, 0.25–8 CU on every project, 150 MB billed storage, 2.7 CU-hours, 52 MB egress.</td><td>Sections 2, 3, 4</td></tr>
+    <tr><td>Database and per-table sizes, row counts, growth-table date ranges</td><td><b>Done</b> via read-only SQL on each default branch (database size, relation sizes, live tuples, count/min/max on the audit-log, schedule-assignment, charge-line, LLM-trace, and attachment tables). Note: the Audit Hub has no audit-log table, and the timestamp column is <code>at</code> rather than <code>createdAt</code> on the Project, Incident, and Scheduler Hubs.</td><td>Section 2</td></tr>
+    <tr><td>Netlify sites, plan, production deploys, function memory, runtimes, background and scheduled functions</td><td><b>Done</b> via the Netlify connector (teams, projects, project, deploy). Function timeout is not in the deploy record.</td><td>Section 1</td></tr>
+    <tr><td>Bandwidth, function invocations, GB-hours per site (30 days)</td><td><b>Not available.</b> The connector's reader tools expose no usage endpoint. Section 5 keeps its Derived figures; read them from Netlify → Team → Usage.</td><td>—</td></tr>
+    <tr><td>Blob store size (attachments)</td><td><b>Not available directly.</b> No Blobs operation in the connector. Proxied from the Incident &amp; Event Hub attachment tables: 2 files, 101 KB.</td><td>Section 2 (partial)</td></tr>
+    <tr><td>Token usage and cost by workspace or key (30 days)</td><td><b>Done</b> via the Anthropic Admin API (usage report grouped by model and API key, cost report): $1.24, 13.9k output tokens, two active keys. The LLM-trace fallback query was also run (Project Hub: empty; Incident Hub: one row).</td><td>Section 5, Anthropic</td></tr>
+  </table></div>
+  <p class="small">Data-transfer notes: Neon's egress counter replaced the Section 4 estimate; Netlify's bandwidth counter remains unread. Neon's written-data counter reported 0 on every branch and was ignored.</p>
+</section>
+</main>
+</div>
+<footer>Source material: the five repositories at their main-branch heads on 2 September 2026, one production build of incident-event-hub, Neon and Netlify platform documentation fetched the same day, and the live readings listed in the last section, taken on 2 September 2026 between 16:50 and 17:15 UTC. The Markdown edition of this report lives at <code>docs/AZURE-RESOURCE-AUDIT-2026-09.md</code> in the sequel-foundation repository; per-hub working notes (query-by-query tables and byte-per-row derivations) are available on request.</footer>
+</body></html>
