@@ -69,4 +69,24 @@ describe("AdaptiveSelect", () => {
     expect(container.querySelectorAll("optgroup")).toHaveLength(2);
     expect(container.querySelectorAll("option")).toHaveLength(4); // 3 + placeholder
   });
+  it("labelClassName replaces the default label classes in both renderings", () => {
+    const { container, unmount } = render(
+      <AdaptiveSelect options={few} value={null} label="Owner" labelClassName="text-[11px] uppercase text-brand-navy" />,
+    );
+    const nativeLabel = container.querySelector("label") as HTMLLabelElement;
+    expect(nativeLabel.className).toBe("text-[11px] uppercase text-brand-navy");
+    expect(nativeLabel.className).not.toContain("text-brand-muted");
+    unmount();
+    render(
+      <AdaptiveSelect options={many} value={null} label="Owner" labelClassName="text-[11px] uppercase text-brand-navy" />,
+    );
+    const comboLabel = screen.getByText("Owner");
+    expect(comboLabel.className).toBe("text-[11px] uppercase text-brand-navy");
+  });
+  it("hideLabel wins over labelClassName", () => {
+    const { container } = render(
+      <AdaptiveSelect options={few} value={null} label="Owner" hideLabel labelClassName="uppercase" />,
+    );
+    expect((container.querySelector("label") as HTMLLabelElement).className).toBe("sr-only");
+  });
 });

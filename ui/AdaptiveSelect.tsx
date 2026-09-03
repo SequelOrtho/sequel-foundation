@@ -38,6 +38,12 @@ export type AdaptiveSelectProps = {
   selectClassName?: string;
   /** Extra classes on the outer wrapper. */
   className?: string;
+  /**
+   * Replaces the default visible-label classes (`text-xs text-brand-muted`)
+   * in both renderings, so a form with its own label typography keeps
+   * converted fields consistent. Ignored when `hideLabel` is set.
+   */
+  labelClassName?: string;
   /** Override the family threshold (12) for a specific surface. */
   searchableThreshold?: number;
   maxVisible?: number;
@@ -69,6 +75,7 @@ export function AdaptiveSelect({
   clearable = true,
   selectClassName = "",
   className = "",
+  labelClassName,
   searchableThreshold,
   maxVisible,
 }: AdaptiveSelectProps) {
@@ -101,6 +108,7 @@ export function AdaptiveSelect({
         help={help}
         clearable={clearable}
         className={className}
+        labelClassName={labelClassName}
         maxVisible={maxVisible}
       />
     );
@@ -136,7 +144,7 @@ export function AdaptiveSelect({
 
   return (
     <div className={className}>
-      <label htmlFor={selectId} className={hideLabel ? "sr-only" : "text-xs text-brand-muted"}>
+      <label htmlFor={selectId} className={hideLabel ? "sr-only" : (labelClassName ?? "text-xs text-brand-muted")}>
         {label}
         {required && !hideLabel && (
           <span className="text-brand-danger" aria-hidden>

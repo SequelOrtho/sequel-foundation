@@ -15,6 +15,7 @@ export function SearchCombobox({
   options, value, onChange, label,
   placeholder = "Type to search…", disabled = false, help, maxVisible = 50,
   hideLabel = false, name, clearable = true, required = false, className = "",
+  labelClassName,
 }: {
   options: ComboOption[]; value: number | string | null;
   onChange: (id: number | string | null) => void;
@@ -33,6 +34,10 @@ export function SearchCombobox({
   required?: boolean;
   // Extra classes on the outer wrapper (e.g. min-w-* in a filter row).
   className?: string;
+  // Replaces the default visible-label classes (`text-xs text-brand-muted`)
+  // so a host form with its own label typography (uppercase, navy, …) can
+  // keep converted fields visually consistent. Ignored when hideLabel is set.
+  labelClassName?: string;
 }) {
   const listboxId = useId();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -75,7 +80,7 @@ export function SearchCombobox({
           the same way sibling labels do) with the field carrying mt-0.5.
           A block label with its own margin can never line up with those
           neighbors across contexts. */}
-      <span className={hideLabel ? "sr-only" : "text-xs text-brand-muted"}>
+      <span className={hideLabel ? "sr-only" : (labelClassName ?? "text-xs text-brand-muted")}>
         {label}
         {required && !hideLabel && <span className="text-brand-danger" aria-hidden>{" *"}</span>}
       </span>
