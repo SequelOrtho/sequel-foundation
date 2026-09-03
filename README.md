@@ -19,7 +19,7 @@ Three documents carry the accumulated know-how; read them before building anythi
 | `@sequel/foundation/brand/assets/*` | Logo PNGs (navy / white / banner) — see `brand/BRAND.md` |
 | `@sequel/foundation/theme` | Theme model: modes, `resolveTheme`, `themeInitScript(storageKey)` |
 | `@sequel/foundation/theme/ThemeToggle` | The Light / Dark / Browser header toggle (client component) |
-| `@sequel/foundation/ui` | Button (incl. the accent hand-off variant), Callout, Field, StatusBadges, SaveStateIndicator, Toast + viewport/store, `HomeLink` + `toastHomeNav` (header brand link with the standard "Bringing you back to Home…" departure toast), ShowMore, Breadcrumbs, ExportBar, NavProgress + LinkPendingHint (route-transition pending feedback), BackToTop, `SearchCombobox` + `comboMatches` (searchable APG editable-combobox-with-list primitive — type-to-filter, keyboard nav, optional group headers, capped render with overflow hint), `useScrollToEdit` (scroll-into-view + focus hook for jump-to-edit UX) |
+| `@sequel/foundation/ui` | Button (incl. the accent hand-off variant), Callout, Field, StatusBadges, SaveStateIndicator, Toast + viewport/store, `HomeLink` + `toastHomeNav` (header brand link with the standard "Bringing you back to Home…" departure toast), ShowMore, Breadcrumbs, ExportBar, NavProgress + LinkPendingHint (route-transition pending feedback), BackToTop, `AdaptiveSelect` (the one dropdown control — native `<select>` up to 12 options, fuzzy `SearchCombobox` beyond, same props/`name`/`defaultValue` either way), `SearchCombobox` + `comboMatches` / `comboScore` / `rankComboOptions` (searchable APG editable-combobox-with-list primitive — fuzzy ranked type-to-filter, keyboard nav, optional group headers, capped render with overflow hint, hidden form input via `name`), `SEARCHABLE_SELECT_THRESHOLD` / `isSearchableSize`, `useScrollToEdit` (scroll-into-view + focus hook for jump-to-edit UX) |
 | `@sequel/foundation/llm` | `getClient` (with hard timeout budget + pinned retry policy), `modelFor`/`withModelFallback` (task-class model config), `llmErrorEvent`, `streamJob`/`consumeLlmStream` (heartbeats + status stages), `gateLlmInput`/`redactSecrets` (deterministic input gate), `parseLlmJson`/`extractJsonPayload` (output contract), `checkRateBudget` + `FixedWindowStore` seam (identity-aware rate limiting, hashed keys), `startLlmTrace`/`emitLlmTrace` + `LlmTraceSink` seam (Gate-5 per-request traces), `runGoldenSet`/`assertGoldenPass` (golden-set runner) |
 | `@sequel/foundation/holidays` | US observed company-holiday calendar — pure, no `Date.now()`; fixed-date holidays shift Sat/Sun to the nearest weekday, floating (Monday/Thursday-anchored) holidays never shift |
 | `@sequel/foundation/deck-kit` | Native-shape chart primitives (`deck-charts`), the branded-deck engine (`createBrandDeckEngine` + table/status/card primitives), `slimPresentationZip` (dedupe + prune), brand `FONT` |
@@ -35,7 +35,7 @@ Three documents carry the accumulated know-how; read them before building anythi
    ```jsonc
    // package.json
    "dependencies": {
-     "@sequel/foundation": "github:SequelOrtho/sequel-foundation#v0.10.0"
+     "@sequel/foundation": "github:SequelOrtho/sequel-foundation#v0.11.0"
    }
    ```
 
