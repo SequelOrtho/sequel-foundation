@@ -1,17 +1,20 @@
 "use client";
 
 import { useId, useMemo, useRef, useState } from "react";
-import { comboMatches, type ComboOption } from "./combo-match";
+import { rankComboOptions, type ComboOption } from "./combo-match";
 
 // Searchable single-select combobox (W3C APG editable-combobox-with-list
 // pattern). Built for option lists that outgrew a flat <select>: type-to-filter
-// with token-AND matching, full list browsable on focus, optional group
+// with fuzzy, ranked token-AND matching (prefix > substring > subsequence >
+// one-typo — see combo-match.ts), full list browsable on focus, optional group
 // headers, capped render with a "keep typing" hint, live result count.
+// Family rule (DESIGN-CONVENTIONS §3): any dropdown over 12 choices renders as
+// this control — AdaptiveSelect picks native vs. searchable for you.
 
 export function SearchCombobox({
   options, value, onChange, label,
   placeholder = "Type to search…", disabled = false, help, maxVisible = 50,
-  hideLabel = false,
+  hideLabel = false, name, clearable = true, required = false, className = "",
 }: {
   options: ComboOption[]; value: number | string | null;
   onChange: (id: number | string | null) => void;
@@ -20,6 +23,16 @@ export function SearchCombobox({
   // Render the label for screen readers only — for filter bars whose sibling
   // controls are unlabeled, where a visible label breaks row alignment.
   hideLabel?: boolean;
+  // Form-post support: when set, a hidden <input name> carries the selected id
+  // (empty string when nothing is selected) so server actions / uncontrolled
+  // <form> submits read it like a native <select>.
+  name?: string;
+  // Hide the Clear affordance for fields that must always hold a value.
+  clearable?: boolean;
+  // Marks the hidden form input required (native validity) and the label.
+  required?: boolean;
+  // Extra classes on the outer wrapper (e.g. min-w-* in a filter row).
+  className?: string;
 }) {
   const listboxId = useId();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -28,10 +41,7 @@ export function SearchCombobox({
   const [activeIndex, setActiveIndex] = useState(0);
 
   const selected = value != null ? (options.find((o) => o.id === value) ?? null) : null;
-  const filtered = useMemo(
-    () => (query.trim() ? options.filter((o) => comboMatches(o, query)) : options),
-    [options, query],
-  );
+  const filtered = useMemo(() => rankComboOptions(options, query), [options, query]);
   const visible = filtered.slice(0, maxVisible);
   const overflow = filtered.length - visible.length;
 
@@ -56,13 +66,19 @@ export function SearchCombobox({
   }
 
   return (
-    <div className="relative">
+    <div className={`relative ${className}`.trim()}>
+      {name != null && (
+        <input type="hidden" name={name} value={value == null ? "" : String(value)} required={required} />
+      )}
       {/* Label geometry replicates the hubs' native fields exactly — an
           INLINE span (so it centers in the container's inherited line box
           the same way sibling labels do) with the field carrying mt-0.5.
           A block label with its own margin can never line up with those
           neighbors across contexts. */}
-      <span className={hideLabel ? "sr-only" : "text-xs text-brand-muted"}>{label}</span>
+      <span className={hideLabel ? "sr-only" : "text-xs text-brand-muted"}>
+        {label}
+        {required && !hideLabel && <span className="text-brand-danger" aria-hidden>{" *"}</span>}
+      </span>
       {selected && !open ? (
         <div className={`${hideLabel ? "" : "mt-0.5 "}flex items-center justify-between gap-2 rounded-md border border-brand-line bg-brand-surface px-2 py-1.5`}>
           <div className="min-w-0">
@@ -75,9 +91,11 @@ export function SearchCombobox({
                 onClick={() => { setOpen(true); setQuery(""); setActiveIndex(0); setTimeout(() => inputRef.current?.focus(), 0); }}>
                 Change
               </button>
-              <button type="button" className="text-brand-muted hover:underline" onClick={() => onChange(null)}>
-                Clear
-              </button>
+              {clearable && (
+                <button type="button" className="text-brand-muted hover:underline" onClick={() => onChange(null)}>
+                  Clear
+                </button>
+              )}
             </div>
           )}
         </div>
@@ -85,6 +103,7 @@ export function SearchCombobox({
         <input
           ref={inputRef} type="text" role="combobox"
           aria-expanded={open} aria-controls={listboxId} aria-autocomplete="list" aria-label={label}
+          aria-required={required || undefined}
           disabled={disabled} value={query} placeholder={placeholder}
           onChange={(e) => { setQuery(e.target.value); setOpen(true); setActiveIndex(0); }}
           onFocus={() => setOpen(true)}

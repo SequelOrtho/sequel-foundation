@@ -53,6 +53,18 @@ export type { BackToTopState } from "./back-to-top-state";
 export { Breadcrumbs } from "./Breadcrumbs";
 export type { Crumb } from "./Breadcrumbs";
 export { ExportBar } from "./ExportBar";
+// Dropdowns (DESIGN-CONVENTIONS §3): AdaptiveSelect renders a native <select>
+// up to 12 options and the fuzzy SearchCombobox beyond that; use it for every
+// select whose list can grow. comboScore/rankComboOptions expose the matcher.
+export { AdaptiveSelect } from "./AdaptiveSelect";
+export type { AdaptiveSelectProps } from "./AdaptiveSelect";
 export { SearchCombobox } from "./SearchCombobox";
-export { comboMatches, type ComboOption } from "./combo-match";
+export {
+  comboMatches,
+  comboScore,
+  rankComboOptions,
+  isSearchableSize,
+  SEARCHABLE_SELECT_THRESHOLD,
+  type ComboOption,
+} from "./combo-match";
 export { useScrollToEdit } from "./useScrollToEdit";
