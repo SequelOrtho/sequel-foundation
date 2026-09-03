@@ -20,7 +20,7 @@ One PR carries everything (CLAUDE.md "Releasing"):
 3. `package.json` `"version"` bumped (patch = additive prop/fix, minor = new primitive or convention, major = breaking), and every `#vX.Y.Z` pin example in README.md / ADOPTING.md moved to the new version.
 4. `npm run typecheck` and `npm test` green locally.
 
-Open the PR, wait for the `test` check, **squash-merge** with the one-line `type(scope): subject (#N)` title. If the merge is refused with "Required status check 'test' is expected" and the check is green, the branch is behind main (the ruleset requires up-to-date branches): merge `origin/main` into the branch (a merge commit, never a rebase on a shared branch), push, let CI re-run, merge again.
+Open the PR, then **enable auto-merge** on it (GitHub `enable_pr_auto_merge`, method `SQUASH`; the squash title follows `type(scope): subject (#N)`). GitHub merges the moment the required `test` check passes and deletes the branch (auto-delete head branches is on fleet-wide). Confirm with `pull_request_read get` (`merged_at` set) rather than merging by hand. If enabling auto-merge is refused, or a manual merge is refused with "Required status check 'test' is expected" while the check is green, the branch is behind main (the ruleset requires up-to-date branches): merge `origin/main` into the branch (a merge commit, never a rebase on a shared branch), push, and re-enable auto-merge.
 
 ## Step 2 — Confirm the tag
 
@@ -40,7 +40,7 @@ For every repo in the fleet table (CLAUDE.md), including `sequel-app-template` a
 2. `bash <foundation>/scripts/pin-foundation.sh <app-dir> vX.Y.Z` — edits the spec, runs the **explicit** `npm install "@sequel/foundation@github:…#vX.Y.Z"`, and fails unless the lockfile's resolved SHA matches the tag. (A plain `npm install` after a hand-edited spec reports "up to date" and keeps the old SHA — that is why the script exists.)
 3. If the release changes shared behaviour, apply it in the app in the same PR (new exports go through the Acquisition Hub's `components/ui/index.ts` shim; regenerate committed guides where the repo requires it — Project Hub `build:user-guide` with version bump, Document Hub `build:user-guide`, Acquisition Hub `build:reviewer-guide`; Scheduler's testers guide is gitignored; Incident/Audit have none).
 4. Run the app's full gate as its CI does (`prisma generate` / `next typegen` first where CI does; typecheck · lint · test · build with CI's placeholder `DATABASE_URL`).
-5. Commit with the session trailers, push, open the PR, merge when green using the repo's convention: **merge commits** for `Sequel_Ortho` and `sequel-doc-hub`, squash everywhere else.
+5. Commit with the session trailers, push, open the PR, and enable auto-merge with the repo's convention: **`MERGE`** for `Sequel_Ortho` and `sequel-doc-hub`, `SQUASH` everywhere else. GitHub merges when `test` passes and deletes the branch; confirm `merged_at` afterwards instead of polling checks.
 6. Live check for Netlify-hosted hubs: Netlify `get-project` → `currentDeploy`, then `get-deploy` — its `title` reads `gh-actions: <sha> on main`; fetch the deploy **permalink** (`https://<deploy-id>--<site>.netlify.app`), not the apex, which Cloudflare bot-challenges from a container.
 
 Run independent repos in parallel (one subagent per hub is fine); the npm git-dep cache is shared, so bump one small repo first to warm it.
@@ -48,5 +48,5 @@ Run independent repos in parallel (one subagent per hub is fine); the npm git-de
 ## Step 4 — Close out
 
 - Record any new lesson in CLAUDE.md "Lessons learned" (same PR as the change that taught it, or a docs-only follow-up).
-- Delete merged work branches from a local clone (`git push origin --delete <branch>`); the session's git proxy refuses deletes.
+- Branch cleanup is automatic (auto-delete head branches); only branches merged before Sep 2026 or never PR'd need a local `git push origin --delete`.
 - Report: release SHA + tag, one row per fleet repo (PR, merge SHA, live deploy id), anything deliberately left out.

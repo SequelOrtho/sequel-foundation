@@ -27,6 +27,8 @@ The version bump **is** the release. Everything else is automatic or scripted (`
 
 A shared-behavior change is one PR here + tag, then one pin-bump PR per app, each validated with that app's `npm run build`. The template repo is part of the fleet — fix it in the same sweep so new apps inherit.
 
+**Repo settings (owner, Sep 2026):** every fleet repo has **auto-merge** and **automatically delete head branches** enabled. So: open the PR, enable auto-merge with the repo's method (merge commit for `Sequel_Ortho` / `sequel-doc-hub`, squash elsewhere), and GitHub merges it the moment the required `test` check passes and deletes the branch — no polling, no local-clone cleanup. Confirm afterwards (`merged_at` + the branch gone) rather than merging by hand; merge by hand only when auto-merge was refused (e.g. the branch is behind main under the strict ruleset — bring it up to date first).
+
 | Repo | App | Rollout notes |
 |---|---|---|
 | `project-insights` | Project Hub | PR template enforces the §5a checklist + full local gate (typecheck · lint · test · build); guide-regen rule applies only when the guide's prose covers the changed surface. Squash merges. Largest CI (~6 min); forms use a local uppercase `labelCls` — pass it as `labelClassName` on converted dropdowns. |
@@ -63,7 +65,7 @@ A shared-behavior change is one PR here + tag, then one pin-bump PR per app, eac
 ## Lessons learned (Sep 2026, v0.11.1 label pass + release automation)
 
 - **A hand-edited git-dep spec does not re-resolve.** After changing `"@sequel/foundation": "github:…#v0.11.1"` in package.json, `npm install` prints "up to date" and keeps the previous resolved SHA in the lockfile. Only `npm install "@sequel/foundation@github:…#v0.11.1"` re-resolves — `scripts/pin-foundation.sh` wraps that and asserts the SHA.
-- **CI tags, humans don't.** Sessions can't push tags or delete branches through the git proxy; the `tag` job now cuts `v<version>` on merge, so the version bump in the PR is the whole release action. Branch cleanup still happens from a local clone.
+- **CI tags, humans don't.** Sessions can't push tags or delete branches through the git proxy; the `tag` job now cuts `v<version>` on merge, so the version bump in the PR is the whole release action. Branch cleanup is GitHub's too (auto-delete head branches, fleet-wide since Sep 2026).
 - **"Required status check 'test' is expected" on a green PR means the branch is behind main** under a strict ruleset — merge main into it and let CI re-run; nothing is wrong with the check.
 - **Squash-merged branches read "1 ahead, 1 behind" forever.** That is the squash SHA differing, not unmerged work; verify with the PR's `merged_at` before deleting, and inspect any branch with no PR (the Azure resource audit sat unmerged that way).
 - **Match sibling label typography, don't restyle the control.** `labelClassName` exists so a converted dropdown's label matches its neighbours (`Field` = `text-sm text-zinc-600 dark:text-zinc-400`; Project Hub `labelCls`; Audit Hub navy labels); pass only typography utilities, never the wrapper's `flex flex-col gap-1`. Sites whose neighbours already use the foundation default, and every `hideLabel` site, need nothing.
