@@ -2,6 +2,7 @@
 
 import { useId, useMemo, useRef, useState } from "react";
 import { rankComboOptions, type ComboOption } from "./combo-match";
+import { FieldError, RequiredMark } from "./Field";
 
 // Searchable single-select combobox (W3C APG editable-combobox-with-list
 // pattern). Built for option lists that outgrew a flat <select>: type-to-filter
@@ -15,7 +16,7 @@ export function SearchCombobox({
   options, value, onChange, label,
   placeholder = "Type to search…", disabled = false, help, maxVisible = 50,
   hideLabel = false, name, clearable = true, required = false, className = "",
-  labelClassName,
+  labelClassName, error,
 }: {
   options: ComboOption[]; value: number | string | null;
   onChange: (id: number | string | null) => void;
@@ -38,8 +39,12 @@ export function SearchCombobox({
   // so a host form with its own label typography (uppercase, navy, …) can
   // keep converted fields visually consistent. Ignored when hideLabel is set.
   labelClassName?: string;
+  // Save-time validation message under the control (role="alert"); marks the
+  // input aria-invalid.
+  error?: string;
 }) {
   const listboxId = useId();
+  const errorId = `${listboxId}-error`;
   const inputRef = useRef<HTMLInputElement>(null);
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -82,7 +87,7 @@ export function SearchCombobox({
           neighbors across contexts. */}
       <span className={hideLabel ? "sr-only" : (labelClassName ?? "text-xs text-brand-muted")}>
         {label}
-        {required && !hideLabel && <span className="text-brand-danger" aria-hidden>{" *"}</span>}
+        {required && !hideLabel && <RequiredMark />}
       </span>
       {selected && !open ? (
         <div className={`${hideLabel ? "" : "mt-0.5 "}flex items-center justify-between gap-2 rounded-md border border-brand-line bg-brand-surface px-2 py-1.5`}>
@@ -109,6 +114,8 @@ export function SearchCombobox({
           ref={inputRef} type="text" role="combobox"
           aria-expanded={open} aria-controls={listboxId} aria-autocomplete="list" aria-label={label}
           aria-required={required || undefined}
+          aria-invalid={error ? true : undefined}
+          aria-describedby={error ? errorId : undefined}
           disabled={disabled} value={query} placeholder={placeholder}
           onChange={(e) => { setQuery(e.target.value); setOpen(true); setActiveIndex(0); }}
           onFocus={() => setOpen(true)}
@@ -118,6 +125,7 @@ export function SearchCombobox({
         />
       )}
       {help && <span className="mt-1 block text-xs text-brand-muted">{help}</span>}
+      {error && <FieldError id={errorId} className="mt-1 block">{error}</FieldError>}
       {open && !disabled && (
         <span aria-live="polite" className="sr-only">
           {filtered.length === 0 ? "No results" : `${filtered.length} results`}
