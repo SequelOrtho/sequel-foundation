@@ -3,6 +3,7 @@
 import { useId, useState } from "react";
 import { isSearchableSize, type ComboOption } from "./combo-match";
 import { SearchCombobox } from "./SearchCombobox";
+import { FieldError, RequiredMark, fieldErrorId } from "./Field";
 
 // The one dropdown control (DESIGN-CONVENTIONS §3, "Dropdowns over 12 items
 // are searchable"). Hand it the options and it renders a native <select> while
@@ -34,6 +35,9 @@ export type AdaptiveSelectProps = {
   help?: string;
   /** Allow returning to "nothing selected". Defaults to true. */
   clearable?: boolean;
+  /** Save-time validation message; renders under the control (role="alert")
+   *  and marks it aria-invalid. */
+  error?: string;
   /** Extra classes for the native <select> element (dense rows, widths). */
   selectClassName?: string;
   /** Extra classes on the outer wrapper. */
@@ -78,6 +82,7 @@ export function AdaptiveSelect({
   labelClassName,
   searchableThreshold,
   maxVisible,
+  error,
 }: AdaptiveSelectProps) {
   const autoId = useId();
   const selectId = id ?? autoId;
@@ -110,6 +115,7 @@ export function AdaptiveSelect({
         className={className}
         labelClassName={labelClassName}
         maxVisible={maxVisible}
+        error={error}
       />
     );
   }
@@ -146,11 +152,7 @@ export function AdaptiveSelect({
     <div className={className}>
       <label htmlFor={selectId} className={hideLabel ? "sr-only" : (labelClassName ?? "text-xs text-brand-muted")}>
         {label}
-        {required && !hideLabel && (
-          <span className="text-brand-danger" aria-hidden>
-            {" *"}
-          </span>
-        )}
+        {required && !hideLabel && <RequiredMark />}
       </label>
       <select
         id={selectId}
@@ -159,6 +161,8 @@ export function AdaptiveSelect({
         onChange={(e) => commit(idOf(options, e.target.value))}
         disabled={disabled}
         required={required}
+        aria-invalid={error ? true : undefined}
+        aria-describedby={error ? fieldErrorId(selectId) : undefined}
         className={`${hideLabel ? "" : "mt-0.5 "}${NATIVE_SELECT_CLASS} ${selectClassName}`.trim()}
       >
         {showPlaceholder && (
@@ -169,6 +173,11 @@ export function AdaptiveSelect({
         {body}
       </select>
       {help && <span className="mt-1 block text-xs text-brand-muted">{help}</span>}
+      {error && (
+        <FieldError id={fieldErrorId(selectId)} className="mt-1 block">
+          {error}
+        </FieldError>
+      )}
     </div>
   );
 }
