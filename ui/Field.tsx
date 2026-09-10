@@ -10,6 +10,15 @@ import type { ReactNode } from "react";
 // an explicit association too, plus a stable error id the caller can point the
 // control's aria-describedby at (`fieldErrorId(id)`).
 //
+// Label geometry is the hubs' native-field idiom, shared with AdaptiveSelect and
+// SearchCombobox: a block wrapper, an INLINE label span (it sits in the
+// container's inherited line box exactly like a hand-rolled
+// `<label class="block"><span>…</span><input class="mt-0.5">`), and the control
+// carrying `mt-0.5`; hint / error follow with `mt-1`. Field used to be a flex
+// column with `gap-1`, which made its label a 16px line box (text-xs) next to
+// ~21px inherited line boxes on the neighbouring pickers, so controls in one
+// grid row landed ~5px apart (Project Hub, Onboard a Resource, 2026-09-10).
+//
 // Required-field convention (DESIGN-CONVENTIONS §3 "Required fields"): the
 // label carries <RequiredMark/> (a danger-token asterisk, aria-hidden), the
 // control itself carries `required` / aria-required so assistive tech announces
@@ -99,14 +108,18 @@ export function Field({
   children: ReactNode;
 }) {
   return (
-    <label htmlFor={id} className={`flex flex-col gap-1 text-sm ${className}`.trim()}>
+    <label htmlFor={id} className={`block ${className}`.trim()}>
       <span className={labelClassName ?? "text-zinc-600 dark:text-zinc-400"}>
         {label}
         {required && <RequiredMark />}
       </span>
-      {children}
-      {hint && <span className="text-xs text-brand-muted">{hint}</span>}
-      {error && <FieldError id={id ? fieldErrorId(id) : undefined}>{error}</FieldError>}
+      <span className="mt-0.5 block">{children}</span>
+      {hint && <span className="mt-1 block text-xs text-brand-muted">{hint}</span>}
+      {error && (
+        <FieldError id={id ? fieldErrorId(id) : undefined} className="mt-1 block">
+          {error}
+        </FieldError>
+      )}
     </label>
   );
 }

@@ -50,6 +50,19 @@ describe("Field", () => {
     expect(screen.getByLabelText(/Email/).getAttribute("aria-describedby")).toBe("email-error");
   });
 
+  it("shares the native-field label geometry with AdaptiveSelect: inline label, control mt-0.5", () => {
+    const { container } = render(
+      <Field label="First name" id="first" hint="Saved as First Last">
+        <input id="first" />
+      </Field>,
+    );
+    const label = container.querySelector("label")!;
+    expect(label.className).not.toContain("flex");
+    expect(screen.getByText("First name").className).not.toContain("block");
+    expect(screen.getByLabelText(/First name/).parentElement?.className).toContain("mt-0.5");
+    expect(screen.getByText("Saved as First Last").className).toContain("mt-1");
+  });
+
   it("honors a host form's label typography", () => {
     render(
       <Field label="Entity" labelClassName="uppercase text-brand-navy">
