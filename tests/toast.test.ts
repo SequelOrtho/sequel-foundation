@@ -6,6 +6,8 @@ import {
   pushToast,
   toastError,
   toastSaved,
+  toastUndo,
+  UNDO_TOAST_TTL,
 } from "../ui/toast/store";
 
 afterEach(() => {
@@ -73,5 +75,25 @@ describe("toast store", () => {
     pushToast("b");
     clearAllToasts();
     expect(getToasts()).toHaveLength(0);
+  });
+
+  it("toastUndo carries an Undo callback action that lingers longer than a link toast", async () => {
+    let undone = 0;
+    const id = toastUndo("3 alerts removed from your list", () => {
+      undone += 1;
+    });
+    const t = getToasts().find((x) => x.id === id);
+    expect(t?.tone).toBe("success");
+    expect(t?.ttl).toBe(UNDO_TOAST_TTL);
+    expect(t!.ttl).toBeGreaterThan(6000);
+    expect(t?.action?.label).toBe("Undo");
+    expect(t?.action?.href).toBeUndefined();
+    await t?.action?.onClick?.();
+    expect(undone).toBe(1);
+    const custom = toastUndo("Archived", async () => {}, { label: "Restore", tone: "info", ttl: 4000 });
+    const c = getToasts().find((x) => x.id === custom);
+    expect(c?.action?.label).toBe("Restore");
+    expect(c?.tone).toBe("info");
+    expect(c?.ttl).toBe(4000);
   });
 });
