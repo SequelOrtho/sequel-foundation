@@ -56,6 +56,12 @@ export { nextBackToTopState } from "./back-to-top-state";
 export type { BackToTopState } from "./back-to-top-state";
 export { Breadcrumbs } from "./Breadcrumbs";
 export type { Crumb } from "./Breadcrumbs";
+// URL-backed tabs (DESIGN-CONVENTIONS §5): the page resolves ?tab= through
+// pickTab (a plain module, safe to import from a server page) and renders the
+// Tabs bar; tabHref/tabClasses serve bespoke links that must match it.
+export { Tabs } from "./Tabs";
+export { pickTab, tabHref, tabClasses, TAB_COUNT_CLASS } from "./tabs";
+export type { TabDef } from "./tabs";
 export { ExportBar } from "./ExportBar";
 // Dropdowns (DESIGN-CONVENTIONS §3): AdaptiveSelect renders a native <select>
 // up to 12 options and the fuzzy SearchCombobox beyond that; use it for every
