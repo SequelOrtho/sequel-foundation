@@ -5,7 +5,8 @@ import type { ToastAction } from "./toast/store";
 // Presentational toast chip. The orchestration layer (module-level store +
 // auto-dismiss + the fixed bottom-right stack) lives in ./toast; keeping the
 // chip pure means it stays unit-testable and the viewport just positions
-// instances of it.
+// instances of it. An action is a next-step <Link> when it has an href and an
+// in-place <button> (Undo) when it has a callback; both dismiss the toast.
 
 export type ToastTone = "success" | "info" | "danger";
 
@@ -14,6 +15,9 @@ const TONES: Record<ToastTone, { box: string; icon: string }> = {
   info: { box: "bg-brand text-white", icon: "ℹ️" },
   danger: { box: "bg-red-600 text-white", icon: "⚠️" },
 };
+
+const ACTION_CLASS =
+  "ml-1 whitespace-nowrap font-semibold text-white underline underline-offset-2 hover:text-white/85 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 rounded-sm";
 
 export function Toast({
   tone = "success",
@@ -37,15 +41,23 @@ export function Toast({
     >
       <span aria-hidden>{t.icon}</span>
       <span>{message}</span>
-      {action && (
-        <Link
-          href={action.href}
-          onClick={onActionClick}
-          className="ml-1 whitespace-nowrap font-semibold text-white underline underline-offset-2 hover:text-white/85"
-        >
-          {action.label}
-        </Link>
-      )}
+      {action &&
+        (action.href !== undefined ? (
+          <Link href={action.href} onClick={onActionClick} className={ACTION_CLASS}>
+            {action.label}
+          </Link>
+        ) : (
+          <button
+            type="button"
+            onClick={() => {
+              void action.onClick();
+              onActionClick?.();
+            }}
+            className={ACTION_CLASS}
+          >
+            {action.label}
+          </button>
+        ))}
       {onDismiss && (
         <button
           type="button"

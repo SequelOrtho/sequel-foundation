@@ -9,7 +9,11 @@ import { useSyncExternalStore } from "react";
 // repo convention over set-state-in-effect).
 
 export type ToastTone = "success" | "info" | "danger";
-export type ToastAction = { label: string; href: string };
+/** A next-step link — the common case ("View project →"). */
+export type ToastLinkAction = { label: string; href: string; onClick?: undefined };
+/** An in-place action — Undo. Runs the callback, then the toast dismisses. */
+export type ToastCallbackAction = { label: string; onClick: () => void | Promise<void>; href?: undefined };
+export type ToastAction = ToastLinkAction | ToastCallbackAction;
 export type ToastItem = {
   id: number;
   tone: ToastTone;
@@ -55,6 +59,29 @@ export function toastSaved(message = "Saved", opts: { action?: ToastAction } = {
 }
 export function toastError(message: string) {
   return pushToast(message, { tone: "danger", ttl: 6000 });
+}
+
+/** How long an Undo toast stays: long enough to notice the mistake and reach
+ *  the button, short enough that the undone state is never a surprise. */
+export const UNDO_TOAST_TTL = 10_000;
+
+/**
+ * Confirm a reversible action with an Undo button (DESIGN-CONVENTIONS §3):
+ * "3 alerts removed from your list · Undo". The callback restores the
+ * previous state; the toast dismisses once it runs. Pair it with a persistent
+ * in-place affordance when the window to change one's mind is longer than
+ * a toast (an inline strip, an "Entered" tab with its own Undo).
+ */
+export function toastUndo(
+  message: string,
+  onUndo: () => void | Promise<void>,
+  opts: { label?: string; tone?: ToastTone; ttl?: number } = {},
+) {
+  return pushToast(message, {
+    tone: opts.tone ?? "success",
+    ttl: opts.ttl ?? UNDO_TOAST_TTL,
+    action: { label: opts.label ?? "Undo", onClick: onUndo },
+  });
 }
 
 // Test-only: reset between cases so the global counter/list don't leak.
