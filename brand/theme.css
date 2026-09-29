@@ -227,6 +227,19 @@
   color-scheme: dark;
 }
 
+/* ...but color-scheme alone does NOT fix native <select> popups on Chrome/Edge
+ * (Windows): the open list is painted on a light ground while each <option>
+ * inherits the dark theme's light --foreground, so every choice renders
+ * white-on-white whenever the select itself is dark:bg-transparent (as
+ * AdaptiveSelect / SearchCombobox and most hub selects are). Give options an
+ * explicit dark ground. Deliberately UNLAYERED so it outranks Tailwind's
+ * layered utilities; hubs must not keep their own copy of this rule. */
+[data-theme="dark"] option,
+[data-theme="dark"] optgroup {
+  background-color: var(--brand-surface);
+  color: var(--foreground);
+}
+
 /* The theme layer owns the page ground. Before this rule every app had to
  * remember body-level bg/text classes in its own layout; the ones that forgot
  * rendered dark cards on a white canvas and inputs inheriting black text in
