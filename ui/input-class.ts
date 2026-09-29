@@ -7,11 +7,16 @@
 // the white pickers (Project Hub, 2026-09-29). Dark mode stays transparent over
 // the dark card, like the pickers.
 //
+// The invalid state is part of the box (aria-invalid → danger border). It needs
+// both variants: Tailwind v4 emits `dark:border-zinc-700` after a plain
+// `aria-invalid:` border, so without `dark:aria-invalid:` the danger border
+// vanished in dark mode (Audit Hub, 2026-09-29).
+//
 // A plain module (no "use client") so server components and the hubs'
 // file-local class constants can import it. DESIGN-CONVENTIONS §3
 // "Text inputs share the pickers' ground".
 export const INPUT_CLASS =
-  "block w-full rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-transparent px-2 py-1.5 text-sm focus:border-brand focus:outline-none disabled:opacity-60";
+  "block w-full rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-transparent px-2 py-1.5 text-sm focus:border-brand focus:outline-none disabled:opacity-60 aria-invalid:border-brand-danger dark:aria-invalid:border-brand-danger";
 
 /**
  * INPUT_CLASS plus call-site extras. Pass only additive utilities (width,
