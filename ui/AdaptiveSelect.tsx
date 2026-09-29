@@ -4,6 +4,7 @@ import { useId, useState } from "react";
 import { isSearchableSize, type ComboOption } from "./combo-match";
 import { SearchCombobox } from "./SearchCombobox";
 import { FieldError, RequiredMark, fieldErrorId } from "./Field";
+import { INPUT_CLASS } from "./input-class";
 
 // The one dropdown control (DESIGN-CONVENTIONS §3, "Dropdowns over 12 items
 // are searchable"). Hand it the options and it renders a native <select> while
@@ -54,8 +55,9 @@ export type AdaptiveSelectProps = {
   /** Sort groups/options as given; the native rendering honors `group` via <optgroup>. */
 };
 
-const NATIVE_SELECT_CLASS =
-  "block w-full rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-transparent px-2 py-1.5 text-sm focus:border-brand focus:outline-none disabled:opacity-60";
+// One box for every text-like control (ui/input-class.ts), so hand-rolled
+// inputs built on INPUT_CLASS match this select exactly.
+const NATIVE_SELECT_CLASS = INPUT_CLASS;
 
 function idOf(options: ComboOption[], raw: string): number | string | null {
   if (raw === "") return null;

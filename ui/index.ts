@@ -68,6 +68,9 @@ export { ExportBar } from "./ExportBar";
 // Dropdowns (DESIGN-CONVENTIONS §3): AdaptiveSelect renders a native <select>
 // up to 12 options and the fuzzy SearchCombobox beyond that; use it for every
 // select whose list can grow. comboScore/rankComboOptions expose the matcher.
+// Text inputs (DESIGN-CONVENTIONS §3): INPUT_CLASS is the pickers' own box
+// (white ground in light mode), so hand-rolled <input>/<textarea> match them.
+export { INPUT_CLASS, inputClasses } from "./input-class";
 export { AdaptiveSelect } from "./AdaptiveSelect";
 export type { AdaptiveSelectProps } from "./AdaptiveSelect";
 export { SearchCombobox } from "./SearchCombobox";

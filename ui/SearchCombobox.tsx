@@ -3,6 +3,7 @@
 import { useId, useMemo, useRef, useState } from "react";
 import { rankComboOptions, type ComboOption } from "./combo-match";
 import { FieldError, RequiredMark } from "./Field";
+import { INPUT_CLASS } from "./input-class";
 
 // Searchable single-select combobox (W3C APG editable-combobox-with-list
 // pattern). Built for option lists that outgrew a flat <select>: type-to-filter
@@ -121,7 +122,7 @@ export function SearchCombobox({
           onFocus={() => setOpen(true)}
           onBlur={() => setTimeout(() => setOpen(false), 150)}
           onKeyDown={onKeyDown}
-          className={`${hideLabel ? "" : "mt-0.5 "}block w-full rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-transparent px-2 py-1.5 text-sm focus:border-brand focus:outline-none`}
+          className={`${hideLabel ? "" : "mt-0.5 "}${INPUT_CLASS}`}
         />
       )}
       {help && <span className="mt-1 block text-xs text-brand-muted">{help}</span>}
