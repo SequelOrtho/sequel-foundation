@@ -15,7 +15,7 @@ Three documents carry the accumulated know-how; read them before building anythi
 | Subpath | What it is |
 |---|---|
 | `@sequel/foundation/brand/tokens.css` | Framework-free brand custom properties (Brand Guide v1.0) |
-| `@sequel/foundation/brand/theme.css` | Tailwind v4 layer: dark mode variant, tokens incl. dark values, RYG, blue-ramp remap, focus ring, print rules |
+| `@sequel/foundation/brand/theme.css` | Tailwind v4 layer: dark mode variant, tokens incl. dark values, native-control `color-scheme` + dark `<option>` ground, RYG, blue-ramp remap, focus ring, print rules |
 | `@sequel/foundation/brand/assets/*` | Logo PNGs (navy / white / banner) — see `brand/BRAND.md` |
 | `@sequel/foundation/theme` | Theme model: modes, `resolveTheme`, `themeInitScript(storageKey)` |
 | `@sequel/foundation/theme/ThemeToggle` | The Light / Dark / Browser header toggle (client component) |
@@ -35,7 +35,7 @@ Three documents carry the accumulated know-how; read them before building anythi
    ```jsonc
    // package.json
    "dependencies": {
-     "@sequel/foundation": "github:SequelOrtho/sequel-foundation#v0.15.0"
+     "@sequel/foundation": "github:SequelOrtho/sequel-foundation#v0.15.1"
    }
    ```
 

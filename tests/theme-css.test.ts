@@ -18,6 +18,16 @@ describe("theme.css page ground", () => {
     expect(css).toMatch(/:root \{\s*color-scheme: light;/);
     expect(css).toMatch(/:root\[data-theme="dark"\] \{\s*color-scheme: dark;/);
   });
+
+  it("gives native <select> options a dark ground in dark mode, unlayered", () => {
+    const rule = css.match(
+      /\[data-theme="dark"\] option,\s*\[data-theme="dark"\] optgroup \{([^}]*)\}/,
+    );
+    expect(rule?.[1]).toContain("background-color: var(--brand-surface)");
+    expect(rule?.[1]).toContain("color: var(--foreground)");
+    const base = css.match(/@layer base \{([\s\S]*?)\n\}/)?.[1] ?? "";
+    expect(base).not.toContain("option");
+  });
 });
 
 describe("dark-mode contrast rescue", () => {

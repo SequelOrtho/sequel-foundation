@@ -19,7 +19,7 @@ Then work through the short **Template checklist** at the bottom of the template
 **1. Install** (public repo — no tokens needed anywhere):
 
 ```bash
-npm i "@sequel/foundation@github:SequelOrtho/sequel-foundation#v0.15.0"
+npm i "@sequel/foundation@github:SequelOrtho/sequel-foundation#v0.15.1"
 ```
 
 ```ts
@@ -41,7 +41,7 @@ transpilePackages: ["@sequel/foundation"],
 
 | Import path | What you get |
 |---|---|
-| `…/brand/theme.css` | Brand tokens with dark mode, RYG status colors, focus ring, print rules |
+| `…/brand/theme.css` | Brand tokens with dark mode (incl. dark native `<select>` option lists), RYG status colors, focus ring, print rules |
 | `…/theme` | Light / Dark / Browser theme with a no-flash pre-hydration script |
 | `…/ui` | Button (incl. the chartreuse assign/hand-off variant), `IconButton` (glyph-only controls with a real hit area + focus ring + required label), Callout, Field + `RequiredMark` / `RequiredLegend` / `FieldError` + `checkRequired` (required-field convention), badges, toasts (with next-step action links, and `toastUndo` for reversible actions), `HomeLink` (the header brand link home, with the family-standard departure toast), the save-surface kit (`useSaveRunner` / `useFormDirty` / `useDraftSave` / `SectionSaveBar` + `SaveStateIndicator` + `useUnsavedGuard` — dirty-disabled, save-in-place, per-section saves, tab-close warning), ShowMore, Breadcrumbs, `Tabs` + `pickTab` (URL-backed tabs — the page resolves `?tab=` through a strict allow-list and the bar renders links, default tab as the bare URL), ExportBar, `NavProgress` + `LinkPendingHint` (route-transition pending feedback), `BackToTop`, `AdaptiveSelect` + `SearchCombobox` (the dropdown rule — native up to 12 options, fuzzy-searchable beyond, picked automatically), `useBrandColors` (themed palette for chart/SVG code) |
 | `…/brand/palette` | The brand palette as JavaScript — for charts and exporters, which can't take a Tailwind class. Kept in sync with `theme.css` by a test that parses the CSS |
@@ -58,7 +58,7 @@ The full subpath reference and consumption details are in the [README](README.md
 - **Dropdowns over 12 items are searchable.** Render any select whose list can grow (people, projects, entities, sites) as `<AdaptiveSelect>` — it stays a native `<select>` up to 12 options and becomes the fuzzy `SearchCombobox` beyond that, automatically. Hard-coded enums stay native. §3 in DESIGN-CONVENTIONS.md.
 - **Every action confirms; no page dead-ends.** Mutations pop a `toastSaved` confirmation — with an action link (`{ action: { label, href } }`) when there's a natural next step, or `toastUndo(message, restore)` when the action is reversible — and every leaf page links onward. Before shipping a PR that adds or moves a screen, run the §5a nav/flow review checklist in DESIGN-CONVENTIONS.md.
 - **Never copy foundation code into your app.** To change anything shared, make the change in this repo with a version bump (CI tags the release on merge), then bump the pin in each app with `scripts/pin-foundation.sh <app-dir> vX.Y.Z`. That's what keeps every tool consistent.
-- **Pin a tag, not main.** Your `package.json` references a version tag (e.g. `#v0.15.0`), so foundation changes never reach your app until you choose to take them.
+- **Pin a tag, not main.** Your `package.json` references a version tag (e.g. `#v0.15.1`), so foundation changes never reach your app until you choose to take them.
 - **AI calls follow the pattern.** Models come from configuration (`modelFor` + `withModelFallback`), input passes the gate (`gateLlmInput`) before the call, responses stream with progress stages (`streamJob` / `consumeLlmStream`), structured output passes the contract (`parseLlmJson` + your type guard), errors are typed, and every call has a time budget. The template's `ai-demo` route is the reference. Before an AI feature reaches beta, it passes the 5-gate audit in [AI-CRAFT.md](docs/AI-CRAFT.md) — identity-filtered retrieval, a golden eval set (`runGoldenSet` + your cases), a rendered failure path, known unit economics with the route metered (`checkRateBudget` + your store), and replayable traces (`startLlmTrace` + your sink).
 
 ## Links
