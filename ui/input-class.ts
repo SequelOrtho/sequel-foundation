@@ -15,9 +15,23 @@ export const INPUT_CLASS =
 
 /**
  * INPUT_CLASS plus call-site extras. Pass only additive utilities (width,
- * rows, font, text alignment) — never a competing padding/border/background,
- * which would fight the base without tailwind-merge to resolve it.
+ * rows, font, text alignment, state variants) — never a competing
+ * padding/border/background, which would fight the base without
+ * tailwind-merge to resolve it.
+ *
+ * Width is the one exception handled here: Tailwind v4 emits `.w-full` after
+ * `.w-24`/`.w-32` at equal specificity, so a plain `w-*` extra would silently
+ * lose to the base's `w-full`. When the extras carry an unprefixed `w-*`
+ * token, `w-full` is dropped so the extra wins. Prefer `max-w-*` for a cap
+ * that still fills narrower columns; responsive `sm:w-*` already outranks
+ * the base and needs no help.
  */
 export function inputClasses(extra = ""): string {
-  return extra.trim() ? `${INPUT_CLASS} ${extra.trim()}` : INPUT_CLASS;
+  const extras = extra.trim();
+  if (!extras) return INPUT_CLASS;
+  const setsWidth = extras.split(/\s+/).some((t) => /^w-/.test(t));
+  const base = setsWidth
+    ? INPUT_CLASS.split(" ").filter((t) => t !== "w-full").join(" ")
+    : INPUT_CLASS;
+  return `${base} ${extras}`;
 }

@@ -35,6 +35,17 @@ describe("inputClasses", () => {
     expect(inputClasses("  ")).toBe(INPUT_CLASS);
   });
   it("appends call-site extras after the base", () => {
-    expect(inputClasses(" w-32 text-right ")).toBe(`${INPUT_CLASS} w-32 text-right`);
+    expect(inputClasses(" max-w-xs text-right ")).toBe(`${INPUT_CLASS} max-w-xs text-right`);
+  });
+  // Tailwind v4 emits .w-full after .w-32, so a plain width extra would lose.
+  it("drops the base w-full when the extras set an unprefixed width", () => {
+    const cls = inputClasses("w-32 text-right").split(" ");
+    expect(cls).toContain("w-32");
+    expect(cls).not.toContain("w-full");
+  });
+  it("keeps w-full for max-w-*, min-w-*, and responsive widths", () => {
+    for (const extra of ["max-w-xs", "min-w-40", "sm:w-48"]) {
+      expect(inputClasses(extra).split(" ")).toContain("w-full");
+    }
   });
 });
