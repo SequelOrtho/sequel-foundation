@@ -18,6 +18,14 @@ describe("INPUT_CLASS", () => {
     expect(tokens).toContain("dark:bg-transparent");
   });
 
+  // Tailwind v4 emits dark:border-* after a plain aria-invalid: border, so the
+  // danger border needs its own dark-variant twin or it vanishes in dark mode.
+  it("carries the invalid-state danger border in both themes", () => {
+    const tokens = INPUT_CLASS.split(" ");
+    expect(tokens).toContain("aria-invalid:border-brand-danger");
+    expect(tokens).toContain("dark:aria-invalid:border-brand-danger");
+  });
+
   it("is the exact box both picker renderings use", () => {
     render(<AdaptiveSelect options={few} value={null} label="Status" />);
     const select = screen.getByRole("combobox", { name: "Status" });
