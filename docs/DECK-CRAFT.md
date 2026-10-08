@@ -8,7 +8,7 @@ Hard-won rules for generating board-quality PowerPoint (and the docx/xlsx siblin
 - **Charts are native pptxgenjs shapes** drawn via the automizer `slide.generate(g => …)` interop — **no `addChart`, no images**. `addChart` doesn't wire reliably through automizer; images aren't editable and aren't Power BI / Office portable. The primitives live in `deck-kit/deck-charts.ts` (kpiTile, waterfall, hBar, columns, stacked share, funnel, dumbbell, numbered cards) — add new chart types there, not inline in a deck builder.
 - **Pre-seed empty placeholders once** (`scripts/preseed-deck-template.mjs`): approved templates often ship title/subtitle placeholders with no `<a:t>` run, and automizer's `modify.setText` silently no-ops without one. Seed titles/subtitles; leave body placeholders empty (the builder overlays tables there).
 - **Web/deck encoding parity**: when a chart exists both in-app (Recharts/SVG) and in a deck, the visual encodings must agree (e.g. the dumbbell's hollow navy start dot / filled green-red end dot). Keep the pair in sync or the exec sees two different stories.
-- **Dual-brand entities**: a template can carry several brand families (SEQ/ON/FVO covers + headers). Model it as a brand map `{coverSlide, dividerSlide, contentSlide, headerFill}` keyed by brand, picked per export.
+- **Multi-brand entities**: a template can carry several brand families (SEQ/ON/FVO covers + headers). Model it as a brand map `{coverSlide, dividerSlide, contentSlide, headerFill}` keyed by brand (the same `SEQ`/`FVO`/`ON` keys as `brand/entities.ts`), with `defaultBrand` = the app's entity, picked per export. `headerFill` is the entity's dark (`bareHex(ENTITIES[k].roles.navy)`). The template repo's FVO layouts carry the **Sept 2026 identity** (dark-green grounds with the arch motif, new lockup, green rules); a template still showing the tree-and-fox seal or gold rules is the retired FVO brand.
 
 ## 2. Canvas & font calibration
 
@@ -70,7 +70,7 @@ Streamed function responses on Netlify die near a ~60s wall at wildly variable t
 
 ## 8. docx / xlsx siblings
 
-- Same brand constants (navy `0F1263`, blue `009DDD`, Montserrat) — pull them from one shared helper, don't re-declare per exporter file.
+- Same brand constants (navy `0F1263`, blue `009DDD`, Montserrat — or the app's entity via `docxBrand(entity)` / `headerFill(entity)`) — pull them from one shared helper, don't re-declare per exporter file.
 - docx guides use the bookmarked-outline Contents (`docs-kit/guide-contents.mjs`), never a Word TOC field (fields render blank until the reader accepts an update prompt).
 - When asserting on XML-serialized output in tests, XML-escape the needles (`&` → `&amp;`).
 - xlsx: prefer formula-live cells over baked values when the analyst will edit the sheet; keep chart metadata (units, targets) in the KPI/content library so app dashboards and workbook exports stay in step.

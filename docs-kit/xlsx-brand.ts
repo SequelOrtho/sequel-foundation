@@ -1,4 +1,5 @@
 import ExcelJS from "exceljs";
+import { bareHex, DEFAULT_ENTITY, ENTITIES, type EntityKey } from "../brand/entities";
 
 // Shared ExcelJS style constants + small layout helpers for every Sequel xlsx
 // exporter. Canonical decision (Phase B): workbook header rows use the BRAND
@@ -21,6 +22,23 @@ export const BLUE_HEADER_FILL: ExcelJS.FillPattern = {
   pattern: "solid",
   fgColor: { argb: "FF009DDD" },
 };
+
+// Per-entity header fills (brand/entities.ts): the entity's dark (FVO dark
+// green, ON navy) for the primary header, its primary for the accent band.
+// The constants above are the Sequel Ortho values and stay as they were.
+const solid = (hex: string): ExcelJS.FillPattern => ({
+  type: "pattern",
+  pattern: "solid",
+  fgColor: { argb: `FF${bareHex(hex)}` },
+});
+
+export function headerFill(entity: EntityKey = DEFAULT_ENTITY): ExcelJS.FillPattern {
+  return entity === "SEQ" ? HEADER_FILL : solid(ENTITIES[entity].roles.navy);
+}
+
+export function blueHeaderFill(entity: EntityKey = DEFAULT_ENTITY): ExcelJS.FillPattern {
+  return entity === "SEQ" ? BLUE_HEADER_FILL : solid(ENTITIES[entity].roles.primary);
+}
 
 export const HEADER_FONT: Partial<ExcelJS.Font> = {
   color: { argb: "FFFFFFFF" },
@@ -51,11 +69,15 @@ export const AMBER_FILL: ExcelJS.FillPattern = {
   fgColor: { argb: "FFFEF3C7" }, // amber-100
 };
 
-export function addHeader(sheet: ExcelJS.Worksheet, titles: string[]) {
+export function addHeader(
+  sheet: ExcelJS.Worksheet,
+  titles: string[],
+  entity: EntityKey = DEFAULT_ENTITY,
+) {
   sheet.addRow(titles);
   const row = sheet.getRow(sheet.rowCount);
   row.font = HEADER_FONT;
-  row.fill = HEADER_FILL;
+  row.fill = headerFill(entity);
   row.alignment = { vertical: "middle", wrapText: true };
   row.height = 22;
 }

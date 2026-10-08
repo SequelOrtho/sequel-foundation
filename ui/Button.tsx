@@ -37,11 +37,14 @@ const SIZES: Record<ButtonSize, string> = {
 const VARIANTS: Record<ButtonVariant, string> = {
   primary: "bg-brand text-white hover:bg-brand-600",
   secondary: "bg-brand-navy text-white hover:bg-brand-navy-muted",
-  // Assign / hand-off workflows: the SEQ chartreuse accent. Dark ink on a
-  // bright fill reads in BOTH themes (the token flips #cad400 → #d6e04a in
-  // dark mode; text stays zinc-900 — never theme-inverted navy, which would
-  // wash out on lime).
-  accent: "bg-brand-accent text-zinc-900 hover:bg-brand-accent-dark hover:text-zinc-900",
+  // Assign / hand-off workflows: the entity accent (SEQ chartreuse, FVO
+  // yellow, ON lime). Dark ink on a bright fill reads in BOTH themes (the
+  // token flips e.g. #cad400 → #d6e04a in dark mode; text stays zinc-900 —
+  // never theme-inverted navy, which would wash out on lime). The explicit
+  // dark:text pair opts out of theme.css's dark-mode contrast rescue, which
+  // otherwise remaps an unpaired text-zinc-900 to near-white on the accent.
+  accent:
+    "bg-brand-accent text-zinc-900 dark:text-zinc-900 hover:bg-brand-accent-dark hover:text-zinc-900 dark:hover:text-zinc-900",
   outline:
     "border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800",
   // Download / secondary-link affordance — neutral border, brand text.

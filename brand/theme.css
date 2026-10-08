@@ -16,6 +16,11 @@
  *   - Theme init: render THEME_INIT_SCRIPT (from @sequel/foundation/theme) as
  *     the first element of <body> so <html data-theme="…"> is stamped before
  *     first paint, and mount <ThemeToggle/> in the header.
+ *   - Entity: put `data-entity="<SEQ|FVO|ON>"` on <html> (server-rendered, so
+ *     no flash) — the "Entity brands" blocks below re-pitch every brand token
+ *     for Fox Valley Orthopedics / OrthoNebraska. No attribute = Sequel Ortho.
+ *     FVO apps also load Open Sans with variable --font-open-sans (body face);
+ *     put the next/font variable classes on <html> or <body>.
  */
 
 /* Dark mode: the resolved theme is stamped on <html data-theme="…"> by the
@@ -57,6 +62,22 @@
    * scale so success/warning read consistently with the stoplight UI. */
   --brand-success: #16a34a;
   --brand-warning: #b45309;
+
+  /* The brand ramp behind Tailwind's remapped blue-* scale (see @theme below):
+   * 500 = primary, 600/700 = hover/pressed, 800 = navy-muted, 900 = navy.
+   * Per-entity so `bg-blue-600` in an FVO app is FVO green, not Sequel blue. */
+  --brand-ramp-50: #e6f6fc;
+  --brand-ramp-100: #c3eaf8;
+  --brand-ramp-200: #8fd9f2;
+  --brand-ramp-300: #54c5ec;
+  --brand-ramp-400: #1eafe3;
+  --brand-ramp-500: #009ddd;
+  --brand-ramp-600: #0083bd;
+  --brand-ramp-700: #006a9c;
+  --brand-ramp-800: #232a7a;
+  --brand-ramp-900: #0f1263;
+  --brand-ramp-950: #080a3a;
+
 }
 
 /* Dark theme values — desaturated/lightened statuses (Material dark-theme
@@ -89,13 +110,105 @@
   --brand-warning: #fbbf24;
 }
 
+/* ---- Entity brands ------------------------------------------------------
+ * One app = one entity (brand/entities.ts), stamped on <html data-entity>.
+ * Each entity re-pitches the SAME token roles, so every `bg-brand*` /
+ * `text-brand*` utility, the focus ring, the blue-* ramp and the foundation
+ * components follow the entity without per-app CSS. RYG / success / warning /
+ * danger stay family-wide on purpose — a status color means the same thing in
+ * every Sequel app, whichever logo is on the header.
+ *
+ * Cascade rule (enforced by tests/palette.test.ts): `:root[data-entity=X]`
+ * and `:root[data-theme="dark"]` have equal specificity, so an entity's light
+ * block would beat the Sequel dark block by source order. Every variable an
+ * entity's light block shares with the Sequel dark block is therefore
+ * re-declared in that entity's dark block (higher specificity). Light values
+ * are the guides' published HEX (brand/BRAND.md); dark values are lightened
+ * the same way the Sequel ones are — never the light palette on near-black. */
+
+/* Fox Valley Orthopedics — Brand Guidelines v1.0 (Sept 2026, new identity). */
+:root[data-entity="FVO"] {
+  --foreground: #1e1e1e; /* guide "website colors": text */
+
+  --brand-primary: #177255; /* PMS 6159 green */
+  --brand-primary-600: #136047;
+  --brand-primary-700: #104e3a;
+  --brand-navy: #14332d; /* PMS 627 dark green */
+  --brand-navy-muted: #15493b;
+  --brand-accent: #f4d659; /* PMS 128 yellow — hand-off accent */
+  --brand-accent-dark: #d7bc4e;
+  --brand-muted: #5b6964;
+  --brand-surface: #f2f4f4; /* guide "website colors": backgrounds */
+
+  --brand-ramp-50: #e8f1ee;
+  --brand-ramp-100: #cadfd8;
+  --brand-ramp-200: #97c0b2;
+  --brand-ramp-300: #64a18d;
+  --brand-ramp-400: #35846b;
+  --brand-ramp-500: #177255;
+  --brand-ramp-600: #136047;
+  --brand-ramp-700: #104e3a;
+  --brand-ramp-800: #15493b;
+  --brand-ramp-900: #14332d;
+  --brand-ramp-950: #0c1f1b;
+
+}
+:root[data-entity="FVO"][data-theme="dark"] {
+  --foreground: #ededed;
+
+  --brand-primary: #14c579; /* PMS 7479 light green */
+  --brand-primary-600: #43d394;
+  --brand-primary-700: #8ee5bc;
+  --brand-navy: #c2e5d4;
+  --brand-navy-muted: #9fd5bc;
+  --brand-accent: #f7e07f;
+  --brand-accent-dark: #f4d659;
+  --brand-muted: #a1a1aa;
+  --brand-surface: #111114;
+}
+
+/* OrthoNebraska — Brand Guidelines (April 2017). */
+:root[data-entity="ON"] {
+  --brand-primary: #0072ce; /* PMS 285 */
+  --brand-primary-600: #0060ad;
+  --brand-primary-700: #004e8c;
+  --brand-navy: #25245c; /* OrthoNebraska Blue, PMS 2757 custom mix */
+  --brand-navy-muted: #3f3e70;
+  --brand-accent: #d2d755; /* PMS 584 lime — hand-off accent */
+  --brand-accent-dark: #b9bd4b;
+  --brand-muted: #63666a; /* PMS Cool Gray 10 */
+
+  --brand-ramp-50: #e6f1fa;
+  --brand-ramp-100: #c4dff4;
+  --brand-ramp-200: #8cc0e9;
+  --brand-ramp-300: #54a1de;
+  --brand-ramp-400: #2184d4;
+  --brand-ramp-500: #0072ce;
+  --brand-ramp-600: #0060ad;
+  --brand-ramp-700: #004e8c;
+  --brand-ramp-800: #3f3e70;
+  --brand-ramp-900: #25245c;
+  --brand-ramp-950: #161637;
+}
+:root[data-entity="ON"][data-theme="dark"] {
+  --brand-primary: #00a3e0; /* PMS 299 */
+  --brand-primary-600: #3bb8e8;
+  --brand-primary-700: #85d3f0;
+  --brand-navy: #c9c8ef;
+  --brand-navy-muted: #a9a8e0;
+  --brand-accent: #dde27a;
+  --brand-accent-dark: #d2d755;
+  --brand-muted: #a1a1aa;
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-montserrat);
+  --font-sans: var(--brand-font-body);
+  --font-heading: var(--brand-font-heading);
   --font-mono: var(--font-geist-mono);
 
-  /* SequelOrtho brand tokens, usable as bg-brand / text-brand / border-brand. */
+  /* Brand tokens (the active entity's), usable as bg-brand / text-brand / border-brand. */
   --color-brand: var(--brand-primary);
   --color-brand-600: var(--brand-primary-600);
   --color-brand-700: var(--brand-primary-700);
@@ -115,19 +228,20 @@
   --color-brand-success: var(--brand-success);
   --color-brand-warning: var(--brand-warning);
 
-  /* Remap Tailwind's default blue palette to SequelOrtho blues so existing
-   * `bg-blue-600`, `text-blue-700`, etc. adopt the brand automatically. */
-  --color-blue-50: #e6f6fc;
-  --color-blue-100: #c3eaf8;
-  --color-blue-200: #8fd9f2;
-  --color-blue-300: #54c5ec;
-  --color-blue-400: #1eafe3;
-  --color-blue-500: #009ddd;
-  --color-blue-600: #0083bd;
-  --color-blue-700: #006a9c;
-  --color-blue-800: #232a7a;
-  --color-blue-900: #0f1263;
-  --color-blue-950: #080a3a;
+  /* Remap Tailwind's default blue palette to the entity's brand ramp so
+   * existing `bg-blue-600`, `text-blue-700`, etc. adopt the brand
+   * automatically (Sequel blues by default; FVO greens; ON blues). */
+  --color-blue-50: var(--brand-ramp-50);
+  --color-blue-100: var(--brand-ramp-100);
+  --color-blue-200: var(--brand-ramp-200);
+  --color-blue-300: var(--brand-ramp-300);
+  --color-blue-400: var(--brand-ramp-400);
+  --color-blue-500: var(--brand-ramp-500);
+  --color-blue-600: var(--brand-ramp-600);
+  --color-blue-700: var(--brand-ramp-700);
+  --color-blue-800: var(--brand-ramp-800);
+  --color-blue-900: var(--brand-ramp-900);
+  --color-blue-950: var(--brand-ramp-950);
 
   /* Motion tokens — route-transition + scroll affordances (ui/NavProgress,
    * ui/LinkPendingHint, ui/BackToTop). Pending indicators hold invisible for
@@ -250,11 +364,29 @@
     background: var(--background);
     color: var(--foreground);
   }
+  /* FVO headings take Montserrat over the Open Sans body (guide p.13). Scoped
+   * to the entity whose faces differ, so headings in SEQ/ON apps keep
+   * inheriting exactly as before (e.g. inside a font-mono block). Layered, so
+   * `font-*` utilities still win; elsewhere use the `font-heading` utility. */
+  :root[data-entity="FVO"] :where(h1, h2, h3, h4, h5, h6) {
+    font-family: var(--brand-font-heading), ui-sans-serif, system-ui, sans-serif;
+  }
 }
 
+/* Typography roles. Body = running text and UI; heading = FVO h1–h6 and the
+ * `font-heading` utility. Same face for SEQ/ON; FVO sets body copy in Open
+ * Sans under Montserrat headlines (guide p.11–13). Declared on BODY, not
+ * :root: next/font puts --font-montserrat / --font-open-sans on the element
+ * carrying its class (<body> in the template), and a custom property resolves
+ * its var() references where it is declared — on :root these would collapse to
+ * the bare fallback names and lose next/font's family + metric fallback. */
 body {
-  font-family:
-    var(--font-montserrat), "Montserrat", ui-sans-serif, system-ui, sans-serif;
+  --brand-font-body: var(--font-montserrat, "Montserrat");
+  --brand-font-heading: var(--font-montserrat, "Montserrat");
+  font-family: var(--brand-font-body), ui-sans-serif, system-ui, sans-serif;
+}
+:root[data-entity="FVO"] body {
+  --brand-font-body: var(--font-open-sans, "Open Sans");
 }
 
 /* ---- Dark-mode contrast rescue -------------------------------------------

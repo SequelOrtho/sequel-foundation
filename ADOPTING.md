@@ -1,6 +1,6 @@
 # Building on the Sequel Foundation
 
-**Developer quick start.** Sequel Ortho applications share one platform layer: this package. It carries the SequelOrtho brand theme with dark mode, the shared UI components and UX conventions, the branded PowerPoint/Excel/Word export machinery, and our Claude (AI) integration patterns — extracted from [Project Hub](https://sequelorthoprojects.com) and the [Acquisition Hub](https://sequelorthoplaybook.com), which both run on it in production. Build on it and your tool automatically looks, feels, and exports like the rest of the family.
+**Developer quick start.** Sequel family applications — for **Sequel Ortho, Fox Valley Orthopedics, or OrthoNebraska** — share one platform layer: this package. It carries each entity's brand theme with dark mode, the shared UI components and UX conventions, the branded PowerPoint/Excel/Word export machinery, and our Claude (AI) integration patterns — extracted from [Project Hub](https://sequelorthoprojects.com) and the [Acquisition Hub](https://sequelorthoplaybook.com), which both run on it in production. Build on it and your tool automatically looks, feels, and exports like the rest of the family.
 
 ## Starting a new application (the fast path)
 
@@ -12,14 +12,20 @@ gh repo create my-new-app --private \
 cd my-new-app && npm install && npm run dev
 ```
 
-Then work through the short **Template checklist** at the bottom of the template's `CLAUDE.md` — rename the app, pick a theme-storage key, set `ANTHROPIC_API_KEY`, and replace the sample pages/exports with your own.
+**First question: which entity is this app for?** Sequel Ortho, Fox Valley Orthopedics, or OrthoNebraska — every app serves exactly one. Answer it before anything else, then brand the app in one step:
+
+```bash
+node scripts/set-entity.mjs FVO   # SEQ | FVO | ON — sets lib/entity.ts + the favicon
+```
+
+That single constant drives the theme (`<html data-entity>`), the header logo, fonts, deck layouts and export colors. Then work through the rest of the short **Template checklist** at the bottom of the template's `CLAUDE.md` — rename the app, pick a theme-storage key, set `ANTHROPIC_API_KEY`, and replace the sample pages/exports with your own.
 
 ## Adding the foundation to an existing application
 
 **1. Install** (public repo — no tokens needed anywhere):
 
 ```bash
-npm i "@sequel/foundation@github:SequelOrtho/sequel-foundation#v0.16.2"
+npm i "@sequel/foundation@github:SequelOrtho/sequel-foundation#v0.17.0"
 ```
 
 ```ts
@@ -35,30 +41,32 @@ transpilePackages: ["@sequel/foundation"],
 @source "../node_modules/@sequel/foundation";
 ```
 
-**3. Layout** — load Montserrat + Geist Mono via `next/font`, render `themeInitScript(<your key>)` as the first element of `<body>`, and put `<ThemeToggle storageKey={…}/>` in your header. Render the header logo + app title as one `<HomeLink>` (fires the standard "Bringing you back to Home…" toast on the way back). Mount `<NavProgress/>` (route-transition top bar) and `<ToastViewport/>` once in `<body>` too. Copy the exact wiring from the template's [`app/layout.tsx`](https://github.com/SequelOrtho/sequel-app-template/blob/main/app/layout.tsx).
+**3. Layout** — decide the app's entity (`SEQ` / `FVO` / `ON`) and put it on `<html data-entity="…">` (omit for Sequel Ortho); render the header logo with `<EntityLogo entity={…}/>` (`@sequel/foundation/brand/EntityLogo`); load Montserrat + Geist Mono via `next/font` (plus Open Sans as `--font-open-sans` for Fox Valley Orthopedics, whose body face it is), render `themeInitScript(<your key>)` as the first element of `<body>`, and put `<ThemeToggle storageKey={…}/>` in your header. Render the header logo + app title as one `<HomeLink>` (fires the standard "Bringing you back to Home…" toast on the way back). Mount `<NavProgress/>` (route-transition top bar) and `<ToastViewport/>` once in `<body>` too. Copy the exact wiring from the template's [`app/layout.tsx`](https://github.com/SequelOrtho/sequel-app-template/blob/main/app/layout.tsx).
 
 ## What's in the box
 
 | Import path | What you get |
 |---|---|
-| `…/brand/theme.css` | Brand tokens with dark mode (incl. dark native `<select>` option lists), RYG status colors, focus ring, print rules |
+| `…/brand/theme.css` | Brand tokens with dark mode (incl. dark native `<select>` option lists), per-entity brands via `<html data-entity>`, RYG status colors, focus ring, print rules |
+| `…/brand/entities` + `…/brand/EntityLogo` | The three entities' brand facts (names, how to write them, official colors, fonts, logo rules) and the theme-aware logo component; logos + favicons under `…/brand/assets/` |
 | `…/theme` | Light / Dark / Browser theme with a no-flash pre-hydration script |
-| `…/ui` | Button (incl. the chartreuse assign/hand-off variant), `IconButton` (glyph-only controls with a real hit area + focus ring + required label), Callout, Field + `RequiredMark` / `RequiredLegend` / `FieldError` + `checkRequired` (required-field convention), badges, toasts (with next-step action links, and `toastUndo` for reversible actions), `HomeLink` (the header brand link home, with the family-standard departure toast), the save-surface kit (`useSaveRunner` / `useFormDirty` / `useDraftSave` / `SectionSaveBar` + `SaveStateIndicator` + `useUnsavedGuard` — dirty-disabled, save-in-place, per-section saves, tab-close warning), ShowMore, Breadcrumbs, `Tabs` + `pickTab` (URL-backed tabs — the page resolves `?tab=` through a strict allow-list and the bar renders links, default tab as the bare URL), ExportBar, `NavProgress` + `LinkPendingHint` (route-transition pending feedback), `BackToTop`, `AdaptiveSelect` + `SearchCombobox` (the dropdown rule — native up to 12 options, fuzzy-searchable beyond, picked automatically), `INPUT_CLASS` (the pickers' box for hand-rolled text inputs, so they never take a tinted card's ground), `useBrandColors` (themed palette for chart/SVG code) |
-| `…/brand/palette` | The brand palette as JavaScript — for charts and exporters, which can't take a Tailwind class. Kept in sync with `theme.css` by a test that parses the CSS |
+| `…/ui` | Button (incl. the accent assign/hand-off variant — Sequel chartreuse, FVO yellow, ON lime), `IconButton` (glyph-only controls with a real hit area + focus ring + required label), Callout, Field + `RequiredMark` / `RequiredLegend` / `FieldError` + `checkRequired` (required-field convention), badges, toasts (with next-step action links, and `toastUndo` for reversible actions), `HomeLink` (the header brand link home, with the family-standard departure toast), the save-surface kit (`useSaveRunner` / `useFormDirty` / `useDraftSave` / `SectionSaveBar` + `SaveStateIndicator` + `useUnsavedGuard` — dirty-disabled, save-in-place, per-section saves, tab-close warning), ShowMore, Breadcrumbs, `Tabs` + `pickTab` (URL-backed tabs — the page resolves `?tab=` through a strict allow-list and the bar renders links, default tab as the bare URL), ExportBar, `NavProgress` + `LinkPendingHint` (route-transition pending feedback), `BackToTop`, `AdaptiveSelect` + `SearchCombobox` (the dropdown rule — native up to 12 options, fuzzy-searchable beyond, picked automatically), `INPUT_CLASS` (the pickers' box for hand-rolled text inputs, so they never take a tinted card's ground), `useBrandColors` (themed palette for chart/SVG code) |
+| `…/brand/palette` | The brand palette as JavaScript, per entity — for charts and exporters, which can't take a Tailwind class. Kept in sync with `theme.css` by a test that parses the CSS |
 | `…/llm` | Claude client seam (hard timeout budget + retries), per-task model configuration with fallback, streaming that survives serverless timeouts and narrates progress stages, deterministic input gate (size cap + secret/PII redaction), output-contract parsing (`parseLlmJson` — never raw `JSON.parse` on model text), identity-aware rate-limit core (your app supplies the one-method store), per-request trace records (your app supplies the sink), golden-set runner (your app supplies the cases) |
 | `…/deck-kit` | Branded PowerPoint engine (approved template, native editable charts, auto-slimming) |
-| `…/docs-kit/*` | Word/Excel brand constants and styles, clickable-contents machinery for generated guides |
+| `…/docs-kit/*` | Word/Excel brand constants and styles (per entity: `docxBrand(entity)`, `headerFill(entity)`), clickable-contents machinery for generated guides |
 
 The full subpath reference and consumption details are in the [README](README.md).
 
 ## House rules
 
+- **One app, one entity — asked first.** Before naming or building anything, settle which entity the app serves (Sequel Ortho, Fox Valley Orthopedics, OrthoNebraska). Never mix entities' logos or colors in one app, never hand-pick a brand hex, and write names exactly as `ENTITIES[k].writtenForms` gives them ("OrthoNebraska" is one word). [brand/BRAND.md](brand/BRAND.md) has each guide's rules.
 - **Read the three docs first.** [DESIGN-CONVENTIONS.md](docs/DESIGN-CONVENTIONS.md) (the UX rules that make Sequel apps feel like one product — including §3's post-action feedback rule and §5's navigation patterns), [DECK-CRAFT.md](docs/DECK-CRAFT.md) (everything we learned generating board-quality decks), and [AI-CRAFT.md](docs/AI-CRAFT.md) (the demo-to-production rules for AI features) will save you weeks.
 - **Saves stay in place, disabled until dirty.** A successful save never navigates away (toast + SaveState chip confirm in place; redirects are for create flows), Save buttons disable until the form actually changed, and scroll-length forms carry a per-section `SectionSaveBar` — §3's save conventions, with the code in `ui/SectionSave.tsx`.
 - **Dropdowns over 12 items are searchable.** Render any select whose list can grow (people, projects, entities, sites) as `<AdaptiveSelect>` — it stays a native `<select>` up to 12 options and becomes the fuzzy `SearchCombobox` beyond that, automatically. Hard-coded enums stay native. §3 in DESIGN-CONVENTIONS.md.
 - **Every action confirms; no page dead-ends.** Mutations pop a `toastSaved` confirmation — with an action link (`{ action: { label, href } }`) when there's a natural next step, or `toastUndo(message, restore)` when the action is reversible — and every leaf page links onward. Before shipping a PR that adds or moves a screen, run the §5a nav/flow review checklist in DESIGN-CONVENTIONS.md.
 - **Never copy foundation code into your app.** To change anything shared, make the change in this repo with a version bump (CI tags the release on merge), then bump the pin in each app with `scripts/pin-foundation.sh <app-dir> vX.Y.Z`. That's what keeps every tool consistent.
-- **Pin a tag, not main.** Your `package.json` references a version tag (e.g. `#v0.16.2`), so foundation changes never reach your app until you choose to take them.
+- **Pin a tag, not main.** Your `package.json` references a version tag (e.g. `#v0.17.0`), so foundation changes never reach your app until you choose to take them.
 - **AI calls follow the pattern.** Models come from configuration (`modelFor` + `withModelFallback`), input passes the gate (`gateLlmInput`) before the call, responses stream with progress stages (`streamJob` / `consumeLlmStream`), structured output passes the contract (`parseLlmJson` + your type guard), errors are typed, and every call has a time budget. The template's `ai-demo` route is the reference. Before an AI feature reaches beta, it passes the 5-gate audit in [AI-CRAFT.md](docs/AI-CRAFT.md) — identity-filtered retrieval, a golden eval set (`runGoldenSet` + your cases), a rendered failure path, known unit economics with the route metered (`checkRateBudget` + your store), and replayable traces (`startLlmTrace` + your sink).
 
 ## Links
