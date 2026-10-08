@@ -14,8 +14,15 @@
 // `useBrandColors()` (ui/brand-colors.ts); server-side exporters take
 // `brandColors("light")` directly.
 //
+// Per entity (brand/entities.ts): ENTITY_BRAND_COLORS.FVO / .ON carry the
+// re-pitched values of the `:root[data-entity=…]` blocks; BRAND_COLORS stays the
+// Sequel Ortho palette it always was. useBrandColors() reads <html data-entity>
+// as well as data-theme, so chart code needs no entity plumbing of its own.
+//
 // KEEP IN SYNC WITH brand/theme.css. tests/palette.test.ts parses the CSS and
 // fails if any value here drifts, so the sync is enforced rather than trusted.
+
+import { DEFAULT_ENTITY, type EntityKey } from "./entities";
 
 export type ThemeName = "light" | "dark";
 
@@ -68,7 +75,7 @@ export const BRAND_COLOR_VARS: Record<keyof BrandColors, string> = {
   warning: "--brand-warning",
 };
 
-export const BRAND_COLORS: Record<ThemeName, BrandColors> = {
+const SEQ_COLORS: Record<ThemeName, BrandColors> = {
   light: {
     background: "#ffffff",
     foreground: "#171717",
@@ -117,25 +124,108 @@ export const BRAND_COLORS: Record<ThemeName, BrandColors> = {
   },
 };
 
-export function brandColors(theme: ThemeName): BrandColors {
-  return BRAND_COLORS[theme];
+// Entity overrides: exactly the variables the entity's theme.css blocks set;
+// everything else (RYG, success/warning/danger, page ground) is family-wide.
+const FVO_COLORS: Record<ThemeName, BrandColors> = {
+  light: {
+    ...SEQ_COLORS.light,
+    foreground: "#1e1e1e",
+    brand: "#177255",
+    brand600: "#136047",
+    brand700: "#104e3a",
+    navy: "#14332d",
+    navyMuted: "#15493b",
+    accent: "#f4d659",
+    accentDark: "#d7bc4e",
+    muted: "#5b6964",
+    surface: "#f2f4f4",
+  },
+  dark: {
+    ...SEQ_COLORS.dark,
+    foreground: "#ededed",
+    brand: "#14c579",
+    brand600: "#43d394",
+    brand700: "#8ee5bc",
+    navy: "#c2e5d4",
+    navyMuted: "#9fd5bc",
+    accent: "#f7e07f",
+    accentDark: "#f4d659",
+    muted: "#a1a1aa",
+    surface: "#111114",
+  },
+};
+
+const ON_COLORS: Record<ThemeName, BrandColors> = {
+  light: {
+    ...SEQ_COLORS.light,
+    brand: "#0072ce",
+    brand600: "#0060ad",
+    brand700: "#004e8c",
+    navy: "#25245c",
+    navyMuted: "#3f3e70",
+    accent: "#d2d755",
+    accentDark: "#b9bd4b",
+    muted: "#63666a",
+  },
+  dark: {
+    ...SEQ_COLORS.dark,
+    brand: "#00a3e0",
+    brand600: "#3bb8e8",
+    brand700: "#85d3f0",
+    navy: "#c9c8ef",
+    navyMuted: "#a9a8e0",
+    accent: "#dde27a",
+    accentDark: "#d2d755",
+    muted: "#a1a1aa",
+  },
+};
+
+export const ENTITY_BRAND_COLORS: Record<EntityKey, Record<ThemeName, BrandColors>> = {
+  SEQ: SEQ_COLORS,
+  FVO: FVO_COLORS,
+  ON: ON_COLORS,
+};
+
+/** The Sequel Ortho palette (the default entity) — unchanged since v0.x. */
+export const BRAND_COLORS: Record<ThemeName, BrandColors> = SEQ_COLORS;
+
+export function brandColors(theme: ThemeName, entity: EntityKey = DEFAULT_ENTITY): BrandColors {
+  return ENTITY_BRAND_COLORS[entity][theme];
 }
+
+// Categorical chart series per entity, in order — brand-forward and
+// distinguishable within each theme. Sequel's list predates the registry and
+// is unchanged; FVO's three greens are spread apart with its secondaries
+// between them; ON's follows its logo gradient.
+const SERIES: Record<EntityKey, (theme: ThemeName) => string[]> = {
+  SEQ: (theme) => {
+    const c = SEQ_COLORS[theme];
+    return [c.navy, c.brand, c.rygGreen, "#93328e", c.rygYellow, c.muted];
+  },
+  FVO: (theme) =>
+    theme === "light"
+      ? ["#14332d", "#14c579", "#f07d42", "#f4d659", "#177255", "#5b6964"]
+      : ["#c2e5d4", "#14c579", "#f49a6b", "#f7e07f", "#5fa58c", "#a1a1aa"],
+  ON: (theme) =>
+    theme === "light"
+      ? ["#25245c", "#0072ce", "#43b02a", "#93328e", "#00a3e0", "#63666a"]
+      : ["#c9c8ef", "#00a3e0", "#6cc95a", "#c46cc0", "#85d3f0", "#a1a1aa"],
+};
 
 /**
  * Categorical series colors for multi-series charts, in order. Brand-forward
  * and distinguishable in both themes — pick by index and wrap with `%`.
  */
-export function seriesColors(theme: ThemeName): string[] {
-  const c = BRAND_COLORS[theme];
-  return [c.navy, c.brand, c.rygGreen, "#93328e", c.rygYellow, c.muted];
+export function seriesColors(theme: ThemeName, entity: EntityKey = DEFAULT_ENTITY): string[] {
+  return SERIES[entity](theme);
 }
 
-/** Green / yellow / red for a stoplight value, in the active theme. */
+/** Green / yellow / red for a stoplight value, in the active theme (family-wide — no entity). */
 export function rygColor(
   status: "green" | "yellow" | "red" | null | undefined,
   theme: ThemeName,
 ): string {
-  const c = BRAND_COLORS[theme];
+  const c = SEQ_COLORS[theme];
   if (status === "green") return c.rygGreen;
   if (status === "yellow") return c.rygYellow;
   if (status === "red") return c.rygRed;

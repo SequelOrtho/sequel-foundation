@@ -30,6 +30,35 @@ describe("theme.css page ground", () => {
   });
 });
 
+describe("entity typography", () => {
+  it("body text reads the entity body face, with Montserrat as the default", () => {
+    expect(css).toMatch(
+      /\nbody \{\s*--brand-font-body: var\(--font-montserrat, "Montserrat"\);\s*--brand-font-heading: var\(--font-montserrat, "Montserrat"\);\s*font-family: var\(--brand-font-body\)/,
+    );
+    expect(css).toContain("--font-sans: var(--brand-font-body);");
+  });
+
+  it("font roles are declared on body, never :root (next/font vars live on <body>)", () => {
+    // A var() inside a custom property resolves where it is declared; on :root
+    // --font-montserrat is undefined and the role collapses to its fallback.
+    for (const block of [':root {', ':root[data-entity="FVO"] {', ':root[data-entity="ON"] {']) {
+      const start = css.indexOf(block);
+      expect(css.slice(start, css.indexOf("\n}", start))).not.toContain("--brand-font-");
+    }
+  });
+
+  it("FVO body is Open Sans and its headings Montserrat, inside @layer base", () => {
+    expect(css).toMatch(/:root\[data-entity="FVO"\] body \{\s*--brand-font-body: var\(--font-open-sans, "Open Sans"\);/);
+    const base = css.match(/@layer base \{([\s\S]*?)\n\}/)?.[1] ?? "";
+    expect(base).toContain(':root[data-entity="FVO"] :where(h1, h2, h3, h4, h5, h6)');
+    expect(base).toContain("var(--brand-font-heading)");
+  });
+
+  it("no unscoped heading font rule — SEQ/ON headings keep inheriting", () => {
+    expect(css).not.toMatch(/^\s*h1,\s*$/m);
+  });
+});
+
 describe("dark-mode contrast rescue", () => {
   it("rescues un-darkened mid-gray text across all five gray families", () => {
     for (const fam of ["gray", "slate", "zinc", "neutral", "stone"]) {

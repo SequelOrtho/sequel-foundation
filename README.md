@@ -1,6 +1,6 @@
 # @sequel/foundation
 
-The shared foundation for Sequel Ortho applications: brand tokens and theme, the design-system UI primitives, LLM plumbing, the deck kit, guide-build machinery, and repo hygiene tooling — extracted from **Project Hub** (`project-insights`) and the **Acquisition Hub** (`Sequel_Ortho`), which previously kept these in sync by hand ("the twin registry").
+The shared foundation for Sequel family applications — **Sequel Ortho, Fox Valley Orthopedics, and OrthoNebraska**: per-entity brand tokens and theme, the design-system UI primitives, LLM plumbing, the deck kit, guide-build machinery, and repo hygiene tooling — extracted from **Project Hub** (`project-insights`) and the **Acquisition Hub** (`Sequel_Ortho`), which previously kept these in sync by hand ("the twin registry").
 
 **New here? Start with [ADOPTING.md](ADOPTING.md)** — the quick start for building a new Sequel app on the foundation or wiring it into an existing one.
 
@@ -14,9 +14,12 @@ Three documents carry the accumulated know-how; read them before building anythi
 
 | Subpath | What it is |
 |---|---|
-| `@sequel/foundation/brand/tokens.css` | Framework-free brand custom properties (Brand Guide v1.0) |
-| `@sequel/foundation/brand/theme.css` | Tailwind v4 layer: dark mode variant, tokens incl. dark values, native-control `color-scheme` + dark `<option>` ground, RYG, blue-ramp remap, focus ring, print rules |
-| `@sequel/foundation/brand/assets/*` | Logo PNGs (navy / white / banner) — see `brand/BRAND.md` |
+| `@sequel/foundation/brand/tokens.css` | Framework-free brand custom properties (Sequel Ortho default + FVO / ON `data-entity` blocks) |
+| `@sequel/foundation/brand/theme.css` | Tailwind v4 layer: dark mode variant, tokens incl. dark values, **entity brands** (`<html data-entity="FVO"|"ON">` re-pitches every brand token, the blue ramp and the body/heading faces; none = Sequel Ortho), native-control `color-scheme` + dark `<option>` ground, RYG, blue-ramp remap, focus ring, print rules |
+| `@sequel/foundation/brand/entities` | The entity registry (`ENTITIES`, `ENTITY_KEYS` = `SEQ` / `FVO` / `ON`): names + written forms, official swatches, token roles, typography, logo files/rules — see `brand/BRAND.md` |
+| `@sequel/foundation/brand/EntityLogo` | `<EntityLogo entity=… />` — the entity's lockup, color on light / reverse in dark mode (or a pinned `variant`) |
+| `@sequel/foundation/brand/palette` | The palette in JS for charts/exporters: `brandColors(theme, entity)`, `seriesColors(theme, entity)`, `ENTITY_BRAND_COLORS` (test-locked to `theme.css`) |
+| `@sequel/foundation/brand/assets/*` | Logos per entity (`logo-navy`/`logo-white`/`banner` for Sequel; `fvo/*`, `on/*`: color / reverse / white / mark) and favicons (`<key>/icon.png`) — see `brand/BRAND.md` |
 | `@sequel/foundation/theme` | Theme model: modes, `resolveTheme`, `themeInitScript(storageKey)` |
 | `@sequel/foundation/theme/ThemeToggle` | The Light / Dark / Browser header toggle (client component) |
 | `@sequel/foundation/ui` | Button (incl. the accent hand-off variant), Callout, Field + `RequiredMark` / `RequiredLegend` / `FieldError` + `checkRequired` (the required-field convention: asterisk + legend, announced, validated on Save with standard messages), StatusBadges, SaveStateIndicator, Toast + viewport/store (next-step link actions and callback actions — `toastUndo` for reversible actions), `HomeLink` + `toastHomeNav` (header brand link with the standard "Bringing you back to Home…" departure toast), ShowMore, Breadcrumbs, `Tabs` + `pickTab` / `tabHref` / `tabClasses` (URL-backed tab bar — `?tab=` resolved through a strict allow-list, the default tab is the bare URL, `aria-current` on the active link, optional count pills, per-tab href override), ExportBar, NavProgress + LinkPendingHint (route-transition pending feedback), BackToTop, `AdaptiveSelect` (the one dropdown control — native `<select>` up to 12 options, fuzzy `SearchCombobox` beyond, same props/`name`/`defaultValue` either way; `labelClassName` matches a host form's label typography), `SearchCombobox` + `comboMatches` / `comboScore` / `rankComboOptions` (searchable APG editable-combobox-with-list primitive — fuzzy ranked type-to-filter, keyboard nav, optional group headers, capped render with overflow hint, hidden form input via `name`), `SEARCHABLE_SELECT_THRESHOLD` / `isSearchableSize`, `useScrollToEdit` (scroll-into-view + focus hook for jump-to-edit UX), `INPUT_CLASS` / `inputClasses` (the pickers' own box for hand-rolled `<input>`/`<textarea>` — white ground in light mode, so fields on tinted cards match the pickers) |
@@ -24,9 +27,9 @@ Three documents carry the accumulated know-how; read them before building anythi
 | `@sequel/foundation/holidays` | US observed company-holiday calendar — pure, no `Date.now()`; fixed-date holidays shift Sat/Sun to the nearest weekday, floating (Monday/Thursday-anchored) holidays never shift |
 | `@sequel/foundation/deck-kit` | Native-shape chart primitives (`deck-charts`), the branded-deck engine (`createBrandDeckEngine` + table/status/card primitives), `slimPresentationZip` (dedupe + prune), brand `FONT` |
 | `@sequel/foundation/docs-kit/guide-contents` | Bookmarked-outline Contents machinery for generated .docx guides |
-| `@sequel/foundation/docs-kit/docx-brand` | Shared docx brand constants (NAVY/BLUE/LIME/GREY/CRITICAL/FONT) |
-| `@sequel/foundation/docs-kit/xlsx-brand` | Shared ExcelJS styles — brand-navy header standard, status fills, `addHeader`/`titleBlock`/`workbookToBuffer` |
-| `@sequel/foundation/scripts/*` | `clean-icloud-dups.sh`, `preseed-deck-template.mjs`, `render-verify.mjs` |
+| `@sequel/foundation/docs-kit/docx-brand` | Shared docx brand constants (NAVY/BLUE/LIME/GREY/CRITICAL/FONT — Sequel) + `docxBrand(entity)` for FVO / ON (colors + document faces) |
+| `@sequel/foundation/docs-kit/xlsx-brand` | Shared ExcelJS styles — brand-navy header standard (`headerFill(entity)` / `blueHeaderFill(entity)` per entity), status fills, `addHeader(sheet, titles, entity?)`/`titleBlock`/`workbookToBuffer` |
+| `@sequel/foundation/scripts/*` | `clean-icloud-dups.sh`, `preseed-deck-template.mjs`, `render-verify.mjs`, `extract-entity-logos.py` (rebuilds `brand/assets/{fvo,on}` from a guide PDF) |
 
 ## Consuming from a Next.js app
 
@@ -35,7 +38,7 @@ Three documents carry the accumulated know-how; read them before building anythi
    ```jsonc
    // package.json
    "dependencies": {
-     "@sequel/foundation": "github:SequelOrtho/sequel-foundation#v0.16.2"
+     "@sequel/foundation": "github:SequelOrtho/sequel-foundation#v0.17.0"
    }
    ```
 
@@ -55,22 +58,29 @@ Three documents carry the accumulated know-how; read them before building anythi
    @source "../node_modules/@sequel/foundation";
    ```
 
-3. **Layout** — fonts, theme init, toggle:
+3. **Layout** — entity, fonts, theme init, toggle, logo:
 
    ```tsx
-   import { Montserrat, Geist_Mono } from "next/font/google";
+   import { Montserrat, Open_Sans, Geist_Mono } from "next/font/google";
+   import { EntityLogo } from "@sequel/foundation/brand/EntityLogo";
    import { themeInitScript } from "@sequel/foundation/theme";
    import { ThemeToggle } from "@sequel/foundation/theme/ThemeToggle";
 
+   const ENTITY = "FVO"; // "SEQ" | "FVO" | "ON" — the app's one entity (template: lib/entity.ts)
    const montserrat = Montserrat({ subsets: ["latin"], variable: "--font-montserrat" });
+   const openSans = Open_Sans({ subsets: ["latin"], variable: "--font-open-sans" }); // FVO body face
    const geistMono = Geist_Mono({ subsets: ["latin"], variable: "--font-geist-mono" });
    const THEME_KEY = "myapp.theme"; // per-app; existing hubs keep pi.theme / hub.theme
 
+   <html lang="en" data-entity={ENTITY} suppressHydrationWarning>
    // in <body>, first element:
    <script dangerouslySetInnerHTML={{ __html: themeInitScript(THEME_KEY) }} />
    // in the header:
+   <EntityLogo entity={ENTITY} height={32} priority />
    <ThemeToggle storageKey={THEME_KEY} />
    ```
+
+   Sequel Ortho apps may omit `data-entity` (the default) and Open Sans.
 
 4. **LLM env vars** (all optional overrides): `ANTHROPIC_API_KEY`, `LLM_MODEL_PROSE` (default `claude-opus-5`), `LLM_MODEL_PRESENTATION` (default `claude-opus-5`), `LLM_MODEL_FALLBACK` (default `claude-opus-4-8` — unavailability rescue only, never what a healthy call runs on), `LLM_TIMEOUT_MS` (default `120000` — the hard per-call time budget; a fired budget surfaces as a typed 504 so routes can degrade deterministically), `LLM_MAX_RETRIES` (default `2`, the SDK's backoff retries on 408/429/5xx), `LLM_INPUT_MAX_CHARS` (default `32000` — the input gate's size cap; per-call `maxChars` overrides for real long-document features).
 
@@ -98,7 +108,7 @@ When the two existing hubs adopt this package, these local copies are deleted an
 
 **Merge decisions (canonical vs. the old copies):**
 
-- **Button** — Project Hub's variant vocabulary (`primary` blue / `secondary` navy / `accent` chartreuse hand-off / `outline` / `outlineBrand` / `danger`) + Acquisition Hub's `ghost`, polymorphic `href` → `<Link>`, and `busy`/`busyLabel`. `buttonClasses` takes an options object. *Acquisition Hub's old `secondary` (neutral border) maps to `outline`.*
+- **Button** — Project Hub's variant vocabulary (`primary` blue / `secondary` navy / `accent` hand-off (the entity accent — Sequel chartreuse) / `outline` / `outlineBrand` / `danger`) + Acquisition Hub's `ghost`, polymorphic `href` → `<Link>`, and `busy`/`busyLabel`. `buttonClasses` takes an options object. *Acquisition Hub's old `secondary` (neutral border) maps to `outline`.*
 - **Callout** — Acquisition Hub's canonical (icon + optional title, `role` derived from tone). Project Hub's `role` prop is dropped; tone set is identical.
 - **StatusBadges** — `ApprovedBadge` now takes `approvedAt` (+ optional `label`) instead of the playbook domain type.
 - **theme** — `THEME_STORAGE_KEY` constant became `themeInitScript(storageKey)` + a `storageKey` prop; behavior otherwise identical.
@@ -128,7 +138,7 @@ Versioning: tag releases (`v0.x.y`); consumers pin the tag in their git dependen
 ### Release checklist
 
 1. `npm test` and `npm run typecheck` green.
-2. If anything in `ui/`, `theme/`, or `brand/` changed, that is a visual change in **every** consumer — check both hubs before releasing.
+2. If anything in `ui/`, `theme/`, or `brand/` changed, that is a visual change in **every** consumer — check both hubs before releasing. A `brand/` change touching one entity's block reaches every app of that entity (`data-entity`); verify the default (no attribute) still renders Sequel Ortho unchanged.
 3. Bump `version` in `package.json`.
 4. **Bump the version refs in `README.md` and `ADOPTING.md`** — the install command, the `package.json` example, and the "pin a tag" example. These are the first commands a new developer copies, so a stale tag here starts every new app behind. Verify none are left:
 

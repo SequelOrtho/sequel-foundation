@@ -15,6 +15,10 @@
  *   Grey text             #707372 (RGB 112,115,114)
  *   Surface tint          #F8F8F8
  *   Error                 #E51919
+ *
+ * Entity brands (brand/entities.ts): put data-entity="FVO" | "ON" on <html>
+ * and the blocks at the bottom re-pitch the same variables for Fox Valley
+ * Orthopedics / OrthoNebraska (light values; theme.css adds dark mode).
  */
 
 :root {
@@ -42,4 +46,53 @@
   --blue-800: #232a7a;
   --blue-900: #0f1263;
   --blue-950: #080a3a;
+}
+
+/* Fox Valley Orthopedics — Brand Guidelines v1.0 (Sept 2026). */
+:root[data-entity="FVO"] {
+  --brand-primary: #177255;
+  --brand-primary-600: #136047;
+  --brand-primary-700: #104e3a;
+  --brand-navy: #14332d;
+  --brand-navy-muted: #15493b;
+  --brand-accent: #f4d659;
+  --brand-accent-dark: #d7bc4e;
+  --brand-muted: #5b6964;
+  --brand-surface: #f2f4f4;
+
+  --blue-50: #e8f1ee;
+  --blue-100: #cadfd8;
+  --blue-200: #97c0b2;
+  --blue-300: #64a18d;
+  --blue-400: #35846b;
+  --blue-500: #177255;
+  --blue-600: #136047;
+  --blue-700: #104e3a;
+  --blue-800: #15493b;
+  --blue-900: #14332d;
+  --blue-950: #0c1f1b;
+}
+
+/* OrthoNebraska — Brand Guidelines (April 2017). */
+:root[data-entity="ON"] {
+  --brand-primary: #0072ce;
+  --brand-primary-600: #0060ad;
+  --brand-primary-700: #004e8c;
+  --brand-navy: #25245c;
+  --brand-navy-muted: #3f3e70;
+  --brand-accent: #d2d755;
+  --brand-accent-dark: #b9bd4b;
+  --brand-muted: #63666a;
+
+  --blue-50: #e6f1fa;
+  --blue-100: #c4dff4;
+  --blue-200: #8cc0e9;
+  --blue-300: #54a1de;
+  --blue-400: #2184d4;
+  --blue-500: #0072ce;
+  --blue-600: #0060ad;
+  --blue-700: #004e8c;
+  --blue-800: #3f3e70;
+  --blue-900: #25245c;
+  --blue-950: #161637;
 }

@@ -20,8 +20,8 @@ export { useUnsavedGuard, hasUnsavedChanges } from "./unsaved-guard";
 export { IconButton, iconButtonClasses } from "./IconButton";
 export type { IconButtonTone } from "./IconButton";
 // Brand palette for chart/SVG code, which cannot take a Tailwind class and so
-// cannot follow data-theme on its own.
-export { useBrandColors, useSeriesColors, useThemeName } from "./brand-colors";
+// cannot follow data-theme / data-entity on its own.
+export { useBrandColors, useEntityKey, useSeriesColors, useThemeName } from "./brand-colors";
 export { formSnapshot, snapshotEqual, snapshotChangedKeys, shallowDirty } from "./form-dirty";
 export type { FormSnapshot } from "./form-dirty";
 export { Toast } from "./Toast";
