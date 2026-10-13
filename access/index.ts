@@ -1,5 +1,6 @@
 // No-role sign-in policy (DESIGN-CONVENTIONS §4 "No role, no entry"). Server
-// only (node:crypto). Import from "@sequel/foundation/access".
+// only (node:crypto). Import from "@sequel/foundation/access"; proxy.ts and
+// other non-React code import the pure half from "@sequel/foundation/access/policy".
 export {
   NO_ROLE_PATH,
   NO_ROLE_REQUEST_PATH,

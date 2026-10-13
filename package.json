@@ -15,6 +15,7 @@
     "./theme/ThemeToggle": "./theme/ThemeToggle.tsx",
     "./ui": "./ui/index.ts",
     "./access": "./access/index.ts",
+    "./access/policy": "./access/no-role.ts",
     "./llm": "./llm/index.ts",
     "./holidays": "./holidays/index.ts",
     "./deck-kit": "./deck-kit/index.ts",
