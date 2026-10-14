@@ -25,7 +25,7 @@ That single constant drives the theme (`<html data-entity>`), the header logo, f
 **1. Install** (public repo — no tokens needed anywhere):
 
 ```bash
-npm i "@sequel/foundation@github:SequelOrtho/sequel-foundation#v0.23.0"
+npm i "@sequel/foundation@github:SequelOrtho/sequel-foundation#v0.24.0"
 ```
 
 ```ts
@@ -54,6 +54,7 @@ transpilePackages: ["@sequel/foundation"],
 | `…/brand/palette` | The brand palette as JavaScript, per entity — for charts and exporters, which can't take a Tailwind class. Kept in sync with `theme.css` by a test that parses the CSS |
 | `…/llm` | Claude client seam (hard timeout budget + retries), per-task model configuration with fallback, streaming that survives serverless timeouts and narrates progress stages, deterministic input gate (size cap + secret/PII redaction), output-contract parsing (`parseLlmJson` — never raw `JSON.parse` on model text), identity-aware rate-limit core (your app supplies the one-method store), per-request trace records (your app supplies the sink), golden-set runner (your app supplies the cases) |
 | `…/access` | The no-role sign-in policy for apps on Microsoft sign-in: the family "no role yet" message, the 403 page body with a **Request access** button, the access-request log (your app supplies the one store), and the once-a-day email to every System Administrator (your app supplies its mail sender). Wiring: DESIGN-CONVENTIONS §4 "No role, no entry" |
+| `…/session` | One sign-out flow for every hub: the header Sign Out button, the `/auth/sign-out` route, the proxy's answer when a session has ended (back to the same page after signing in, a clean 401 for background fetches), and a "You've been signed out" dialog for other open tabs. Wiring: DESIGN-CONVENTIONS §4 "Signing out and ended sessions" |
 | `…/deck-kit` | Branded PowerPoint engine (approved template, native editable charts, auto-slimming) |
 | `…/docs-kit/*` | Word/Excel brand constants and styles (per entity: `docxBrand(entity)`, `headerFill(entity)`), clickable-contents machinery for generated guides |
 
@@ -69,7 +70,7 @@ The full subpath reference and consumption details are in the [README](README.md
 - **Dropdowns over 12 items are searchable.** Render any select whose list can grow (people, projects, entities, sites) as `<AdaptiveSelect>` — it stays a native `<select>` up to 12 options and becomes the fuzzy `SearchCombobox` beyond that, automatically. Hard-coded enums stay native. §3 in DESIGN-CONVENTIONS.md.
 - **Every action confirms; no page dead-ends.** Mutations pop a `toastSaved` confirmation — with an action link (`{ action: { label, href } }`) when there's a natural next step, or `toastUndo(message, restore)` when the action is reversible — and every leaf page links onward. Before shipping a PR that adds or moves a screen, run the §5a nav/flow review checklist in DESIGN-CONVENTIONS.md.
 - **Never copy foundation code into your app.** To change anything shared, make the change in this repo with a version bump (CI tags the release on merge), then bump the pin in each app with `scripts/pin-foundation.sh <app-dir> vX.Y.Z`. That's what keeps every tool consistent.
-- **Pin a tag, not main.** Your `package.json` references a version tag (e.g. `#v0.23.0`), so foundation changes never reach your app until you choose to take them.
+- **Pin a tag, not main.** Your `package.json` references a version tag (e.g. `#v0.24.0`), so foundation changes never reach your app until you choose to take them.
 - **AI calls follow the pattern.** Models come from configuration (`modelFor` + `withModelFallback`), input passes the gate (`gateLlmInput`) before the call, responses stream with progress stages (`streamJob` / `consumeLlmStream`), structured output passes the contract (`parseLlmJson` + your type guard), errors are typed, and every call has a time budget. The template's `ai-demo` route is the reference. Before an AI feature reaches beta, it passes the 5-gate audit in [AI-CRAFT.md](docs/AI-CRAFT.md) — identity-filtered retrieval, a golden eval set (`runGoldenSet` + your cases), a rendered failure path, known unit economics with the route metered (`checkRateBudget` + your store), and replayable traces (`startLlmTrace` + your sink).
 
 ## Links
