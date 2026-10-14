@@ -4,6 +4,7 @@ import { useId, useMemo, useRef, useState } from "react";
 import { rankComboOptions, type ComboOption } from "./combo-match";
 import { FieldError, RequiredMark } from "./Field";
 import { INPUT_CLASS } from "./input-class";
+import { useFitInViewport } from "./useFitInViewport";
 
 // Searchable single-select combobox (W3C APG editable-combobox-with-list
 // pattern). Built for option lists that outgrew a flat <select>: type-to-filter
@@ -48,6 +49,9 @@ export function SearchCombobox({
   const errorId = `${listboxId}-error`;
   const inputRef = useRef<HTMLInputElement>(null);
   const [open, setOpen] = useState(false);
+  // The list is min 16rem wide, so a narrow field near the window edge would
+  // otherwise open past it.
+  const listRef = useFitInViewport<HTMLUListElement>(open && !disabled);
   const [query, setQuery] = useState("");
   const [activeIndex, setActiveIndex] = useState(0);
 
@@ -133,7 +137,7 @@ export function SearchCombobox({
         </span>
       )}
       {open && !disabled && (
-        <ul id={listboxId} role="listbox" aria-label={`${label} options`}
+        <ul ref={listRef} id={listboxId} role="listbox" aria-label={`${label} options`}
           className="absolute z-20 mt-1 max-h-72 w-full min-w-[16rem] overflow-y-auto rounded-md border border-brand-line bg-white p-1 shadow-lg dark:bg-zinc-900">
           {visible.length === 0 && (
             <li className="px-2 py-2 text-sm text-brand-muted">No matches for “{query}”.</li>

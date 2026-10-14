@@ -4,6 +4,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import { isSearchableSize, rankComboOptions } from "./combo-match";
 import { inputClasses } from "./input-class";
 import { multiSummary, toggleMulti } from "./multi-select";
+import { useFitInViewport } from "./useFitInViewport";
 
 // A list filter that takes several values (DESIGN-CONVENTIONS §3, "List
 // filters take several values"; Project Hub 2027 plan list, 2026-10-14).
@@ -40,6 +41,8 @@ export function MultiSelectFilter({
   const rootRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const panelId = useId();
+  // A filter at the right of a narrow bar would otherwise open past the edge.
+  const panelRef = useFitInViewport<HTMLDivElement>(open);
   const searchable = isSearchableSize(options.length);
   const summary = multiSummary(value, options, allLabel, noun);
   const shown = searchable ? rankComboOptions(options, query) : options;
@@ -87,6 +90,7 @@ export function MultiSelectFilter({
       </button>
       {open && (
         <div
+          ref={panelRef}
           id={panelId}
           role="group"
           aria-label={label}
