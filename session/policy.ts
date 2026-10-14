@@ -113,6 +113,31 @@ export function signedOutResponse(req: Pick<Request, "url" | "method" | "headers
   });
 }
 
+// Rule 4 (every hub on Auth.js, Oct 14 2026): the proxy must not touch the
+// sign-out request. Auth.js's proxy wrapper re-issues the session cookie on
+// every request it sees (the rolling idle timeout), so on POST /auth/sign-out
+// the response carried two session cookies — the route's deletion and the
+// proxy's refresh. `next start` puts the proxy's first, so the deletion won
+// and sign-out worked locally; Netlify's edge runtime appends the proxy's
+// cookies after the function's, so the refresh won and the person stayed
+// signed in ("Sign Out does nothing": the sign-in page then offered Continue /
+// Sign Out, and that Sign Out failed the same way). Wrap the auth-wrapped
+// proxy so the sign-out path never reaches it:
+//
+//   export default bypassOnSignOut(auth((req) => { … }));
+//
+// The route stays public and ends the session itself; returning nothing lets
+// the request through untouched.
+export function isSignOutPath(pathname: string): boolean {
+  return pathname === SIGN_OUT_PATH || pathname === `${SIGN_OUT_PATH}/`;
+}
+
+export function bypassOnSignOut<Args extends [{ nextUrl: { pathname: string } }, ...unknown[]], Result>(
+  proxy: (...args: Args) => Result,
+): (...args: Args) => Result | undefined {
+  return (...args: Args) => (isSignOutPath(args[0].nextUrl.pathname) ? undefined : proxy(...args));
+}
+
 // CSRF floor for the sign-out POST: refuse only what the browser itself says
 // came from another site. Sec-Fetch-Site is sent by every current browser;
 // when it is absent (old browser, tooling) the request is allowed — a forced
