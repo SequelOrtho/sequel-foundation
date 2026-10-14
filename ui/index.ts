@@ -93,3 +93,7 @@ export { MultiSelectFilter } from "./MultiSelectFilter";
 export type { MultiSelectOption } from "./MultiSelectFilter";
 export { passesMulti, toggleMulti, multiSummary } from "./multi-select";
 export { useScrollToEdit } from "./useScrollToEdit";
+// Popovers stay on screen (DESIGN-CONVENTIONS §3): put useFitInViewport's ref
+// on any dropdown / menu / popover panel; the pure geometry is exported too.
+export { useFitInViewport } from "./useFitInViewport";
+export { horizontalNudge, availableHeightBelow, VIEWPORT_GUTTER } from "./viewport-fit";
