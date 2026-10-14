@@ -87,4 +87,9 @@ export {
   SEARCHABLE_SELECT_THRESHOLD,
   type ComboOption,
 } from "./combo-match";
+// List filters that take several values (DESIGN-CONVENTIONS §3): OR within a
+// filter, AND across filters, nothing picked = off.
+export { MultiSelectFilter } from "./MultiSelectFilter";
+export type { MultiSelectOption } from "./MultiSelectFilter";
+export { passesMulti, toggleMulti, multiSummary } from "./multi-select";
 export { useScrollToEdit } from "./useScrollToEdit";
