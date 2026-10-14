@@ -212,6 +212,50 @@ const GLYPHS = {
       <path d="M14 3v6h6M8 13h8M8 17h5" />
     </>
   ),
+  /** Evaluating before committing — screening, discovery, assessment. */
+  search: (
+    <>
+      <circle cx="11" cy="11" r="7" />
+      <path d="M21 21l-4.5-4.5" />
+    </>
+  ),
+  /** A layered build — platform standardization, an integration stack. */
+  layers: (
+    <>
+      <path d="M12 3l9 5-9 5-9-5z" />
+      <path d="M3 13l9 5 9-5M3 17.5l9 5 9-5" />
+    </>
+  ),
+  /** A deck or pitch — presentations, readouts. */
+  presentation: (
+    <>
+      <rect x="3" y="3" width="18" height="12" rx="1.5" />
+      <path d="M12 15v4M8 21l4-2 4 2M7 11l3-3 2 2 4-4" />
+    </>
+  ),
+  /** Confidentiality — NDAs, protected material. */
+  lock: (
+    <>
+      <rect x="4" y="10" width="16" height="11" rx="2" />
+      <path d="M8 10V7a4 4 0 0 1 8 0v3M12 14.5v2.5" />
+    </>
+  ),
+  /** A staged pipeline — deals or requests moving toward a close. */
+  funnel: <path d="M3 4h18l-7 8.5V19l-4 2v-8.5z" />,
+  /** Growth and optimization — scale-up, improvement over time. */
+  "trending-up": (
+    <>
+      <path d="M3 17l6-6 4 4 8-8" />
+      <path d="M15 7h6v6" />
+    </>
+  ),
+  /** Program status — health, RYG, steering readouts. */
+  gauge: (
+    <>
+      <path d="M4 18a8 8 0 1 1 16 0" />
+      <path d="M12 18l4-5M2.5 18h3M18.5 18h3M12 6.5V9" />
+    </>
+  ),
 } satisfies Record<string, ReactNode>;
 
 export type TileIconName = keyof typeof GLYPHS;
