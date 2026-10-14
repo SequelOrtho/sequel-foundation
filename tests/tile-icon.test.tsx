@@ -2,7 +2,7 @@
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 import { AreaTile, AreaTileGrid, areaTileClasses } from "../ui/AreaTile";
-import { TILE_ICON_CLASS, TILE_ICON_NAMES, TileIcon, isTileIconName } from "../ui/TileIcon";
+import { TILE_ICON_CLASS, TILE_ICON_MUTED_CLASS, TILE_ICON_NAMES, TileIcon, isTileIconName } from "../ui/TileIcon";
 
 afterEach(cleanup);
 
@@ -23,7 +23,7 @@ describe("TileIcon", () => {
     expect(svg.getAttribute("width")).toBe("20");
     expect(svg.getAttribute("class")).toBe(TILE_ICON_CLASS);
     expect(svg.getAttribute("data-tile-icon")).toBe(name);
-    expect(svg.querySelectorAll("path, circle, rect").length).toBeGreaterThan(0);
+    expect(svg.querySelectorAll("path, circle, rect, ellipse").length).toBeGreaterThan(0);
   });
 
   it("takes a size and a replacement class", () => {
@@ -31,6 +31,21 @@ describe("TileIcon", () => {
     const svg = container.querySelector("svg")!;
     expect(svg.getAttribute("width")).toBe("28");
     expect(svg.getAttribute("class")).toBe("text-white");
+  });
+
+  it("carries the landing and section tile ideas (v0.25.0)", () => {
+    for (const name of [
+      "shield-alert", "message", "eye-off", "user-alert", "gavel", "clipboard-check", "download", "flag", "gantt",
+      "pulse", "lightbulb", "database", "capacity", "file-x", "cart", "archive", "calendar-off", "banknote",
+    ]) {
+      expect(TILE_ICON_NAMES).toContain(name);
+    }
+  });
+
+  it("offers a muted class for locked tiles that keeps the flex guard", () => {
+    expect(TILE_ICON_MUTED_CLASS).toContain("shrink-0");
+    expect(TILE_ICON_MUTED_CLASS).toContain("dark:");
+    expect(TILE_ICON_MUTED_CLASS).not.toContain("brand-navy");
   });
 
   it("guards names with an own-key check", () => {
