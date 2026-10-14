@@ -79,3 +79,20 @@ describe("SessionWatch", () => {
     expect(await authjsSessionCheck(new Response("oops", { status: 500 }))).toBe(true);
   });
 });
+
+describe("SignedInNotice and MicrosoftSignOutOffer", () => {
+  it("offers Continue to the given page and Sign Out", async () => {
+    const { SignedInNotice } = await import("../session");
+    render(<SignedInNotice appName="Sequel Project Hub" email="pat@x.com" continueHref="/admin/roles" />);
+    expect(screen.getByText(/You’re signed in to Sequel Project Hub/)).toBeTruthy();
+    expect(screen.getByText("pat@x.com")).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Continue" }).getAttribute("href")).toBe("/admin/roles");
+    expect(screen.getByRole("button", { name: "Sign Out" }).closest("form")!.getAttribute("action")).toBe("/auth/sign-out");
+  });
+  it("links to Microsoft's sign-out and says what else it ends", async () => {
+    const { MicrosoftSignOutOffer } = await import("../session");
+    render(<MicrosoftSignOutOffer href="https://login.microsoftonline.com/t/oauth2/v2.0/logout" />);
+    expect(screen.getByRole("link", { name: "Also sign out of Microsoft" }).getAttribute("href")).toContain("/oauth2/v2.0/logout");
+    expect(screen.getByText(/Outlook and Teams/)).toBeTruthy();
+  });
+});

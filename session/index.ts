@@ -7,3 +7,4 @@ export type { SessionMessage } from "./channel";
 export { SignOutForm } from "./SignOutForm";
 export { SessionWatch, authjsSessionCheck } from "./SessionWatch";
 export type { SessionCheck } from "./SessionWatch";
+export { SignedInNotice, MicrosoftSignOutOffer } from "./SignedInNotice";
