@@ -256,6 +256,13 @@ const GLYPHS = {
       <path d="M12 18l4-5M2.5 18h3M18.5 18h3M12 6.5V9" />
     </>
   ),
+  /** Urgent and acute care — urgent care, walk-in, first aid. */
+  "first-aid": (
+    <>
+      <rect x="3" y="5" width="18" height="15" rx="2" />
+      <path d="M9 5V3.5h6V5M12 9.5v6M9 12.5h6" />
+    </>
+  ),
 } satisfies Record<string, ReactNode>;
 
 export type TileIconName = keyof typeof GLYPHS;
