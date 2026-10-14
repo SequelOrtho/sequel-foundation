@@ -59,7 +59,7 @@ export type { BackToTopState } from "./back-to-top-state";
 export { Breadcrumbs } from "./Breadcrumbs";
 // Tile iconography (DESIGN-CONVENTIONS §5): the shared line-glyph set every
 // hub tile carries beside its title, and the area tile + grid for hub pages.
-export { TileIcon, TILE_ICON_NAMES, TILE_ICON_CLASS, isTileIconName } from "./TileIcon";
+export { TileIcon, TILE_ICON_NAMES, TILE_ICON_CLASS, TILE_ICON_MUTED_CLASS, isTileIconName } from "./TileIcon";
 export type { TileIconName } from "./TileIcon";
 export { AreaTile, AreaTileGrid, areaTileClasses, AREA_TILE_GRID_CLASS } from "./AreaTile";
 export type { Crumb } from "./Breadcrumbs";
