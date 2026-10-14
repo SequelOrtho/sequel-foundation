@@ -2,8 +2,10 @@ import { describe, expect, it, vi } from "vitest";
 import {
   SESSION_ENDED_MESSAGE,
   SIGNED_OUT_PATH,
+  bypassOnSignOut,
   entraSignOutUrl,
   isCrossSiteRequest,
+  isSignOutPath,
   safeCallbackUrl,
   sessionCookieNames,
   signInHref,
@@ -120,6 +122,35 @@ describe("signOutRoute", () => {
     expect(endSession).not.toHaveBeenCalled();
     expect(res.status).toBe(303);
     expect(res.headers.get("location")).toBe("/auth/signin");
+  });
+});
+
+describe("bypassOnSignOut", () => {
+  const at = (pathname: string) => ({ nextUrl: { pathname } });
+
+  it("never hands the sign-out request to the auth-wrapped proxy", () => {
+    // The proxy's session refresh would be appended after the route's
+    // deletion on Netlify and undo the sign-out (Oct 14 2026).
+    const inner = vi.fn(() => "gated");
+    const proxy = bypassOnSignOut(inner);
+    expect(proxy(at("/auth/sign-out"))).toBeUndefined();
+    expect(proxy(at("/auth/sign-out/"))).toBeUndefined();
+    expect(inner).not.toHaveBeenCalled();
+  });
+
+  it("passes every other request through with all its arguments", () => {
+    const inner = vi.fn((_req: { nextUrl: { pathname: string } }, ev: string) => `gated:${ev}`);
+    const proxy = bypassOnSignOut(inner);
+    expect(proxy(at("/"), "ev")).toBe("gated:ev");
+    expect(proxy(at("/auth/signin"), "ev")).toBe("gated:ev");
+    expect(proxy(at("/auth/sign-out-later"), "ev")).toBe("gated:ev");
+    expect(inner).toHaveBeenCalledTimes(3);
+  });
+
+  it("matches only the sign-out path", () => {
+    expect(isSignOutPath("/auth/sign-out")).toBe(true);
+    expect(isSignOutPath("/auth/signin")).toBe(false);
+    expect(isSignOutPath("/api/auth/signout")).toBe(false);
   });
 });
 
