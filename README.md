@@ -40,7 +40,7 @@ Three documents carry the accumulated know-how; read them before building anythi
    ```jsonc
    // package.json
    "dependencies": {
-     "@sequel/foundation": "github:SequelOrtho/sequel-foundation#v0.26.0"
+     "@sequel/foundation": "github:SequelOrtho/sequel-foundation#v0.26.1"
    }
    ```
 
