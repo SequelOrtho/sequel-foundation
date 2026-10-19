@@ -49,8 +49,15 @@ export function ThemeToggle({ storageKey = DEFAULT_THEME_STORAGE_KEY }: { storag
     () => "system" as ThemeMode,
   );
 
-  // While in system mode, follow live browser-appearance changes.
+  // Stamp the resolved theme on mount as well as on change. The inline
+  // pre-hydration script normally does this first, but a page Next renders
+  // in the browser — a `forbidden()` / `notFound()` thrown by a page with no
+  // loading.tsx arrives as an empty shell — never runs that script, and the
+  // 403/404 page then drew light components on a dark ground (v0.26.1).
+  // Idempotent when the script did run. While in system mode, also follow
+  // live browser-appearance changes.
   useEffect(() => {
+    apply(readMode(storageKey));
     const mq = window.matchMedia("(prefers-color-scheme: dark)");
     const onChange = () => {
       if (readMode(storageKey) === "system") apply("system");
