@@ -97,3 +97,14 @@ export { useScrollToEdit } from "./useScrollToEdit";
 // on any dropdown / menu / popover panel; the pure geometry is exported too.
 export { useFitInViewport } from "./useFitInViewport";
 export { horizontalNudge, availableHeightBelow, VIEWPORT_GUTTER } from "./viewport-fit";
+export { NoAccessNotice, NotFoundNotice, PageErrorNotice } from "./AccessNotices";
+export {
+  DEFAULT_ADMIN_LABEL,
+  NO_ACCESS_HEADING,
+  NOT_FOUND_HEADING,
+  PAGE_ERROR_HEADING,
+  noAccessMessage,
+  notFoundMessage,
+  pageErrorMessage,
+} from "./access-copy";
+export type { AccessCopyOptions } from "./access-copy";
