@@ -14,6 +14,6 @@
     "allowJs": true,
     "types": ["node"]
   },
-  "include": ["access", "session", "brand", "theme", "ui", "llm", "deck-kit", "docs-kit", "tests"],
+  "include": ["access", "session", "undo", "brand", "theme", "ui", "llm", "deck-kit", "docs-kit", "tests"],
   "exclude": ["node_modules"]
 }
