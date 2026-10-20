@@ -8,6 +8,19 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    # A real Postgres for the undo snapshot engine's integration test
+    # (tests/undo-postgres.test.ts skips without UNDO_PG_URL).
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: pg
+          POSTGRES_DB: undo
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      UNDO_PG_URL: postgresql://postgres:pg@localhost:5432/undo
     steps:
       - uses: actions/checkout@v4
       - name: Guard against iCloud conflict copies
