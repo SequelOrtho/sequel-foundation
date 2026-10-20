@@ -8,8 +8,10 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     # A real Postgres for the undo snapshot engine's integration test
-    # (tests/undo-postgres.test.ts skips without UNDO_PG_URL).
+    # (tests/undo-postgres.test.ts skips locally without UNDO_PG_URL; in CI
+    # its guard test fails instead, so it can never be skipped here).
     services:
       postgres:
         image: postgres:16
@@ -45,6 +47,7 @@ jobs:
     needs: test
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     permissions:
       contents: write
     steps:

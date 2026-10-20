@@ -39,10 +39,14 @@ CREATE TABLE "Membership" ("projectId" INTEGER NOT NULL REFERENCES "Project"(id)
 CREATE TABLE "Inv" (id INTEGER PRIMARY KEY);
 CREATE TABLE "Line" (id BIGINT PRIMARY KEY, "invId" INTEGER NOT NULL REFERENCES "Inv"(id) ON DELETE CASCADE, amt NUMERIC(65,30));
 CREATE TABLE "Sub" (id SERIAL PRIMARY KEY, "lineId" BIGINT NOT NULL REFERENCES "Line"(id) ON DELETE CASCADE);
+CREATE TABLE "Doc" (id INTEGER PRIMARY KEY, tenant INTEGER NOT NULL, payload JSONB NOT NULL, extra JSONB, raw JSON, UNIQUE (tenant, id));
+CREATE TABLE "Log" ("docId" INTEGER NOT NULL REFERENCES "Doc"(id) ON DELETE CASCADE, msg TEXT);
+CREATE TABLE "Part" (id SERIAL PRIMARY KEY, tenant INTEGER NOT NULL, "docId" INTEGER,
+  FOREIGN KEY (tenant, "docId") REFERENCES "Doc"(tenant, id) ON DELETE SET NULL ("docId"));
 `;
 
 const SEED = `
-TRUNCATE "Person", "Project", "Task", "Comment", "Note", "Tag", "_ProjectToTag", "Membership", "Inv", "Line", "Sub" RESTART IDENTITY CASCADE;
+TRUNCATE "Person", "Project", "Task", "Comment", "Note", "Tag", "_ProjectToTag", "Membership", "Inv", "Line", "Sub", "Doc", "Log", "Part" RESTART IDENTITY CASCADE;
 INSERT INTO "Person" (name) VALUES ('Pat'), ('Lee');
 INSERT INTO "Project" (name, status, tags, meta, budget, blob, "createdAt", "pmId")
   VALUES ('Alpha', 'DONE', '{a,"b c"}', '{"k": [1, {"x": null}]}', 1234.56, '\\x0102ff', '2026-10-20 12:34:56.789', 1),
@@ -57,11 +61,14 @@ INSERT INTO "Membership" VALUES (1, 1, 'pm'), (1, 2, 'member');
 INSERT INTO "Inv" VALUES (1);
 INSERT INTO "Line" VALUES (9007199254740993, 1, 12345678901234567.123456789012345678);
 INSERT INTO "Sub" ("lineId") VALUES (9007199254740993);
+INSERT INTO "Doc" VALUES (1, 7, 'null', 'null', NULL), (2, 7, '{"a": 1}', NULL, 'null');
+INSERT INTO "Log" VALUES (1, 'hit'), (1, 'hit'), (1, 'hit'), (2, 'other');
+INSERT INTO "Part" (tenant, "docId") VALUES (7, 1);
 `;
 
 const dump = async (c: pg.Client) => {
   const out: Record<string, unknown[]> = {};
-  for (const t of ["Person", "Project", "Task", "Comment", "Note", "Tag", "_ProjectToTag", "Membership", "Inv", "Line", "Sub"]) {
+  for (const t of ["Person", "Project", "Task", "Comment", "Note", "Tag", "_ProjectToTag", "Membership", "Inv", "Line", "Sub", "Doc", "Log", "Part"]) {
     out[t] = (await c.query(`SELECT to_jsonb(t)::text AS j FROM "${t}" t ORDER BY 1`)).rows.map((r) => r.j);
   }
   return out;
@@ -230,6 +237,36 @@ describe.skipIf(!URL)("undo/postgres engine (real Postgres)", () => {
     } finally {
       await c.query(`ALTER TABLE "Note" DROP COLUMN pinned`);
     }
+  });
+
+  const docNulls = async () =>
+    (await c.query(`SELECT id, payload IS NULL AS p, extra IS NULL AS e, raw IS NULL AS r FROM "Doc" ORDER BY id`)).rows;
+
+  it("tells JSON null from SQL NULL, and brings back every identical row of a table with no key", async () => {
+    const before = await dump(c);
+    const nullsBefore = await docNulls();
+    for (const id of [1, 2]) {
+      const snap = await tx(async () => {
+        const s = await captureDelete(exec, "Doc", { id });
+        await c.query(`DELETE FROM "Doc" WHERE id = $1`, [id]);
+        return s;
+      });
+      expect(snapshotCounts(snap!)).toEqual(id === 1 ? { Doc: 1, Log: 3 } : { Doc: 1, Log: 1 });
+      await tx(() => restoreSnapshot(exec, JSON.parse(JSON.stringify(snap))));
+    }
+    expect(await dump(c)).toEqual(before);
+    expect(await docNulls()).toEqual(nullsBefore);
+  });
+
+  it("relinks only the column a SET NULL (col) foreign key cleared", async () => {
+    const snap = await tx(async () => {
+      const s = await captureDelete(exec, "Doc", { id: 1 });
+      await c.query(`DELETE FROM "Doc" WHERE id = 1`);
+      return s;
+    });
+    expect(snap!.links).toEqual([expect.objectContaining({ table: "Part", columns: ["docId"] })]);
+    expect((await tx(() => restoreSnapshot(exec, snap!))).links).toBe(1);
+    expect((await c.query(`SELECT tenant, "docId" FROM "Part"`)).rows).toEqual([{ tenant: 7, docId: 1 }]);
   });
 
   it("matches keys through the indexes", async () => {

@@ -79,7 +79,7 @@ export const UNDOABLE_DELETE_HINT = `You can undo this for ${UNDO_WINDOW_MINUTES
 
 /** Has the ticket's window closed? (client: hide the strip) */
 export function undoTicketExpired(ticket: Pick<UndoTicket, "expiresAt">, now: Date = new Date()): boolean {
-  return now.getTime() >= new Date(ticket.expiresAt).getTime();
+  return now.getTime() > new Date(ticket.expiresAt).getTime();
 }
 
 /** Read a delete route's JSON for a ticket (`{ undo: UndoTicket }`); null when absent or malformed. */

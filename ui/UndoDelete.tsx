@@ -85,9 +85,6 @@ export async function undoDelete(ticket: UndoTicket | undefined = entry?.ticket)
   }
   try {
     await (opts.restore ?? postUndo)(ticket);
-    clear(ticket.id);
-    toastSaved(`${ticket.label} restored`);
-    opts.onRestored?.(ticket);
   } catch (err) {
     toastError(err instanceof Error ? err.message : "Undo failed — please try again.");
     if (undoTicketExpired(ticket)) clear(ticket.id);
@@ -95,8 +92,17 @@ export async function undoDelete(ticket: UndoTicket | undefined = entry?.ticket)
       entry = { ...entry, busy: false };
       emit();
     }
+    return;
   } finally {
     inflight.delete(ticket.id);
+  }
+  clear(ticket.id);
+  toastSaved(`${ticket.label} restored`);
+  // The record is back; a failing refresh must not read as a failed undo.
+  try {
+    opts.onRestored?.(ticket);
+  } catch (err) {
+    console.error("undo: onRestored failed", err);
   }
 }
 

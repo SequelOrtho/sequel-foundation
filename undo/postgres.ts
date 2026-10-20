@@ -20,10 +20,15 @@
 // Values travel as jsonb text (to_jsonb / jsonb_populate_record) and are
 // never parsed into JavaScript values, so every column type round-trips
 // exactly without a per-type cast: enums, arrays, json, timestamps, bytea, and
-// bigint / numeric beyond 2^53. Keys are matched in SQL against the table's
+// bigint / numeric beyond 2^53. A json / jsonb column holding JSON null (what
+// Prisma writes for JsonNull) is told apart from SQL NULL by the row's `nulls`
+// list. A json (not jsonb) column comes back as its jsonb form (key order and
+// duplicate keys normalized). A row of a table with no primary key is told
+// apart by its physical position at capture, so identical rows all come back. Keys are matched in SQL against the table's
 // own column types, so lookups use the primary-key and foreign-key indexes.
-// Not handled: ON DELETE SET DEFAULT links (not relinked). A column added
-// after the delete takes its default on restore.
+// Not handled: ON DELETE SET DEFAULT links (not relinked), tables outside the
+// current schema. A column added after the delete takes its default on
+// restore; a column dropped since is left out.
 //
 // Child lookups use an index only where the foreign key column has one
 // (Postgres does not add one by itself; Prisma's @@index does).
@@ -35,9 +40,9 @@ export interface SqlExecutor {
 }
 
 /** A captured row: its table and the row as `to_jsonb` text (exact). */
-export type SnapshotRow = { table: string; json: string };
+export type SnapshotRow = { table: string; json: string; nulls?: string[] };
 /** A row whose SET NULL foreign key columns the delete clears. */
-export type SnapshotLink = { table: string; json: string; columns: string[] };
+export type SnapshotLink = { table: string; json: string; columns: string[]; nulls?: string[] };
 export type DeleteSnapshot = {
   version: 1;
   root: { table: string; key: Record<string, unknown> };
@@ -47,7 +52,9 @@ export type DeleteSnapshot = {
   links: SnapshotLink[];
 };
 
-type ForeignKey = { child: string; action: string; childCols: string[]; parentCols: string[] };
+type ForeignKey = { child: string; action: string; childCols: string[]; parentCols: string[]; setCols: string[] };
+type Column = { col: string; type: string };
+const isJsonType = (type: string) => type === "json" || type === "jsonb";
 
 export const ident = (name: string) => `"${name.replace(/"/g, '""')}"`;
 
@@ -56,7 +63,11 @@ SELECT cl.relname::text AS child, c.confdeltype::text AS action,
   array(SELECT a.attname::text FROM unnest(c.conkey) WITH ORDINALITY k(n, o)
         JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = k.n ORDER BY k.o) AS child_cols,
   array(SELECT a.attname::text FROM unnest(c.confkey) WITH ORDINALITY k(n, o)
-        JOIN pg_attribute a ON a.attrelid = c.confrelid AND a.attnum = k.n ORDER BY k.o) AS parent_cols
+        JOIN pg_attribute a ON a.attrelid = c.confrelid AND a.attnum = k.n ORDER BY k.o) AS parent_cols,
+  -- ON DELETE SET NULL (col, …) (Postgres 15+); read through to_jsonb so older servers answer empty.
+  array(SELECT a.attname::text FROM jsonb_array_elements_text(
+          CASE WHEN jsonb_typeof(to_jsonb(c) -> 'confdelsetcols') = 'array' THEN to_jsonb(c) -> 'confdelsetcols' ELSE '[]' END) WITH ORDINALITY k(n, o)
+        JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = k.n::int2 ORDER BY k.o) AS set_cols
 FROM pg_constraint c
 JOIN pg_class p ON p.oid = c.confrelid
 JOIN pg_class cl ON cl.oid = c.conrelid
@@ -72,7 +83,7 @@ WHERE i.indrelid = to_regclass(format('%I.%I', current_schema(), $1::text)) AND 
 ORDER BY array_position(i.indkey::int2[], a.attnum)`;
 
 const COLS_SQL = `
-SELECT a.attname::text AS col
+SELECT a.attname::text AS col, format_type(a.atttypid, NULL)::text AS type
 FROM pg_attribute a
 WHERE a.attrelid = to_regclass(format('%I.%I', current_schema(), $1::text))
   AND a.attnum > 0 AND NOT a.attisdropped AND a.attgenerated = ''
@@ -84,7 +95,7 @@ const asArray = (v: unknown): string[] =>
 function catalog(exec: SqlExecutor) {
   const fks = new Map<string, Promise<ForeignKey[]>>();
   const pks = new Map<string, Promise<string[]>>();
-  const cols = new Map<string, Promise<string[]>>();
+  const cols = new Map<string, Promise<Column[]>>();
   return {
     referencing(table: string) {
       if (!fks.has(table)) {
@@ -96,6 +107,7 @@ function catalog(exec: SqlExecutor) {
               action: String(r.action),
               childCols: asArray(r.child_cols),
               parentCols: asArray(r.parent_cols),
+              setCols: asArray(r.set_cols),
             })),
           ),
         );
@@ -108,7 +120,9 @@ function catalog(exec: SqlExecutor) {
     },
     /** Columns an INSERT may name (not dropped, not generated). */
     insertable(table: string) {
-      if (!cols.has(table)) cols.set(table, exec.query(COLS_SQL, [table]).then((rows) => rows.map((r) => String(r.col))));
+      if (!cols.has(table)) {
+        cols.set(table, exec.query(COLS_SQL, [table]).then((rows) => rows.map((r) => ({ col: String(r.col), type: String(r.type) }))));
+      }
       return cols.get(table)!;
     },
   };
@@ -119,15 +133,30 @@ const tuple = (alias: string, cols: string[]) => (cols.length === 1 ? list(alias
 /** A JSON array of row texts, built without parsing them. */
 const jsonArray = (texts: string[]) => `[${texts.join(",")}]`;
 
-type Captured = { table: string; json: string; id: string };
+type Captured = { table: string; json: string; id: string; nulls?: string[] };
+type Found = { json: string; id: string; nulls?: string[] };
 
-async function identityExpr(cat: ReturnType<typeof catalog>, table: string, alias: string) {
+/** The SELECT list for a captured row: its jsonb text, its identity (primary
+ *  key, else content plus physical position, which holds while the
+ *  transaction keeps the row), and which json / jsonb columns are SQL NULL. */
+async function rowSelect(cat: ReturnType<typeof catalog>, table: string, alias: string) {
   const pk = await cat.primaryKey(table);
-  return pk.length > 0 ? `jsonb_build_array(${list(alias, pk)})::text` : `to_jsonb(${alias})::text`;
+  const id = pk.length > 0 ? `jsonb_build_array(${list(alias, pk)})::text` : `to_jsonb(${alias})::text || '@' || ${alias}.ctid::text`;
+  const json = (await cat.insertable(table)).filter((c) => isJsonType(c.type));
+  const nulls =
+    json.length === 0
+      ? "NULL::text"
+      : `to_jsonb(array_remove(ARRAY[${json.map((c) => `CASE WHEN ${alias}.${ident(c.col)} IS NULL THEN ${literal(c.col)} END`).join(", ")}]::text[], NULL))::text`;
+  return `to_jsonb(${alias})::text AS j, ${id} AS id, ${nulls} AS nulls`;
 }
 
-const rowsOf = (result: Record<string, unknown>[]): Array<{ json: string; id: string }> =>
-  result.map((r) => ({ json: String(r.j), id: String(r.id) }));
+const literal = (s: string) => `'${s.replace(/'/g, "''")}'`;
+
+const rowsOf = (result: Record<string, unknown>[]): Found[] =>
+  result.map((r) => {
+    const nulls = r.nulls == null ? [] : (JSON.parse(String(r.nulls)) as string[]);
+    return { json: String(r.j), id: String(r.id), ...(nulls.length > 0 ? { nulls } : {}) };
+  });
 
 /**
  * Record everything deleting `table` WHERE `key` will remove or unlink.
@@ -146,7 +175,7 @@ export async function captureDelete(
   if (keyCols.length === 0) throw new Error("captureDelete: key must name at least one column");
   const root = rowsOf(
     await exec.query(
-      `SELECT to_jsonb(t)::text AS j, ${await identityExpr(cat, table, "t")} AS id FROM ${ident(table)} t
+      `SELECT ${await rowSelect(cat, table, "t")} FROM ${ident(table)} t
        WHERE ${tuple("t", keyCols)} = (SELECT ${list("k", keyCols)} FROM jsonb_populate_record(NULL::${ident(table)}, $1::jsonb) k)
        FOR UPDATE`,
       [JSON.stringify(key)],
@@ -158,11 +187,11 @@ export async function captureDelete(
   const seen = new Set<string>();
   const linkMap = new Map<string, SnapshotLink>();
   const firstSeen: string[] = [];
-  const add = (t: string, r: { json: string; id: string }) => {
+  const add = (t: string, r: Found) => {
     const id = `${t}:${r.id}`;
     if (seen.has(id)) return false;
     seen.add(id);
-    captured.push({ table: t, json: r.json, id });
+    captured.push({ table: t, json: r.json, id, ...(r.nulls ? { nulls: r.nulls } : {}) });
     if (!firstSeen.includes(t)) firstSeen.push(t);
     return true;
   };
@@ -179,7 +208,7 @@ export async function captureDelete(
         if (fk.action !== "c" && fk.action !== "n") continue;
         const children = rowsOf(
           await exec.query(
-            `SELECT to_jsonb(t)::text AS j, ${await identityExpr(cat, fk.child, "t")} AS id FROM ${ident(fk.child)} t
+            `SELECT ${await rowSelect(cat, fk.child, "t")} FROM ${ident(fk.child)} t
              WHERE ${tuple("t", fk.childCols)} IN (SELECT ${list("p", fk.parentCols)} FROM jsonb_populate_recordset(NULL::${ident(parent)}, $1::jsonb) p)
              ${fk.action === "c" ? "FOR UPDATE" : ""}`,
             [jsonArray(texts)],
@@ -190,8 +219,9 @@ export async function captureDelete(
         } else {
           for (const c of children) {
             const id = `${fk.child}:${c.id}`;
-            const link = linkMap.get(id) ?? { table: fk.child, json: c.json, columns: [] };
-            for (const col of fk.childCols) if (!link.columns.includes(col)) link.columns.push(col);
+            const link = linkMap.get(id) ?? { table: fk.child, json: c.json, columns: [], ...(c.nulls ? { nulls: c.nulls } : {}) };
+            // SET NULL (col, …) clears only the listed columns.
+            for (const col of fk.setCols.length > 0 ? fk.setCols : fk.childCols) if (!link.columns.includes(col)) link.columns.push(col);
             linkMap.set(id, link);
           }
         }
@@ -225,7 +255,12 @@ export async function captureDelete(
   }
 
   const ordered = orderForInsert(captured, edges, firstSeen, within);
-  return { version: 1, root: { table, key }, rows: ordered.map(({ table: t, json }) => ({ table: t, json })), links };
+  return {
+    version: 1,
+    root: { table, key },
+    rows: ordered.map(({ table: t, json, nulls }) => ({ table: t, json, ...(nulls ? { nulls } : {}) })),
+    links,
+  };
 }
 
 /** For each captured row of a self-referencing table: the captured row its
@@ -306,24 +341,46 @@ export function orderForInsert<R extends { table: string; id?: string }>(
 export async function restoreSnapshot(exec: SqlExecutor, snapshot: DeleteSnapshot): Promise<{ rows: number; links: number }> {
   if (snapshot.version !== 1) throw new Error("restoreSnapshot: unknown snapshot version");
   const cat = catalog(exec);
-  for (const { table, json } of snapshot.rows) {
+  for (const { table, json, nulls = [] } of snapshot.rows) {
     // Name only the columns the snapshot carries (keys only — values stay
     // text), so a column added since the delete takes its default.
     const present = new Set(Object.keys(JSON.parse(json) as object));
-    const cols = (await cat.insertable(table)).filter((c) => present.has(c));
+    const cols = (await cat.insertable(table)).filter((c) => present.has(c.col));
+    // jsonb_populate_record reads JSON null as SQL NULL; a json / jsonb
+    // column takes its value straight from the row text instead.
+    const values = cols.map((c) =>
+      !isJsonType(c.type)
+        ? `r.${ident(c.col)}`
+        : nulls.includes(c.col)
+          ? `NULL::${c.type}`
+          : `($1::jsonb -> ${literal(c.col)})::${c.type}`,
+    );
     await exec.query(
-      `INSERT INTO ${ident(table)} (${cols.map(ident).join(", ")}) OVERRIDING SYSTEM VALUE
-       SELECT ${list("r", cols)} FROM jsonb_populate_record(NULL::${ident(table)}, $1::jsonb) r RETURNING 1 AS ok`,
+      `INSERT INTO ${ident(table)} (${cols.map((c) => ident(c.col)).join(", ")}) OVERRIDING SYSTEM VALUE
+       SELECT ${values.join(", ")} FROM jsonb_populate_record(NULL::${ident(table)}, $1::jsonb) r RETURNING 1 AS ok`,
       [json],
     );
   }
   let links = 0;
   for (const link of snapshot.links) {
     const pk = await cat.primaryKey(link.table);
-    const all = Object.keys(JSON.parse(link.json) as object);
-    const matchCols = pk.length > 0 ? pk : all.filter((c) => !link.columns.includes(c));
+    const present = new Set(Object.keys(JSON.parse(link.json) as object));
+    const nulls = link.nulls ?? [];
+    // With no primary key, match on every other column; json has no equality
+    // operator, so a json column is compared as jsonb.
+    const matchCols = pk.length > 0
+      ? pk.map((col) => ({ col, type: "" }))
+      : (await cat.insertable(link.table)).filter((c) => present.has(c.col) && !link.columns.includes(c.col));
     const set = link.columns.map((c) => `${ident(c)} = r.${ident(c)}`).join(", ");
-    const match = matchCols.map((c) => `t.${ident(c)} IS NOT DISTINCT FROM r.${ident(c)}`).join(" AND ");
+    const match = matchCols
+      .map(({ col, type }) =>
+        !isJsonType(type)
+          ? `t.${ident(col)} IS NOT DISTINCT FROM r.${ident(col)}`
+          : nulls.includes(col)
+            ? `t.${ident(col)} IS NULL`
+            : `t.${ident(col)}::jsonb = ($1::jsonb -> ${literal(col)})`,
+      )
+      .join(" AND ") || "TRUE";
     const stillNull = link.columns.map((c) => `t.${ident(c)} IS NULL`).join(" AND ");
     const done = await exec.query(
       `UPDATE ${ident(link.table)} t SET ${set} FROM jsonb_populate_record(NULL::${ident(link.table)}, $1::jsonb) r WHERE ${match} AND ${stillNull} RETURNING 1 AS ok`,

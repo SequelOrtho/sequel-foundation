@@ -72,6 +72,21 @@ describe("offerUndo + the docked UndoStrip", () => {
     expect(screen.getByRole("button", { name: "Undo Delete" })).toBeTruthy();
   });
 
+  it("a refresh that fails after the restore still reads as restored", async () => {
+    const restore = vi.fn().mockResolvedValue(undefined);
+    const onRestored = vi.fn(() => {
+      throw new Error("refresh failed");
+    });
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const ticket = ticketIn(30 * 60_000);
+    act(() => offerUndo(ticket, { restore, onRestored }));
+    await act(async () => {
+      await undoDelete(ticket);
+    });
+    expect(onRestored).toHaveBeenCalledTimes(1);
+    expect(getToasts().map((t) => [t.tone, t.message])).toEqual([["success", "Routing rule “Falls” restored"]]);
+  });
+
   it("restores once however many Undo buttons are clicked", async () => {
     let finish: () => void = () => {};
     const restore = vi.fn(() => new Promise<void>((r) => (finish = r)));

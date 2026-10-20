@@ -48,6 +48,8 @@ describe("undo window", () => {
     expect(undoTicketFrom({ undo: { ...t, expiresAt: "soon" } })).toBeNull();
     expect(undoTicketFrom(null)).toBeNull();
     expect(undoTicketExpired(t, new Date("2026-10-20T19:29:59Z"))).toBe(false);
-    expect(undoTicketExpired(t, new Date("2026-10-20T19:30:00Z"))).toBe(true);
+    // The same boundary as the server: still open at the expiry instant.
+    expect(undoTicketExpired(t, new Date("2026-10-20T19:30:00Z"))).toBe(false);
+    expect(undoTicketExpired(t, new Date("2026-10-20T19:30:00.001Z"))).toBe(true);
   });
 });
