@@ -1,7 +1,7 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 
-// No-role sign-in policy (DESIGN-CONVENTIONS §4 "No role, no entry"): under
-// AUTH_MODE=entra, a person Microsoft signs in who has no role in the app is
+// No-role sign-in policy (DESIGN-CONVENTIONS §4 "No role, no entry"): a
+// person Microsoft signs in who has no role in the app is
 // refused with HTTP 403 and the family message below, the attempt is logged
 // (an admin queue of people waiting for a role), and a "Request access"
 // button emails the app's administrators — at most once a day per person.
