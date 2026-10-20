@@ -37,13 +37,19 @@ export function undoTicket(id: string, label: string, deletedAt: Date): UndoTick
   return { id, label, expiresAt: undoExpiresAt(deletedAt).toISOString() };
 }
 
-const sameActor = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase();
+const sameActor = (a: string, b: string) => {
+  const x = a.trim().toLowerCase();
+  return x !== "" && x === b.trim().toLowerCase();
+};
 
 /**
  * May `actor` undo this delete now? Only the person who deleted it, once,
  * inside the window. `null` = allowed. A route answers every refusal except
  * `expired` with the same words (`undoRefusalMessage`), so a ticket id never
- * tells someone else whether a delete exists.
+ * tells someone else whether a delete exists. A blank deleter matches no one.
+ * The route marks the snapshot restored in the same transaction as the
+ * restore, with a conditional write (`WHERE "restoredAt" IS NULL`), so two
+ * Undo clicks at once can't both restore.
  */
 export function undoRefusal(
   record: UndoRecordState | null | undefined,

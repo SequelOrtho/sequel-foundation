@@ -1,7 +1,7 @@
 // Integration test for the Postgres snapshot engine. Needs a real database:
 // set UNDO_PG_URL (CI starts a postgres service; locally any throwaway
-// cluster). Without it the suite is skipped — the engine is SQL, and a fake
-// executor would prove nothing about it.
+// cluster). Without it the suite is skipped locally — the engine is SQL, and a
+// fake executor would prove nothing about it — and CI fails (the guard below).
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import pg from "pg";
 import { captureDelete, isRestoreConflict, orderForInsert, restoreSnapshot, snapshotCounts, type SqlExecutor } from "../undo/postgres";
@@ -26,6 +26,7 @@ CREATE TABLE "Task" (
   "parentId" TEXT REFERENCES "Task"(id) ON DELETE CASCADE, "assigneeId" INTEGER REFERENCES "Person"(id) ON DELETE SET NULL,
   title TEXT NOT NULL, statuses "Status"[] NOT NULL DEFAULT '{}'
 );
+CREATE INDEX "Task_projectId_idx" ON "Task"("projectId");
 CREATE TABLE "Comment" (
   id SERIAL PRIMARY KEY, "taskId" TEXT NOT NULL REFERENCES "Task"(id) ON DELETE CASCADE,
   "authorId" INTEGER NOT NULL REFERENCES "Person"(id) ON DELETE CASCADE, body TEXT NOT NULL
@@ -35,10 +36,13 @@ CREATE TABLE "Tag" (id SERIAL PRIMARY KEY, label TEXT NOT NULL);
 CREATE TABLE "_ProjectToTag" ("A" INTEGER NOT NULL REFERENCES "Project"(id) ON DELETE CASCADE, "B" INTEGER NOT NULL REFERENCES "Tag"(id) ON DELETE CASCADE);
 CREATE UNIQUE INDEX "_ProjectToTag_AB_unique" ON "_ProjectToTag"("A", "B");
 CREATE TABLE "Membership" ("projectId" INTEGER NOT NULL REFERENCES "Project"(id) ON DELETE CASCADE, "personId" INTEGER NOT NULL REFERENCES "Person"(id) ON DELETE CASCADE, role TEXT, PRIMARY KEY ("projectId", "personId"));
+CREATE TABLE "Inv" (id INTEGER PRIMARY KEY);
+CREATE TABLE "Line" (id BIGINT PRIMARY KEY, "invId" INTEGER NOT NULL REFERENCES "Inv"(id) ON DELETE CASCADE, amt NUMERIC(65,30));
+CREATE TABLE "Sub" (id SERIAL PRIMARY KEY, "lineId" BIGINT NOT NULL REFERENCES "Line"(id) ON DELETE CASCADE);
 `;
 
 const SEED = `
-TRUNCATE "Person", "Project", "Task", "Comment", "Note", "Tag", "_ProjectToTag", "Membership" RESTART IDENTITY CASCADE;
+TRUNCATE "Person", "Project", "Task", "Comment", "Note", "Tag", "_ProjectToTag", "Membership", "Inv", "Line", "Sub" RESTART IDENTITY CASCADE;
 INSERT INTO "Person" (name) VALUES ('Pat'), ('Lee');
 INSERT INTO "Project" (name, status, tags, meta, budget, blob, "createdAt", "pmId")
   VALUES ('Alpha', 'DONE', '{a,"b c"}', '{"k": [1, {"x": null}]}', 1234.56, '\\x0102ff', '2026-10-20 12:34:56.789', 1),
@@ -50,11 +54,14 @@ INSERT INTO "Note" ("projectId", body) VALUES (1, 'linked'), (2, 'beta');
 INSERT INTO "Tag" (label) VALUES ('x'), ('y');
 INSERT INTO "_ProjectToTag" ("A", "B") VALUES (1, 1), (1, 2), (2, 1);
 INSERT INTO "Membership" VALUES (1, 1, 'pm'), (1, 2, 'member');
+INSERT INTO "Inv" VALUES (1);
+INSERT INTO "Line" VALUES (9007199254740993, 1, 12345678901234567.123456789012345678);
+INSERT INTO "Sub" ("lineId") VALUES (9007199254740993);
 `;
 
 const dump = async (c: pg.Client) => {
   const out: Record<string, unknown[]> = {};
-  for (const t of ["Person", "Project", "Task", "Comment", "Note", "Tag", "_ProjectToTag", "Membership"]) {
+  for (const t of ["Person", "Project", "Task", "Comment", "Note", "Tag", "_ProjectToTag", "Membership", "Inv", "Line", "Sub"]) {
     out[t] = (await c.query(`SELECT to_jsonb(t)::text AS j FROM "${t}" t ORDER BY 1`)).rows.map((r) => r.j);
   }
   return out;
@@ -130,7 +137,7 @@ describe.skipIf(!URL)("undo/postgres engine (real Postgres)", () => {
       await c.query(`DELETE FROM "Task" WHERE id = 't-root'`);
       return s;
     });
-    expect(snap!.rows.map((r) => (r.row as { id: string }).id ?? r.table)).toEqual(["t-root", "t-child", 1]);
+    expect(snap!.rows.map((r) => (JSON.parse(r.json) as { id: string | number }).id)).toEqual(["t-root", "t-child", 1]);
     await tx(() => restoreSnapshot(exec, snap!));
     expect(await dump(c)).toEqual(before);
   });
@@ -173,23 +180,102 @@ describe.skipIf(!URL)("undo/postgres engine (real Postgres)", () => {
   it("answers null for a missing row", async () => {
     expect(await captureDelete(exec, "Project", { id: 999 })).toBeNull();
   });
+
+  it("restores a self-referencing tree whose parent row was updated after its child", async () => {
+    // An update writes the parent's new row version after the child's, so the
+    // child comes back first from the lookup; restore must still insert the
+    // parent first.
+    await c.query(`UPDATE "Task" SET title = 'Root, renamed' WHERE id = 't-root'`);
+    const before = await dump(c);
+    const snap = await tx(async () => {
+      const s = await captureDelete(exec, "Project", { id: 1 });
+      await c.query(`DELETE FROM "Project" WHERE id = 1`);
+      return s;
+    });
+    const tasks = snap!.rows.filter((r) => r.table === "Task").map((r) => (JSON.parse(r.json) as { id: string }).id);
+    expect(tasks).toEqual(["t-root", "t-child"]);
+    await tx(() => restoreSnapshot(exec, snap!));
+    expect(await dump(c)).toEqual(before);
+  });
+
+  it("keeps bigint and numeric values exact, and the rows keyed on them", async () => {
+    const before = await dump(c);
+    const snap = await tx(async () => {
+      const s = await captureDelete(exec, "Inv", { id: 1 });
+      await c.query(`DELETE FROM "Inv" WHERE id = 1`);
+      return s;
+    });
+    expect(snapshotCounts(snap!)).toEqual({ Inv: 1, Line: 1, Sub: 1 });
+    await tx(() => restoreSnapshot(exec, JSON.parse(JSON.stringify(snap))));
+    expect(await dump(c)).toEqual(before);
+    const line = (await c.query(`SELECT id::text AS id, amt::text AS amt FROM "Line"`)).rows[0];
+    expect(line).toEqual({ id: "9007199254740993", amt: "12345678901234567.123456789012345678000000000000" });
+  });
+
+  it("finds the row when the key is given as a string", async () => {
+    expect(snapshotCounts((await tx(() => captureDelete(exec, "Line", { id: "9007199254740993" })))!)).toEqual({ Line: 1, Sub: 1 });
+    expect(snapshotCounts((await tx(() => captureDelete(exec, "Project", { id: "1" })))!).Project).toBe(1);
+  });
+
+  it("gives a column added after the delete its default on restore", async () => {
+    const snap = await tx(async () => {
+      const s = await captureDelete(exec, "Note", { id: 1 });
+      await c.query(`DELETE FROM "Note" WHERE id = 1`);
+      return s;
+    });
+    await c.query(`ALTER TABLE "Note" ADD COLUMN pinned INTEGER NOT NULL DEFAULT 5`);
+    try {
+      await tx(() => restoreSnapshot(exec, snap!));
+      expect((await c.query(`SELECT pinned FROM "Note" WHERE id = 1`)).rows[0].pinned).toBe(5);
+    } finally {
+      await c.query(`ALTER TABLE "Note" DROP COLUMN pinned`);
+    }
+  });
+
+  it("matches keys through the indexes", async () => {
+    const sqls: string[] = [];
+    const spy: SqlExecutor = { query: async (sql, params) => (sqls.push(sql), exec.query(sql, params)) };
+    await tx(() => captureDelete(spy, "Project", { id: 1 }));
+    const root = sqls.find((q) => q.includes('FROM "Project" t'))!;
+    const child = sqls.find((q) => q.includes('FROM "Task" t'))!;
+    const plan = async (sql: string, param: string) =>
+      (await c.query(`EXPLAIN ${sql.replace("FOR UPDATE", "")}`, [param])).rows.map((r) => r["QUERY PLAN"]).join("\n");
+    await c.query("SET enable_seqscan = off");
+    try {
+      expect(await plan(root, '{"id": 1}')).not.toMatch(/Seq Scan on "Project"/);
+      expect(await plan(child, '[{"id": 1}]')).not.toMatch(/Seq Scan on "Task"/);
+    } finally {
+      await c.query("RESET enable_seqscan");
+    }
+  });
+});
+
+describe("the Postgres engine test", () => {
+  it("runs in CI (UNDO_PG_URL is set there)", () => {
+    if (process.env.CI) expect(URL, "CI must set UNDO_PG_URL so the engine suite runs").toBeTruthy();
+  });
 });
 
 describe("orderForInsert", () => {
   it("puts parents first and keeps capture order within a table", () => {
     const rows = [
-      { table: "C", row: { i: 1 } },
-      { table: "A", row: { i: 2 } },
-      { table: "B", row: { i: 3 } },
-      { table: "A", row: { i: 4 } },
+      { table: "C", id: "c1" },
+      { table: "A", id: "a2" },
+      { table: "B", id: "b3" },
+      { table: "A", id: "a4" },
     ];
     const edges = new Map([["A", new Set(["B"])], ["B", new Set(["C"])]]);
-    expect(orderForInsert(rows, edges, ["C", "A", "B"]).map((r) => r.row.i)).toEqual([2, 4, 3, 1]);
+    expect(orderForInsert(rows, edges, ["C", "A", "B"]).map((r) => r.id)).toEqual(["a2", "a4", "b3", "c1"]);
   });
   it("falls back to capture order on a cycle", () => {
-    const rows = [{ table: "A", row: { i: 1 } }, { table: "B", row: { i: 2 } }];
+    const rows = [{ table: "A", id: "a1" }, { table: "B", id: "b2" }];
     const edges = new Map([["A", new Set(["B"])], ["B", new Set(["A"])]]);
-    expect(orderForInsert(rows, edges, ["A", "B"]).map((r) => r.row.i)).toEqual([1, 2]);
+    expect(orderForInsert(rows, edges, ["A", "B"]).map((r) => r.id)).toEqual(["a1", "b2"]);
+  });
+  it("puts each row of a self-referencing table after the row it points to", () => {
+    const rows = [{ table: "T", id: "kid" }, { table: "T", id: "grandkid" }, { table: "T", id: "root" }];
+    const within = new Map([["T", new Map([["kid", ["root"]], ["grandkid", ["kid"]]])]]);
+    expect(orderForInsert(rows, new Map(), ["T"], within).map((r) => r.id)).toEqual(["root", "kid", "grandkid"]);
   });
 });
 
@@ -198,6 +284,7 @@ describe("isRestoreConflict", () => {
     expect(isRestoreConflict({ code: "23505" })).toBe(true);
     expect(isRestoreConflict({ code: "P2010", message: 'Raw query failed. Code: `23503`.' })).toBe(true);
     expect(isRestoreConflict({ code: "P2002" })).toBe(true);
+    expect(isRestoreConflict({ code: "23502" })).toBe(true);
     expect(isRestoreConflict(new Error("connection reset"))).toBe(false);
   });
 });

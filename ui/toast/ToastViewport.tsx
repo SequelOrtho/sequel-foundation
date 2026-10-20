@@ -2,19 +2,23 @@
 
 import { useEffect } from "react";
 import { Toast } from "../Toast";
+import { UndoStrip, useUndoOffer } from "../UndoDelete";
 import { dismissToast, useToasts, type ToastItem } from "./store";
 
 // Single global toast stack, mounted once in the root layout. Each toast
 // auto-dismisses after its ttl; the user can dismiss early. Fixed bottom-right,
-// above app chrome.
+// above app chrome. It also docks the Undo strip for a recent delete
+// (DESIGN-CONVENTIONS §3) once that delete's Undo toast has gone.
 export function ToastViewport() {
   const toasts = useToasts();
-  if (toasts.length === 0) return null;
+  const offer = useUndoOffer();
+  if (toasts.length === 0 && !offer) return null;
   return (
     <div className="fixed bottom-4 right-4 z-50 flex flex-col items-end gap-2">
       {toasts.map((t) => (
         <AutoDismiss key={t.id} item={t} />
       ))}
+      <UndoStrip hideWhileToastShows />
     </div>
   );
 }

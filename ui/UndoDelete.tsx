@@ -1,17 +1,18 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useSyncExternalStore } from "react";
 import { Button } from "./Button";
-import { Callout } from "./Callout";
-import { dismissToast, toastError, toastSaved, toastUndo } from "./toast/store";
+import { dismissToast, toastError, toastSaved, toastUndo, useToasts } from "./toast/store";
 import { undoTicketExpired, UNDO_WINDOW_MINUTES, type UndoTicket } from "../undo/window";
 
 // Undo for deletes (DESIGN-CONVENTIONS §3 "Deletes can be undone for 30
 // minutes"). A delete route answers `{ undo: UndoTicket }`; the surface calls
-// `offer(ticket)`, which fires the Undo toast (10 s) and opens an inline
-// UndoStrip that keeps the same Undo on screen until the 30-minute window
-// closes. The server is the authority on the window — the strip only hides
-// itself when it ends.
+// `offerUndo(ticket)`, which fires the Undo toast (10 s) and keeps the same
+// Undo on screen in the toast stack (`UndoStrip`, rendered by the
+// ToastViewport every hub already mounts) until the 30-minute window closes.
+// The offer lives in a module-level store like the toasts, so it survives the
+// client navigation most deletes end with ("back to the list"). The server is
+// the authority on the window — the strip only hides itself when it ends.
 
 /** The family restore route every hub mounts. */
 export const UNDO_RESTORE_PATH = "/api/undo";
@@ -28,101 +29,129 @@ export async function postUndo(ticket: Pick<UndoTicket, "id">, path: string = UN
   throw new Error(typeof body?.error === "string" ? body.error : "Undo failed — please try again.");
 }
 
-export type UndoDeleteState = {
-  ticket: UndoTicket | null;
-  busy: boolean;
-  /** Offer Undo for a delete that just succeeded. Replaces any earlier strip. */
-  offer: (ticket: UndoTicket, message?: string) => void;
-  undo: (ticket?: UndoTicket) => Promise<void>;
-  dismiss: () => void;
-};
-
-export function useUndoDelete(opts: {
+export type UndoOfferOptions = {
+  /** Toast wording; defaults to "<label> deleted". */
+  message?: string;
   /** Defaults to POST /api/undo. */
   restore?: (ticket: UndoTicket) => Promise<void>;
   /** Re-fetch or router.refresh() so the restored record reappears. */
   onRestored?: (ticket: UndoTicket) => void;
-} = {}): UndoDeleteState {
-  const [ticket, setTicket] = useState<UndoTicket | null>(null);
-  const [busy, setBusy] = useState(false);
-  const toastId = useRef<number | null>(null);
-  const optsRef = useRef(opts);
-  useEffect(() => {
-    optsRef.current = opts;
-  });
+};
 
-  useEffect(() => {
-    if (!ticket) return;
-    const ms = new Date(ticket.expiresAt).getTime() - Date.now();
-    const handle = setTimeout(() => setTicket((cur) => (cur?.id === ticket.id ? null : cur)), Math.max(0, ms));
-    return () => clearTimeout(handle);
-  }, [ticket]);
+export type UndoOffer = { ticket: UndoTicket; busy: boolean; toastId: number };
 
-  const clearToast = () => {
-    if (toastId.current != null) dismissToast(toastId.current);
-    toastId.current = null;
-  };
+type Entry = UndoOffer & { opts: UndoOfferOptions; timer: ReturnType<typeof setTimeout> | null };
 
-  const undo = useCallback(async (t?: UndoTicket) => {
-    const target = t;
-    if (!target) return;
-    clearToast();
-    setBusy(true);
-    try {
-      await (optsRef.current.restore ?? postUndo)(target);
-      setTicket((cur) => (cur?.id === target.id ? null : cur));
-      toastSaved(`${target.label} restored`);
-      optsRef.current.onRestored?.(target);
-    } catch (err) {
-      toastError(err instanceof Error ? err.message : "Undo failed — please try again.");
-      if (undoTicketExpired(target)) setTicket((cur) => (cur?.id === target.id ? null : cur));
-    } finally {
-      setBusy(false);
+let entry: Entry | null = null;
+let snapshot: UndoOffer | null = null;
+const inflight = new Set<string>();
+const listeners = new Set<() => void>();
+
+function emit() {
+  snapshot = entry && { ticket: entry.ticket, busy: entry.busy, toastId: entry.toastId };
+  for (const l of listeners) l();
+}
+
+function clear(id?: string) {
+  if (!entry || (id && entry.ticket.id !== id)) return;
+  if (entry.timer) clearTimeout(entry.timer);
+  dismissToast(entry.toastId);
+  entry = null;
+  emit();
+}
+
+/** Offer Undo for a delete that just succeeded. Replaces any earlier offer
+ *  (the strip holds the latest delete; an earlier one stays undoable on the
+ *  server until its own window ends). */
+export function offerUndo(ticket: UndoTicket, opts: UndoOfferOptions = {}) {
+  clear();
+  const toastId = toastUndo(opts.message ?? `${ticket.label} deleted`, () => undoDelete(ticket));
+  const ms = new Date(ticket.expiresAt).getTime() - Date.now();
+  const timer = setTimeout(() => clear(ticket.id), Math.max(0, ms));
+  entry = { ticket, busy: false, toastId, opts, timer };
+  emit();
+}
+
+/** Run the restore for the current offer (or the given ticket). Runs once per
+ *  ticket at a time, however many buttons are clicked. */
+export async function undoDelete(ticket: UndoTicket | undefined = entry?.ticket): Promise<void> {
+  if (!ticket || inflight.has(ticket.id)) return;
+  inflight.add(ticket.id);
+  const opts = entry?.ticket.id === ticket.id ? entry.opts : {};
+  if (entry?.ticket.id === ticket.id) {
+    dismissToast(entry.toastId);
+    entry = { ...entry, busy: true };
+    emit();
+  }
+  try {
+    await (opts.restore ?? postUndo)(ticket);
+    clear(ticket.id);
+    toastSaved(`${ticket.label} restored`);
+    opts.onRestored?.(ticket);
+  } catch (err) {
+    toastError(err instanceof Error ? err.message : "Undo failed — please try again.");
+    if (undoTicketExpired(ticket)) clear(ticket.id);
+    else if (entry?.ticket.id === ticket.id) {
+      entry = { ...entry, busy: false };
+      emit();
     }
-  }, []);
+  } finally {
+    inflight.delete(ticket.id);
+  }
+}
 
-  const offer = useCallback(
-    (t: UndoTicket, message?: string) => {
-      clearToast();
-      setTicket(t);
-      toastId.current = toastUndo(message ?? `${t.label} deleted`, () => undo(t));
-    },
-    [undo],
-  );
+/** Hide the strip. The delete stays undoable on the server until its window ends. */
+export function dismissUndo() {
+  clear();
+}
 
-  const dismiss = useCallback(() => setTicket(null), []);
+/** Test-only: reset between cases. */
+export function clearUndoOffer() {
+  inflight.clear();
+  clear();
+}
 
-  return { ticket, busy, offer, undo: (t?: UndoTicket) => undo(t ?? ticket ?? undefined), dismiss };
+function subscribe(cb: () => void) {
+  listeners.add(cb);
+  return () => {
+    listeners.delete(cb);
+  };
+}
+const getSnapshot = () => snapshot;
+
+export function useUndoOffer(): UndoOffer | null {
+  return useSyncExternalStore(subscribe, getSnapshot, () => null);
 }
 
 const timeOf = (iso: string) => new Date(iso).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
 
-/** The inline strip that keeps Undo on screen past the toast. Renders nothing without a ticket. */
-export function UndoStrip({
-  state,
-  undoLabel = "Undo Delete",
-  className = "",
-}: {
-  state: Pick<UndoDeleteState, "ticket" | "busy" | "undo" | "dismiss">;
-  undoLabel?: string;
-  className?: string;
-}) {
-  const { ticket, busy } = state;
-  if (!ticket) return null;
+/**
+ * Keeps Undo on screen past the toast. The ToastViewport renders it once the
+ * Undo toast has gone, so no hub mounts it by hand; it renders nothing
+ * without an offer.
+ */
+export function UndoStrip({ hideWhileToastShows = false }: { hideWhileToastShows?: boolean }) {
+  const offer = useUndoOffer();
+  const toasts = useToasts();
+  if (!offer) return null;
+  if (hideWhileToastShows && toasts.some((t) => t.id === offer.toastId)) return null;
+  const { ticket, busy } = offer;
   return (
-    <Callout tone="info" className={className}>
-      <span className="flex flex-wrap items-center gap-2">
-        <span>
-          {ticket.label} deleted. You can undo this until {timeOf(ticket.expiresAt)} ({UNDO_WINDOW_MINUTES} minutes
-          from the delete).
-        </span>
-        <Button size="sm" variant="outline" disabled={busy} onClick={() => void state.undo(ticket)}>
-          {undoLabel}
-        </Button>
-        <Button size="sm" variant="outline" disabled={busy} onClick={state.dismiss}>
-          Dismiss
-        </Button>
+    <div
+      role="region"
+      aria-label="Undo delete"
+      className="flex max-w-md flex-wrap items-center gap-2 rounded-md border border-brand/30 bg-white px-4 py-2 text-sm text-zinc-900 shadow-lg dark:bg-zinc-900 dark:text-zinc-100"
+    >
+      <span>
+        {ticket.label} deleted. You can undo this until {timeOf(ticket.expiresAt)} ({UNDO_WINDOW_MINUTES} minutes
+        from the delete).
       </span>
-    </Callout>
+      <Button size="sm" variant="outline" disabled={busy} onClick={() => void undoDelete(ticket)}>
+        Undo Delete
+      </Button>
+      <Button size="sm" variant="outline" disabled={busy} onClick={dismissUndo}>
+        Dismiss
+      </Button>
+    </div>
   );
 }

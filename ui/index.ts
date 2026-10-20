@@ -41,8 +41,8 @@ export {
 export type { ToastItem, ToastAction, ToastLinkAction, ToastCallbackAction } from "./toast/store";
 // Undo for deletes (DESIGN-CONVENTIONS §3): the Undo toast + the inline strip
 // that keeps it on screen for the 30-minute window.
-export { useUndoDelete, UndoStrip, postUndo, UNDO_RESTORE_PATH } from "./UndoDelete";
-export type { UndoDeleteState } from "./UndoDelete";
+export { offerUndo, undoDelete, dismissUndo, useUndoOffer, UndoStrip, postUndo, UNDO_RESTORE_PATH } from "./UndoDelete";
+export type { UndoOffer, UndoOfferOptions } from "./UndoDelete";
 export { useShowMore, ShowMoreControls, ShowMoreTbody, ShowMoreList } from "./ShowMore";
 export { NavProgress } from "./NavProgress";
 export {

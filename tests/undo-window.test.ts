@@ -28,6 +28,7 @@ describe("undo window", () => {
     expect(undoRefusal(rec, " pat@sequelortho.com ", in29)).toBeNull();
     expect(undoRefusal(rec, "lee@sequelortho.com", in29)).toBe("not-yours");
     expect(undoRefusal(rec, null, in29)).toBe("not-yours");
+    expect(undoRefusal({ ...rec, deletedBy: "" }, " ", in29)).toBe("not-yours");
     expect(undoRefusal(null, "pat@sequelortho.com", in29)).toBe("missing");
     expect(undoRefusal({ ...rec, restoredAt: in29 }, "pat@sequelortho.com", in29)).toBe("already-restored");
     expect(undoRefusal(rec, "pat@sequelortho.com", new Date(AT.getTime() + 30 * 60_000))).toBeNull();
