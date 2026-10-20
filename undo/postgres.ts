@@ -9,9 +9,11 @@
 //   ON DELETE CASCADE  → the child row is captured whole and walked in turn;
 //   ON DELETE SET NULL → the child row is remembered with the value it loses.
 // restoreSnapshot() puts it all back in one statement per row: parents first
-// (a table-level topological order; inside a self-referencing table, each row
-// after the row it points to), then the
-// SET NULL links — only where the column is still null, so a link someone
+// over the NOT NULL foreign keys (inside a self-referencing table, each row
+// after the row it points to); a nullable foreign key between captured rows
+// goes in NULL and is set once every row is back, so a cycle (a "latest"
+// pointer into the tree) restores. Then the SET NULL links, each foreign key
+// on its own and only where its columns are still null, so a link someone
 // re-pointed meanwhile is left alone. A row that would clash (same key or
 // unique value re-created, or a parent outside the snapshot gone) raises the
 // database error; the caller's transaction rolls back and the route answers
@@ -40,7 +42,8 @@ export interface SqlExecutor {
 }
 
 /** A captured row: its table and the row as `to_jsonb` text (exact). */
-export type SnapshotRow = { table: string; json: string; nulls?: string[] };
+/** `deferred`: foreign key columns inserted NULL and set afterwards (from `links`). */
+export type SnapshotRow = { table: string; json: string; nulls?: string[]; deferred?: string[] };
 /** A row whose SET NULL foreign key columns the delete clears. */
 export type SnapshotLink = { table: string; json: string; columns: string[]; nulls?: string[] };
 export type DeleteSnapshot = {
@@ -50,10 +53,12 @@ export type DeleteSnapshot = {
   rows: SnapshotRow[];
   /** SET NULL links to restore after the rows. */
   links: SnapshotLink[];
+  /** Captured rows' `deferred` foreign key columns, set once every row is back. */
+  patches?: SnapshotLink[];
 };
 
 type ForeignKey = { child: string; action: string; childCols: string[]; parentCols: string[]; setCols: string[] };
-type Column = { col: string; type: string };
+type Column = { col: string; type: string; nullable: boolean };
 const isJsonType = (type: string) => type === "json" || type === "jsonb";
 
 export const ident = (name: string) => `"${name.replace(/"/g, '""')}"`;
@@ -83,7 +88,7 @@ WHERE i.indrelid = to_regclass(format('%I.%I', current_schema(), $1::text)) AND 
 ORDER BY array_position(i.indkey::int2[], a.attnum)`;
 
 const COLS_SQL = `
-SELECT a.attname::text AS col, format_type(a.atttypid, NULL)::text AS type
+SELECT a.attname::text AS col, format_type(a.atttypid, NULL)::text AS type, NOT a.attnotnull AS nullable
 FROM pg_attribute a
 WHERE a.attrelid = to_regclass(format('%I.%I', current_schema(), $1::text))
   AND a.attnum > 0 AND NOT a.attisdropped AND a.attgenerated = ''
@@ -121,7 +126,7 @@ function catalog(exec: SqlExecutor) {
     /** Columns an INSERT may name (not dropped, not generated). */
     insertable(table: string) {
       if (!cols.has(table)) {
-        cols.set(table, exec.query(COLS_SQL, [table]).then((rows) => rows.map((r) => ({ col: String(r.col), type: String(r.type) }))));
+        cols.set(table, exec.query(COLS_SQL, [table]).then((rows) => rows.map((r) => ({ col: String(r.col), type: String(r.type), nullable: r.nullable === true || r.nullable === "t" }))));
       }
       return cols.get(table)!;
     },
@@ -133,7 +138,7 @@ const tuple = (alias: string, cols: string[]) => (cols.length === 1 ? list(alias
 /** A JSON array of row texts, built without parsing them. */
 const jsonArray = (texts: string[]) => `[${texts.join(",")}]`;
 
-type Captured = { table: string; json: string; id: string; nulls?: string[] };
+type Captured = { table: string; json: string; id: string; nulls?: string[]; deferred?: string[] };
 type Found = { json: string; id: string; nulls?: string[] };
 
 /** The SELECT list for a captured row: its jsonb text, its identity (primary
@@ -185,7 +190,7 @@ export async function captureDelete(
 
   const captured: Captured[] = [];
   const seen = new Set<string>();
-  const linkMap = new Map<string, SnapshotLink>();
+  const linkMap = new Map<string, { row: string; link: SnapshotLink }>();
   const firstSeen: string[] = [];
   const add = (t: string, r: Found) => {
     const id = `${t}:${r.id}`;
@@ -218,11 +223,13 @@ export async function captureDelete(
           for (const c of children) if (add(fk.child, c)) next.push(captured[captured.length - 1]);
         } else {
           for (const c of children) {
+            // One link per row per foreign key, so each relinks on its own: a
+            // row whose other link was re-pointed meanwhile still gets this one
+            // back. SET NULL (col, …) clears only the listed columns.
+            const columns = fk.setCols.length > 0 ? fk.setCols : fk.childCols;
             const id = `${fk.child}:${c.id}`;
-            const link = linkMap.get(id) ?? { table: fk.child, json: c.json, columns: [], ...(c.nulls ? { nulls: c.nulls } : {}) };
-            // SET NULL (col, …) clears only the listed columns.
-            for (const col of fk.setCols.length > 0 ? fk.setCols : fk.childCols) if (!link.columns.includes(col)) link.columns.push(col);
-            linkMap.set(id, link);
+            const k = `${id}|${JSON.stringify(columns)}`;
+            if (!linkMap.has(k)) linkMap.set(k, { row: id, link: { table: fk.child, json: c.json, columns, ...(c.nulls ? { nulls: c.nulls } : {}) } });
           }
         }
       }
@@ -232,16 +239,31 @@ export async function captureDelete(
 
   // A row restored whole needs no relink.
   const links: SnapshotLink[] = [];
-  for (const [id, link] of linkMap) if (!seen.has(id)) links.push(link);
+  for (const { row, link } of linkMap.values()) if (!seen.has(row)) links.push(link);
 
   // Every foreign key between two captured tables (any delete action) orders
-  // the inserts, not only the cascades that were walked. A table that refers
-  // to itself (a task tree) is ordered row by row.
+  // the inserts, not only the cascades that were walked. A nullable one (a
+  // "latest status" pointer back into the tree, a task's parent) can close a
+  // cycle, so its columns go in NULL and are set once every row is back. A
+  // NOT NULL one orders the tables; inside a self-referencing table, the rows.
+  const patches: SnapshotLink[] = [];
   const edges = new Map<string, Set<string>>();
   const within = new Map<string, Map<string, string[]>>();
   for (const t of firstSeen) {
     for (const fk of await cat.referencing(t)) {
       if (!firstSeen.includes(fk.child)) continue;
+      const childCols = await cat.insertable(fk.child);
+      const nullable = fk.childCols.every((col) => childCols.find((c) => c.col === col)?.nullable);
+      if (nullable) {
+        for (const r of captured) {
+          if (r.table !== fk.child) continue;
+          const values = JSON.parse(r.json) as Record<string, unknown>;
+          if (fk.childCols.every((col) => values[col] == null)) continue;
+          r.deferred = [...new Set([...(r.deferred ?? []), ...fk.childCols])];
+          patches.push({ table: fk.child, json: r.json, columns: fk.childCols, ...(r.nulls ? { nulls: r.nulls } : {}) });
+        }
+        continue;
+      }
       if (fk.child !== t) {
         edges.set(t, (edges.get(t) ?? new Set<string>()).add(fk.child));
         continue;
@@ -258,8 +280,14 @@ export async function captureDelete(
   return {
     version: 1,
     root: { table, key },
-    rows: ordered.map(({ table: t, json, nulls }) => ({ table: t, json, ...(nulls ? { nulls } : {}) })),
+    rows: ordered.map(({ table: t, json, nulls, deferred }) => ({
+      table: t,
+      json,
+      ...(nulls ? { nulls } : {}),
+      ...(deferred ? { deferred } : {}),
+    })),
     links,
+    ...(patches.length > 0 ? { patches } : {}),
   };
 }
 
@@ -341,7 +369,7 @@ export function orderForInsert<R extends { table: string; id?: string }>(
 export async function restoreSnapshot(exec: SqlExecutor, snapshot: DeleteSnapshot): Promise<{ rows: number; links: number }> {
   if (snapshot.version !== 1) throw new Error("restoreSnapshot: unknown snapshot version");
   const cat = catalog(exec);
-  for (const { table, json, nulls = [] } of snapshot.rows) {
+  for (const { table, json, nulls = [], deferred = [] } of snapshot.rows) {
     // Name only the columns the snapshot carries (keys only — values stay
     // text), so a column added since the delete takes its default.
     const present = new Set(Object.keys(JSON.parse(json) as object));
@@ -349,7 +377,9 @@ export async function restoreSnapshot(exec: SqlExecutor, snapshot: DeleteSnapsho
     // jsonb_populate_record reads JSON null as SQL NULL; a json / jsonb
     // column takes its value straight from the row text instead.
     const values = cols.map((c) =>
-      !isJsonType(c.type)
+      deferred.includes(c.col)
+        ? `(CASE WHEN false THEN r.${ident(c.col)} END)`
+        : !isJsonType(c.type)
         ? `r.${ident(c.col)}`
         : nulls.includes(c.col)
           ? `NULL::${c.type}`
@@ -362,7 +392,8 @@ export async function restoreSnapshot(exec: SqlExecutor, snapshot: DeleteSnapsho
     );
   }
   let links = 0;
-  for (const link of snapshot.links) {
+  const patches = new Set(snapshot.patches ?? []);
+  for (const link of [...(snapshot.patches ?? []), ...snapshot.links]) {
     const pk = await cat.primaryKey(link.table);
     const present = new Set(Object.keys(JSON.parse(link.json) as object));
     const nulls = link.nulls ?? [];
@@ -386,7 +417,7 @@ export async function restoreSnapshot(exec: SqlExecutor, snapshot: DeleteSnapsho
       `UPDATE ${ident(link.table)} t SET ${set} FROM jsonb_populate_record(NULL::${ident(link.table)}, $1::jsonb) r WHERE ${match} AND ${stillNull} RETURNING 1 AS ok`,
       [link.json],
     );
-    links += done.length;
+    if (!patches.has(link)) links += done.length;
   }
   return { rows: snapshot.rows.length, links };
 }

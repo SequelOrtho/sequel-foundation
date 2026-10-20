@@ -41,12 +41,17 @@ CREATE TABLE "Line" (id BIGINT PRIMARY KEY, "invId" INTEGER NOT NULL REFERENCES 
 CREATE TABLE "Sub" (id SERIAL PRIMARY KEY, "lineId" BIGINT NOT NULL REFERENCES "Line"(id) ON DELETE CASCADE);
 CREATE TABLE "Doc" (id INTEGER PRIMARY KEY, tenant INTEGER NOT NULL, payload JSONB NOT NULL, extra JSONB, raw JSON, UNIQUE (tenant, id));
 CREATE TABLE "Log" ("docId" INTEGER NOT NULL REFERENCES "Doc"(id) ON DELETE CASCADE, msg TEXT);
+CREATE TABLE "Board" (id INTEGER PRIMARY KEY, "latestId" INTEGER);
+CREATE TABLE "Post" (id INTEGER PRIMARY KEY, "boardId" INTEGER NOT NULL REFERENCES "Board"(id) ON DELETE CASCADE);
+ALTER TABLE "Board" ADD FOREIGN KEY ("latestId") REFERENCES "Post"(id) ON DELETE SET NULL;
+CREATE TABLE "Ref" (id SERIAL PRIMARY KEY, "projectId" INTEGER REFERENCES "Project"(id) ON DELETE SET NULL,
+  "taskId" TEXT REFERENCES "Task"(id) ON DELETE SET NULL);
 CREATE TABLE "Part" (id SERIAL PRIMARY KEY, tenant INTEGER NOT NULL, "docId" INTEGER,
   FOREIGN KEY (tenant, "docId") REFERENCES "Doc"(tenant, id) ON DELETE SET NULL ("docId"));
 `;
 
 const SEED = `
-TRUNCATE "Person", "Project", "Task", "Comment", "Note", "Tag", "_ProjectToTag", "Membership", "Inv", "Line", "Sub", "Doc", "Log", "Part" RESTART IDENTITY CASCADE;
+TRUNCATE "Person", "Project", "Task", "Comment", "Note", "Tag", "_ProjectToTag", "Membership", "Inv", "Line", "Sub", "Doc", "Log", "Part", "Ref", "Board", "Post" RESTART IDENTITY CASCADE;
 INSERT INTO "Person" (name) VALUES ('Pat'), ('Lee');
 INSERT INTO "Project" (name, status, tags, meta, budget, blob, "createdAt", "pmId")
   VALUES ('Alpha', 'DONE', '{a,"b c"}', '{"k": [1, {"x": null}]}', 1234.56, '\\x0102ff', '2026-10-20 12:34:56.789', 1),
@@ -64,11 +69,14 @@ INSERT INTO "Sub" ("lineId") VALUES (9007199254740993);
 INSERT INTO "Doc" VALUES (1, 7, 'null', 'null', NULL), (2, 7, '{"a": 1}', NULL, 'null');
 INSERT INTO "Log" VALUES (1, 'hit'), (1, 'hit'), (1, 'hit'), (2, 'other');
 INSERT INTO "Part" (tenant, "docId") VALUES (7, 1);
+INSERT INTO "Board" VALUES (1, NULL);
+INSERT INTO "Post" VALUES (10, 1), (11, 1);
+UPDATE "Board" SET "latestId" = 11;
 `;
 
 const dump = async (c: pg.Client) => {
   const out: Record<string, unknown[]> = {};
-  for (const t of ["Person", "Project", "Task", "Comment", "Note", "Tag", "_ProjectToTag", "Membership", "Inv", "Line", "Sub", "Doc", "Log", "Part"]) {
+  for (const t of ["Person", "Project", "Task", "Comment", "Note", "Tag", "_ProjectToTag", "Membership", "Inv", "Line", "Sub", "Doc", "Log", "Part", "Ref", "Board", "Post"]) {
     out[t] = (await c.query(`SELECT to_jsonb(t)::text AS j FROM "${t}" t ORDER BY 1`)).rows.map((r) => r.j);
   }
   return out;
@@ -199,8 +207,9 @@ describe.skipIf(!URL)("undo/postgres engine (real Postgres)", () => {
       await c.query(`DELETE FROM "Project" WHERE id = 1`);
       return s;
     });
-    const tasks = snap!.rows.filter((r) => r.table === "Task").map((r) => (JSON.parse(r.json) as { id: string }).id);
-    expect(tasks).toEqual(["t-root", "t-child"]);
+    // The nullable parent pointer goes in NULL and is set afterwards, so the order no longer matters.
+    const child = snap!.rows.find((r) => r.table === "Task" && r.json.includes('"t-child"'));
+    expect(child?.deferred).toEqual(["parentId"]);
     await tx(() => restoreSnapshot(exec, snap!));
     expect(await dump(c)).toEqual(before);
   });
@@ -267,6 +276,31 @@ describe.skipIf(!URL)("undo/postgres engine (real Postgres)", () => {
     expect(snap!.links).toEqual([expect.objectContaining({ table: "Part", columns: ["docId"] })]);
     expect((await tx(() => restoreSnapshot(exec, snap!))).links).toBe(1);
     expect((await c.query(`SELECT tenant, "docId" FROM "Part"`)).rows).toEqual([{ tenant: 7, docId: 1 }]);
+  });
+
+  it("relinks each SET NULL foreign key of a row on its own", async () => {
+    await c.query(`INSERT INTO "Ref" ("projectId", "taskId") VALUES (1, 't-root')`);
+    const snap = await tx(async () => {
+      const s = await captureDelete(exec, "Project", { id: 1 });
+      await c.query(`DELETE FROM "Project" WHERE id = 1`);
+      return s;
+    });
+    // Someone points the task link elsewhere meanwhile; the project link still comes back.
+    await c.query(`UPDATE "Ref" SET "taskId" = 't-beta'`);
+    await tx(() => restoreSnapshot(exec, snap!));
+    expect((await c.query(`SELECT "projectId", "taskId" FROM "Ref"`)).rows).toEqual([{ projectId: 1, taskId: "t-beta" }]);
+  });
+
+  it("restores a pointer back into the deleted tree (a foreign key cycle)", async () => {
+    const before = await dump(c);
+    const snap = await tx(async () => {
+      const s = await captureDelete(exec, "Board", { id: 1 });
+      await c.query(`DELETE FROM "Board" WHERE id = 1`);
+      return s;
+    });
+    expect(snapshotCounts(snap!)).toEqual({ Board: 1, Post: 2 });
+    await tx(() => restoreSnapshot(exec, JSON.parse(JSON.stringify(snap))));
+    expect(await dump(c)).toEqual(before);
   });
 
   it("matches keys through the indexes", async () => {
