@@ -34,15 +34,20 @@ export const FILE_INPUT_CLASS =
  *
  * As with `inputClasses`, an unprefixed `w-*` extra (`w-auto`, `w-64`) drops
  * the base `w-full`, since Tailwind v4 emits `.w-full` after `.w-64` at equal
- * specificity and the extra would otherwise silently lose. Prefer `max-w-*`
- * for a cap that still shrinks on a phone.
+ * specificity and the extra would otherwise silently lose. For the same
+ * reason an unprefixed `max-w-*` extra drops the base `max-w-full`: Tailwind
+ * emits `.max-w-full` after `.max-w-64` and `.max-w-2xl` (and before
+ * `.max-w-md`), so a cap would win or lose by its name alone. Prefer
+ * `max-w-*` for a cap that still shrinks on a phone.
  */
 export function fileInputClasses(extra = ""): string {
   const extras = extra.trim();
   if (!extras) return FILE_INPUT_CLASS;
-  const setsWidth = extras.split(/\s+/).some((t) => /^w-/.test(t));
-  const base = setsWidth
-    ? FILE_INPUT_CLASS.split(" ").filter((t) => t !== "w-full").join(" ")
-    : FILE_INPUT_CLASS;
+  const tokens = extras.split(/\s+/);
+  const setsWidth = tokens.some((t) => /^w-/.test(t));
+  const setsMaxWidth = tokens.some((t) => /^max-w-/.test(t));
+  const base = FILE_INPUT_CLASS.split(" ")
+    .filter((t) => !(setsWidth && t === "w-full") && !(setsMaxWidth && t === "max-w-full"))
+    .join(" ");
   return `${base} ${extras}`;
 }

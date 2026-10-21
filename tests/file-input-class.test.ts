@@ -87,13 +87,28 @@ describe("fileInputClasses", () => {
     expect(fileInputClasses("  ")).toBe(FILE_INPUT_CLASS);
   });
   it("appends call-site extras after the base", () => {
-    expect(fileInputClasses(" mt-0.5 max-w-sm ")).toBe(`${FILE_INPUT_CLASS} mt-0.5 max-w-sm`);
+    expect(fileInputClasses(" mt-0.5 ")).toBe(`${FILE_INPUT_CLASS} mt-0.5`);
   });
   // Tailwind v4 emits .w-full after .w-64, so a plain width extra would lose.
   it("drops the base w-full when the extras set an unprefixed width", () => {
     const cls = fileInputClasses("w-auto").split(" ");
     expect(cls).toContain("w-auto");
     expect(cls).not.toContain("w-full");
+  });
+  // Tailwind v4 emits .max-w-full after .max-w-64 / .max-w-2xl (and before
+  // .max-w-md), so a kept base max-w-full would silently cancel those caps.
+  it("drops the base max-w-full when the extras set an unprefixed max-w-*", () => {
+    for (const extra of ["max-w-64", "max-w-2xl", "max-w-md"]) {
+      const cls = fileInputClasses(extra).split(" ");
+      expect(cls).toContain(extra);
+      expect(cls).not.toContain("max-w-full");
+      expect(cls).toContain("w-full");
+    }
+  });
+  it("keeps max-w-full when the extras carry no unprefixed max-w-*", () => {
+    for (const extra of ["mt-0.5", "w-auto", "sm:max-w-64", "min-w-40"]) {
+      expect(fileInputClasses(extra).split(" ")).toContain("max-w-full");
+    }
   });
   it("keeps w-full for max-w-*, min-w-*, and responsive widths", () => {
     for (const extra of ["max-w-xs", "min-w-40", "sm:w-64"]) {
