@@ -47,7 +47,7 @@ const BASE =
 // the border line (`outline-1 -outline-offset-1`, no layout change) keeps a
 // borderless solid button's box visible on a zinc-900 card. The label is
 // ≥ 3:1 on the disabled ground in both themes (zinc-500 on zinc-100 ≈ 4.4:1,
-// on zinc-900 ≈ 3.9:1; checked in tests/button-contrast.test.ts). The
+// on zinc-900 ≈ 3.7:1; checked in tests/button-contrast.test.ts). The
 // explicit dark:text pair also keeps theme.css's contrast rescue off the
 // label.
 export const BUTTON_DISABLED_CLASS =

@@ -66,6 +66,18 @@ describe("findUnpositionedScrollers", () => {
     expect(hits(src)).toEqual([]);
   });
 
+  it("reads a URL in JSX text as text, not a comment", () => {
+    const r = hits(`<p>See http://x.y</p><div className="overflow-x-auto">`);
+    expect(r.map((h) => h.line)).toEqual([1]);
+  });
+
+  it("counts the important marker and a clsx object key as the position class", () => {
+    expect(hits(`<div className="overflow-x-auto relative!">`)).toEqual([]);
+    expect(hits(`<div className="overflow-x-auto !relative">`)).toEqual([]);
+    expect(hits(`<div className={clsx("overflow-x-auto", { relative: open })}>`)).toEqual([]);
+    expect(hits(`<div className="overflow-x-auto md:relative!">`)).toHaveLength(1);
+  });
+
   it("reports one hit per class string and the right line", () => {
     const src = `\n\n<div className="overflow-auto sm:overflow-x-auto">`;
     expect(hits(src)).toEqual([{ path: "app/page.tsx", line: 3, scroller: "overflow-auto", classes: "overflow-auto sm:overflow-x-auto" }]);

@@ -43,8 +43,10 @@ function lineOf(source, index) {
 // One pass over the source: the outermost string literals (a template literal
 // counts whole, `${…}` and the strings inside it included) and the comments.
 // Quoted strings end at a newline, so an apostrophe in JSX text ("Don't")
-// can't swallow the rest of the file. Regex literals are not recognised —
-// good enough for component source.
+// can't swallow the rest of the file. A `//` right after a colon is a URL
+// (`https://…` in JSX text), not a comment. Regex literals are not
+// recognised, so a quote inside one can hide a class string later on the same
+// line — good enough for component source.
 function scan(source) {
   const literals = [];
   const comments = [];
@@ -93,7 +95,7 @@ function scan(source) {
   };
   while (i < n) {
     const ch = source[i];
-    if (ch === "/" && source[i + 1] === "/") {
+    if (ch === "/" && source[i + 1] === "/" && source[i - 1] !== ":") {
       const e = source.indexOf("\n", i);
       const end = e < 0 ? n : e;
       comments.push([i, end]);
@@ -139,8 +141,13 @@ function classNameExpressionAround(source, literalStart) {
   return null;
 }
 
+// Tailwind v4's important marker (`relative!`, or `!relative` in v3 style) and
+// a clsx object key (`{ relative: open }`) still name the class.
 function tokensOf(text) {
-  return text.split(/[\s"'`{}()[\],?$+]+/).filter(Boolean);
+  return text
+    .split(/[\s"'`{}()[\],?$+]+/)
+    .map((t) => t.replace(/^!+|!+$/g, "").replace(/:$/, ""))
+    .filter(Boolean);
 }
 
 /**

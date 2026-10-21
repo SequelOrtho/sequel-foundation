@@ -16,7 +16,7 @@ export function SignOutForm({
   label = "Sign Out",
   action = SIGN_OUT_PATH,
   className = "flex items-center gap-2",
-  buttonClassName = buttonClasses({ variant: "ghost", size: "sm" }),
+  buttonClassName = buttonClasses({ variant: "ghost", size: "sm", className: "whitespace-nowrap" }),
 }: {
   children?: ReactNode;
   label?: string;

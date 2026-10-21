@@ -50,3 +50,12 @@ describe("ShowMoreControls wraps as whole buttons", () => {
     expect(html).toMatch(/class="mt-8 flex flex-wrap items-center justify-center gap-3"/);
   });
 });
+
+describe("Sign Out never wraps", () => {
+  it("the default Sign Out button keeps its label on one line", async () => {
+    const { SignOutForm } = await import("../session/SignOutForm");
+    const html = renderToStaticMarkup(<SignOutForm>a.very.long.address@example.com</SignOutForm>);
+    const cls = html.match(/<button[^>]*class="([^"]*)"/)?.[1] ?? "";
+    expect(cls.split(/\s+/)).toContain("whitespace-nowrap");
+  });
+});
