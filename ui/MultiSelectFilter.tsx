@@ -73,12 +73,19 @@ export function MultiSelectFilter({
           close();
         }
       }}
+      // Tabbing out of the panel closes it, like a click outside (UX audit
+      // 2026-10-21, FND-14); focus moves on to wherever Tab was going.
+      onBlur={(e) => {
+        if (open && !e.currentTarget.contains(e.relatedTarget as Node | null)) {
+          setOpen(false);
+          setQuery("");
+        }
+      }}
     >
       <button
         ref={buttonRef}
         type="button"
         aria-label={`${label}: ${summary}`}
-        aria-haspopup="true"
         aria-expanded={open}
         aria-controls={open ? panelId : undefined}
         onClick={() => (open ? close() : setOpen(true))}

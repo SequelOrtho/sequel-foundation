@@ -14,7 +14,7 @@ export function ExportBar({ xlsxHref, xlsxLabel }: { xlsxHref?: string; xlsxLabe
         onClick={() => window.print()}
         className={buttonClasses({ variant: "outline", size: "sm" })}
       >
-        🖨 Print / Save as PDF
+        <span aria-hidden>🖨</span> Print / Save as PDF
       </button>
       {xlsxHref && (
         <a
@@ -22,7 +22,7 @@ export function ExportBar({ xlsxHref, xlsxLabel }: { xlsxHref?: string; xlsxLabe
           download
           className={buttonClasses({ variant: "outline", size: "sm" })}
         >
-          ⬇ {xlsxLabel ?? "Download .xlsx"}
+          <span aria-hidden>⬇</span> {xlsxLabel ?? "Download .xlsx"}
         </a>
       )}
     </div>

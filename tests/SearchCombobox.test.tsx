@@ -52,4 +52,28 @@ describe("SearchCombobox", () => {
     fireEvent.click(screen.getByRole("button", { name: "Clear" }));
     expect(onChange).toHaveBeenCalledWith(null);
   });
+  // UX audit 2026-10-21, FND-3 / FND-4.
+  it("tells screen readers which option the arrow keys are on", () => {
+    render(<SearchCombobox options={options} value={null} onChange={() => {}} label="Resource" />);
+    const input = screen.getByRole("combobox", { name: "Resource" });
+    fireEvent.focus(input);
+    const first = input.getAttribute("aria-activedescendant");
+    expect(first).toBeTruthy();
+    expect(document.getElementById(first!)?.textContent).toContain("Nguyen, Amy");
+    fireEvent.keyDown(input, { key: "ArrowDown" });
+    const second = input.getAttribute("aria-activedescendant")!;
+    expect(document.getElementById(second)?.getAttribute("role")).toBe("option");
+    expect(document.getElementById(second)?.textContent).toContain("Smith, Bob");
+    expect(document.getElementById(second)?.getAttribute("data-active")).toBe("true");
+    fireEvent.keyDown(input, { key: "Escape" });
+    expect(input.hasAttribute("aria-activedescendant")).toBe(false);
+  });
+  it("marks the chosen option with a check and aria-selected", () => {
+    render(<SearchCombobox options={options} value={2} onChange={() => {}} label="Resource" />);
+    fireEvent.click(screen.getByRole("button", { name: "Change" }));
+    const chosen = screen.getByRole("option", { name: /Smith, Bob/ });
+    expect(chosen.getAttribute("aria-selected")).toBe("true");
+    expect(chosen.textContent).toContain("✓");
+    expect(screen.getByRole("option", { name: /Zed/ }).textContent).not.toContain("✓");
+  });
 });

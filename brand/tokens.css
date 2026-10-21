@@ -6,8 +6,10 @@
  * and reference the variables (e.g. color: var(--brand-primary)). If/when the
  * project adopts Tailwind, mirror these into an @theme block.
  *
- *   Light Blue (primary)  #009DDD (RGB 0,157,221)   — h2, CTAs, links
- *   Light Blue 600/700    #0083BD / #006A9C          — hover / pressed (derived)
+ *   Light Blue (guide)    #009DDD (RGB 0,157,221)   — --brand-bright: logos, charts, large/decorative
+ *   Text-safe blue        #006A9C                    — --brand-primary: text, links, CTA fills
+ *                                                      (#009DDD is 3.1:1 on white; owner ruling 2026-10-21)
+ *   Blue 600/700          #005A85 / #004B6E          — hover / pressed (derived)
  *   Dark Blue (navy)      #0F1263 (RGB 15,18,99)     — headlines on light, dark accent
  *   Dark Blue muted       #232A7A                    — secondary dark surfaces (derived)
  *   Lime accent           #CAD400 (RGB 202,212,0)
@@ -22,9 +24,10 @@
  */
 
 :root {
-  --brand-primary: #009ddd;
-  --brand-primary-600: #0083bd;
-  --brand-primary-700: #006a9c;
+  --brand-primary: #006a9c;
+  --brand-primary-600: #005a85;
+  --brand-primary-700: #004b6e;
+  --brand-bright: #009ddd;
   --brand-navy: #0f1263;
   --brand-navy-muted: #232a7a;
   --brand-accent: #cad400;
@@ -53,6 +56,7 @@
   --brand-primary: #177255;
   --brand-primary-600: #136047;
   --brand-primary-700: #104e3a;
+  --brand-bright: #177255;
   --brand-navy: #14332d;
   --brand-navy-muted: #15493b;
   --brand-accent: #f4d659;
@@ -78,6 +82,7 @@
   --brand-primary: #0072ce;
   --brand-primary-600: #0060ad;
   --brand-primary-700: #004e8c;
+  --brand-bright: #0072ce;
   --brand-navy: #25245c;
   --brand-navy-muted: #3f3e70;
   --brand-accent: #d2d755;

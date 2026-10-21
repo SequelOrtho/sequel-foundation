@@ -47,7 +47,9 @@ export function Callout({
       <span aria-hidden className="leading-5">
         {t.icon}
       </span>
-      <div className="flex flex-col gap-0.5">
+      {/* min-w-0 + break-words: a long URL or word wraps instead of pushing
+          the box past a phone screen (UX audit 2026-10-21, FND-16). */}
+      <div className="flex min-w-0 flex-col gap-0.5 break-words">
         {title && <strong className="font-semibold">{title}</strong>}
         {children && <div>{children}</div>}
       </div>

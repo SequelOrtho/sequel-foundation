@@ -50,6 +50,36 @@ describe("Field", () => {
     expect(screen.getByLabelText(/Email/).getAttribute("aria-describedby")).toBe("email-error");
   });
 
+  // UX audit 2026-10-21, FND-10.
+  it("keeps hint and error out of the control's name and ties them on with aria-describedby", () => {
+    render(
+      <Field label="Password" hint="First time here? Use your passcode." error="Password is required">
+        <input type="password" />
+      </Field>,
+    );
+    const input = screen.getByLabelText("Password"); // the exact label, nothing appended
+    const ids = (input.getAttribute("aria-describedby") ?? "").split(" ");
+    expect(ids).toHaveLength(2);
+    expect(document.getElementById(ids[0])?.textContent).toBe("First time here? Use your passcode.");
+    expect(document.getElementById(ids[1])?.textContent).toBe("Password is required");
+    expect(document.querySelector("label")?.textContent).toBe("Password");
+  });
+
+  it("a component child keeps a wrapping label, with the hint outside it", () => {
+    function Picker() {
+      return <select aria-label="inner" />;
+    }
+    const { container } = render(
+      <Field label="Site" id="site" hint="Where the shift is">
+        <Picker />
+      </Field>,
+    );
+    const label = container.querySelector("label")!;
+    expect(label.getAttribute("for")).toBe("site");
+    expect(label.textContent).not.toContain("Where the shift is");
+    expect(container.querySelector("#site-hint")?.textContent).toBe("Where the shift is");
+  });
+
   it("shares the native-field label geometry with AdaptiveSelect: inline label, control mt-0.5", () => {
     const { container } = render(
       <Field label="First name" id="first" hint="Saved as First Last">

@@ -1,14 +1,18 @@
-import type { ReactNode } from "react";
+import { Children, cloneElement, isValidElement, useId, type ReactElement, type ReactNode } from "react";
 
 // Labeled form-control wrapper. Standardizes the label / required-marker / hint
 // / error stack so dense editors stop re-implementing it inline. The control
 // itself is passed as children — Field is layout + labeling, not an <input>, so
 // it works for text inputs, selects, textareas, and grouped controls alike.
 //
-// Renders a wrapping <label>; for a single control this gives an implicit
-// association. Keep one control per Field. Pass `id` (the control's id) to get
-// an explicit association too, plus a stable error id the caller can point the
-// control's aria-describedby at (`fieldErrorId(id)`).
+// The <label> holds the label text only; hint and error sit after it and are
+// tied to the control with aria-describedby, so they never become part of the
+// control's name ("Password First time here?…") or get read twice (UX audit
+// 2026-10-21, FND-10). When the child is one plain element (<input>, <select>,
+// <textarea>) Field gives it an id if it has none and adds the hint / error
+// ids to its aria-describedby itself. A component child (AdaptiveSelect, a
+// grouped control) keeps a wrapping label for the association; point its
+// control's aria-describedby at `fieldHintId(id)` / `fieldErrorId(id)`.
 //
 // Label geometry is the hubs' native-field idiom, shared with AdaptiveSelect and
 // SearchCombobox: a block wrapper, an INLINE label span (it sits in the
@@ -67,6 +71,10 @@ export function fieldErrorId(id: string): string {
   return `${id}-error`;
 }
 
+export function fieldHintId(id: string): string {
+  return `${id}-hint`;
+}
+
 /** Inline validation message under a control. Give it the id from
  *  fieldErrorId(controlId) and point the control's aria-describedby at it. */
 export function FieldError({
@@ -107,19 +115,58 @@ export function Field({
   labelClassName?: string;
   children: ReactNode;
 }) {
-  return (
-    <label htmlFor={id} className={`block ${className}`.trim()}>
-      <span className={labelClassName ?? "text-zinc-600 dark:text-zinc-400"}>
-        {label}
-        {required && <RequiredMark />}
-      </span>
-      <span className="mt-0.5 block">{children}</span>
-      {hint && <span className="mt-1 block text-xs text-brand-muted">{hint}</span>}
+  const autoId = useId();
+  const only = Children.count(children) === 1 && isValidElement(children) ? children : null;
+  // A plain DOM element can take an id and aria-describedby from us.
+  const plain = only && typeof only.type === "string" ? (only as ReactElement<Record<string, unknown>>) : null;
+  const controlId = id ?? (plain ? ((plain.props.id as string | undefined) ?? autoId) : undefined);
+  const hintId = hint && controlId ? fieldHintId(controlId) : undefined;
+  const errorId = error && controlId ? fieldErrorId(controlId) : undefined;
+  const labelText = (
+    <>
+      {label}
+      {required && <RequiredMark />}
+    </>
+  );
+  const labelCls = labelClassName ?? "text-zinc-600 dark:text-zinc-400";
+  const after = (
+    <>
+      {hint && (
+        <span id={hintId} className="mt-1 block text-xs text-brand-muted">
+          {hint}
+        </span>
+      )}
       {error && (
-        <FieldError id={id ? fieldErrorId(id) : undefined} className="mt-1 block">
+        <FieldError id={errorId} className="mt-1 block">
           {error}
         </FieldError>
       )}
-    </label>
+    </>
+  );
+
+  if (plain && controlId) {
+    const own = ((plain.props["aria-describedby"] as string | undefined) ?? "").split(/\s+/);
+    const describedBy = [...new Set([...own, hintId, errorId].filter(Boolean))].join(" ") || undefined;
+    return (
+      <div className={`block ${className}`.trim()}>
+        <label htmlFor={controlId} className={labelCls}>
+          {labelText}
+        </label>
+        <span className="mt-0.5 block">
+          {cloneElement(plain, { id: controlId, "aria-describedby": describedBy })}
+        </span>
+        {after}
+      </div>
+    );
+  }
+
+  return (
+    <div className={`block ${className}`.trim()}>
+      <label htmlFor={id} className="block">
+        <span className={labelCls}>{labelText}</span>
+        <span className="mt-0.5 block">{children}</span>
+      </label>
+      {after}
+    </div>
   );
 }

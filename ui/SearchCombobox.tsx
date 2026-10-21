@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { rankComboOptions, type ComboOption } from "./combo-match";
 import { FieldError, RequiredMark } from "./Field";
 import { INPUT_CLASS } from "./input-class";
@@ -13,6 +13,14 @@ import { useFitInViewport } from "./useFitInViewport";
 // headers, capped render with a "keep typing" hint, live result count.
 // Family rule (DESIGN-CONVENTIONS §3): any dropdown over 12 choices renders as
 // this control — AdaptiveSelect picks native vs. searchable for you.
+//
+// Screen readers follow the arrow keys through aria-activedescendant (focus
+// stays in the input; each option has an id). The active row is a visible
+// ring, the chosen option carries a check mark, and both survive Windows High
+// Contrast (UX audit 2026-10-21, FND-3 / FND-4).
+
+const BORDER = "border border-zinc-300 dark:border-zinc-700";
+const optionId = (listboxId: string, index: number) => `${listboxId}-opt-${index}`;
 
 export function SearchCombobox({
   options, value, onChange, label,
@@ -67,6 +75,12 @@ export function SearchCombobox({
     return [...byGroup.entries()];
   }, [visible]);
 
+  const activeId = open && !disabled && visible[activeIndex] ? optionId(listboxId, activeIndex) : undefined;
+  // Keep the active row in view as the arrow keys move past the list's edge.
+  useEffect(() => {
+    if (activeId) document.getElementById(activeId)?.scrollIntoView?.({ block: "nearest" });
+  }, [activeId]);
+
   function choose(o: ComboOption) { onChange(o.id); setQuery(""); setOpen(false); }
 
   function onKeyDown(e: React.KeyboardEvent) {
@@ -95,7 +109,7 @@ export function SearchCombobox({
         {required && !hideLabel && <RequiredMark />}
       </span>
       {selected && !open ? (
-        <div className={`${hideLabel ? "" : "mt-0.5 "}flex items-center justify-between gap-2 rounded-md border border-brand-line bg-brand-surface px-2 py-1.5`}>
+        <div className={`${hideLabel ? "" : "mt-0.5 "}flex items-center justify-between gap-2 rounded-md ${BORDER} bg-brand-surface px-2 py-1.5`}>
           <div className="min-w-0">
             <div className="truncate text-sm font-medium text-brand-navy">{selected.label}</div>
             {selected.sublabel && <div className="truncate text-xs text-brand-muted">{selected.sublabel}</div>}
@@ -118,6 +132,7 @@ export function SearchCombobox({
         <input
           ref={inputRef} type="text" role="combobox"
           aria-expanded={open} aria-controls={listboxId} aria-autocomplete="list" aria-label={label}
+          aria-activedescendant={activeId}
           aria-required={required || undefined}
           aria-invalid={error ? true : undefined}
           aria-describedby={error ? errorId : undefined}
@@ -138,14 +153,16 @@ export function SearchCombobox({
       )}
       {open && !disabled && (
         <ul ref={listRef} id={listboxId} role="listbox" aria-label={`${label} options`}
-          className="absolute z-20 mt-1 max-h-72 w-full min-w-[16rem] overflow-y-auto rounded-md border border-brand-line bg-white p-1 shadow-lg dark:bg-zinc-900">
+          className="absolute z-20 mt-1 max-h-72 w-full min-w-[16rem] overflow-y-auto rounded-md ${BORDER} bg-white p-1 shadow-lg dark:bg-zinc-900">
           {visible.length === 0 && (
             <li className="px-2 py-2 text-sm text-brand-muted">No matches for “{query}”.</li>
           )}
-          {groups.map(([groupName, opts]) => (
-            <li key={groupName || "_"}>
+          {groups.map(([groupName, opts], gi) => (
+            <li key={groupName || "_"} role={groupName ? "group" : "presentation"}
+              aria-labelledby={groupName ? `${listboxId}-group-${gi}` : undefined}>
               {groupName && (
-                <div className="px-2 pb-0.5 pt-2 text-[11px] font-semibold uppercase tracking-wide text-brand-muted">
+                <div id={`${listboxId}-group-${gi}`} role="presentation"
+                  className="px-2 pb-0.5 pt-2 text-[11px] font-semibold uppercase tracking-wide text-brand-muted">
                   {groupName}
                 </div>
               )}
@@ -153,13 +170,22 @@ export function SearchCombobox({
                 {opts.map((o) => {
                   const flatIndex = visible.indexOf(o);
                   const active = flatIndex === activeIndex;
+                  const chosen = o.id === value;
                   return (
-                    <li key={o.id} role="option" aria-selected={o.id === value}
-                      className={`cursor-pointer rounded px-2 py-1.5 ${active ? "bg-brand-surface" : ""}`}
+                    <li key={o.id} id={optionId(listboxId, flatIndex)} role="option" aria-selected={chosen}
+                      data-active={active || undefined}
+                      className={`flex cursor-pointer items-start gap-1.5 rounded px-2 py-1.5 ${
+                        active
+                          ? "bg-blue-50 ring-2 ring-inset ring-brand dark:bg-zinc-800 forced-colors:outline forced-colors:outline-2 forced-colors:outline-[Highlight]"
+                          : ""
+                      }`}
                       onMouseEnter={() => setActiveIndex(flatIndex)}
                       onMouseDown={(e) => { e.preventDefault(); choose(o); }}>
-                      <div className="truncate text-sm text-brand-body">{o.label}</div>
-                      {o.sublabel && <div className="truncate text-xs text-brand-muted">{o.sublabel}</div>}
+                      <span aria-hidden className="w-4 shrink-0 text-sm text-brand">{chosen ? "✓" : ""}</span>
+                      <span className="min-w-0">
+                        <span className={`block truncate text-sm text-zinc-900 dark:text-zinc-100 ${chosen ? "font-semibold" : ""}`}>{o.label}</span>
+                        {o.sublabel && <span className="block truncate text-xs text-brand-muted">{o.sublabel}</span>}
+                      </span>
                     </li>
                   );
                 })}

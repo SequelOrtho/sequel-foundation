@@ -6,7 +6,7 @@ export { Callout } from "./Callout";
 export type { CalloutTone } from "./Callout";
 // Required-field convention (DESIGN-CONVENTIONS §3): Field + RequiredMark +
 // RequiredLegend + FieldError, and checkRequired for the save-time check.
-export { Field, RequiredMark, RequiredLegend, FieldError, fieldErrorId, REQUIRED_LEGEND_TEXT, ALL_REQUIRED_LEGEND_TEXT } from "./Field";
+export { Field, RequiredMark, RequiredLegend, FieldError, fieldErrorId, fieldHintId, REQUIRED_LEGEND_TEXT, ALL_REQUIRED_LEGEND_TEXT } from "./Field";
 export { checkRequired, requiredMessage, requiredSummary, EMAIL_EXAMPLE } from "./required-fields";
 export type { RequiredRule, RequiredCheck } from "./required-fields";
 export { CheckCircle, ApprovedBadge } from "./StatusBadges";
