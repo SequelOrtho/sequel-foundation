@@ -68,6 +68,23 @@ describe("SearchCombobox", () => {
     fireEvent.keyDown(input, { key: "Escape" });
     expect(input.hasAttribute("aria-activedescendant")).toBe(false);
   });
+  it("scrolls the active row into view on arrow keys, never on hover", () => {
+    const spy = vi.fn();
+    const original = Element.prototype.scrollIntoView;
+    Element.prototype.scrollIntoView = spy;
+    try {
+      render(<SearchCombobox options={options} value={null} onChange={() => {}} label="Resource" />);
+      const input = screen.getByRole("combobox", { name: "Resource" });
+      fireEvent.focus(input);
+      spy.mockClear();
+      fireEvent.mouseEnter(screen.getAllByRole("option")[1]);
+      expect(spy).not.toHaveBeenCalled();
+      fireEvent.keyDown(input, { key: "ArrowDown" });
+      expect(spy).toHaveBeenCalled();
+    } finally {
+      Element.prototype.scrollIntoView = original;
+    }
+  });
   it("marks the chosen option with a check and aria-selected", () => {
     render(<SearchCombobox options={options} value={2} onChange={() => {}} label="Resource" />);
     fireEvent.click(screen.getByRole("button", { name: "Change" }));

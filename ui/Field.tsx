@@ -13,6 +13,8 @@ import { Children, cloneElement, isValidElement, useId, type ReactElement, type 
 // ids to its aria-describedby itself. A component child (AdaptiveSelect, a
 // grouped control) keeps a wrapping label for the association; point its
 // control's aria-describedby at `fieldHintId(id)` / `fieldErrorId(id)`.
+// A component child with no `id` has nothing to point at, so its hint and
+// error stay inside the wrapping label (read as part of the name, as before).
 //
 // Label geometry is the hubs' native-field idiom, shared with AdaptiveSelect and
 // SearchCombobox: a block wrapper, an INLINE label span (it sits in the
@@ -162,6 +164,22 @@ export function Field({
           {cloneElement(plain, { id: controlId, "aria-describedby": describedBy })}
         </span>
         {after}
+      </div>
+    );
+  }
+
+  // A wrapper or component child with no `id`: nothing outside the label can
+  // point at the control, so hint and error stay inside the wrapping label,
+  // where they reach assistive tech as part of the name (the pre-v0.28 path).
+  // Pass `id` (and wire aria-describedby to fieldHintId(id)) to keep them out.
+  if (!controlId) {
+    return (
+      <div className={`block ${className}`.trim()}>
+        <label className="block">
+          <span className={labelCls}>{labelText}</span>
+          <span className="mt-0.5 block">{children}</span>
+          {after}
+        </label>
       </div>
     );
   }

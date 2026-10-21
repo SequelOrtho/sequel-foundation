@@ -38,6 +38,19 @@ describe("MultiSelectFilter", () => {
     expect(screen.getByTestId("value").textContent).toBe("");
   });
 
+  it("keeps focus in the open panel after Clear removes itself", () => {
+    render(<Harness />);
+    fireEvent.click(button());
+    const panel = screen.getByRole("group", { name: "Filter by type" });
+    fireEvent.click(within(panel).getByLabelText("JDI"));
+    const clear = within(panel).getByRole("button", { name: "Clear" });
+    clear.focus();
+    fireEvent.click(clear);
+    expect(within(panel).queryByRole("button", { name: "Clear" })).toBeNull();
+    expect(document.activeElement).toBe(within(panel).getByRole("button", { name: "Done" }));
+    expect(screen.queryByRole("group", { name: "Filter by type" })).not.toBeNull();
+  });
+
   it("closes on Escape and returns focus to the button", () => {
     render(<Harness />);
     fireEvent.click(button());

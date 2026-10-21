@@ -110,9 +110,35 @@ describe("Field", () => {
         </div>
       </Field>,
     );
-    const input = screen.getByLabelText("Dates");
+    const input = screen.getByLabelText(/Dates/);
     expect(input.tagName).toBe("INPUT");
     expect(input.closest("div[id]")).toBeNull();
+    // With no id to point at, the hint stays in the label so it is still read.
+    expect(input.closest("label")?.textContent).toContain("Start and end");
+  });
+
+  it("keeps a wrapper child's error inside the label too", () => {
+    render(
+      <Field label="Dates" error="Pick both dates">
+        <div>
+          <input type="date" />
+        </div>
+      </Field>,
+    );
+    const input = screen.getByLabelText(/Dates/);
+    expect(input.closest("label")?.textContent).toContain("Pick both dates");
+  });
+
+  it("moves hint and error out of the label when the wrapper names its control by id", () => {
+    render(
+      <Field label="Dates" id="d" hint="Start and end">
+        <div>
+          <input id="d" type="date" />
+        </div>
+      </Field>,
+    );
+    const input = screen.getByLabelText("Dates");
+    expect(input.closest("label")?.textContent).not.toContain("Start and end");
   });
 
   it("FieldError stands alone for hand-rolled fields", () => {

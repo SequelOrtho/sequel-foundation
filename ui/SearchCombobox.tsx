@@ -77,8 +77,12 @@ export function SearchCombobox({
 
   const activeId = open && !disabled && visible[activeIndex] ? optionId(listboxId, activeIndex) : undefined;
   // Keep the active row in view as the arrow keys move past the list's edge.
+  // Keyboard moves only: scrolling on hover would slide the next row under a
+  // resting pointer, which hovers it, which scrolls again.
+  const keyMove = useRef(false);
   useEffect(() => {
-    if (activeId) document.getElementById(activeId)?.scrollIntoView?.({ block: "nearest" });
+    if (activeId && keyMove.current) document.getElementById(activeId)?.scrollIntoView?.({ block: "nearest" });
+    keyMove.current = false;
   }, [activeId]);
 
   function choose(o: ComboOption) { onChange(o.id); setQuery(""); setOpen(false); }
@@ -88,6 +92,7 @@ export function SearchCombobox({
       setOpen(true); setActiveIndex(0); e.preventDefault(); return;
     }
     if (!open) return;
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") keyMove.current = true;
     if (e.key === "ArrowDown") { setActiveIndex((i) => Math.min(i + 1, visible.length - 1)); e.preventDefault(); }
     else if (e.key === "ArrowUp") { setActiveIndex((i) => Math.max(i - 1, 0)); e.preventDefault(); }
     else if (e.key === "Enter") { if (visible[activeIndex]) choose(visible[activeIndex]); e.preventDefault(); }

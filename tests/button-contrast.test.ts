@@ -44,14 +44,31 @@ describe("solid buttons meet 4.5:1 in every entity and theme", () => {
           if (hover) expect(contrast(c[hover], label)).toBeGreaterThanOrEqual(4.5);
         });
       }
-      it(`${entity} ${theme} danger hover`, () => {
-        expect(contrast(theme === "light" ? RED_700 : RED_300, label)).toBeGreaterThanOrEqual(4.5);
+      it(`${entity} ${theme} accent (and hover) under zinc-900`, () => {
+        expect(contrast(c.accent, ZINC_900)).toBeGreaterThanOrEqual(4.5);
+        expect(contrast(c.accentDark, ZINC_900)).toBeGreaterThanOrEqual(4.5);
       });
       it(`${entity} ${theme} brand text (links, outlineBrand, active tab)`, () => {
         expect(contrast(c.brand, theme === "light" ? WHITE : DARK_CARD)).toBeGreaterThanOrEqual(4.5);
       });
     }
   }
+
+  // The danger hover is a fixed Tailwind red, the same in every entity.
+  it("danger hover meets 4.5:1 in both themes", () => {
+    expect(contrast(RED_700, WHITE)).toBeGreaterThanOrEqual(4.5);
+    expect(contrast(RED_300, ZINC_900)).toBeGreaterThanOrEqual(4.5);
+  });
+
+  // Ties the table above to the classes Button actually ships.
+  it("the hover classes are the ones checked here", () => {
+    expect(buttonClasses({ variant: "primary" })).toContain("hover:bg-brand-600");
+    expect(buttonClasses({ variant: "secondary" })).toContain("hover:bg-brand-navy-muted");
+    expect(buttonClasses({ variant: "danger" })).toContain("hover:bg-red-700");
+    expect(buttonClasses({ variant: "danger" })).toContain("dark:hover:bg-red-300");
+    expect(buttonClasses({ variant: "accent" })).toContain("text-zinc-900");
+    expect(buttonClasses({ variant: "accent" })).toContain("hover:bg-brand-accent-dark");
+  });
 
   it("each solid variant carries the dark-mode label class", () => {
     for (const { variant } of SOLID) {
