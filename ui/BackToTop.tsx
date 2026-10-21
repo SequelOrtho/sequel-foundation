@@ -63,7 +63,7 @@ export function BackToTop({
           main.focus({ preventScroll: true });
         }
       }}
-      className={`animate-seq-fade-in fixed bottom-6 right-6 z-40 inline-flex min-h-10 items-center gap-1.5 rounded-full border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-zinc-700 shadow-lg hover:bg-zinc-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/50 focus-visible:ring-offset-2 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800 ${className}`}
+      className={`animate-seq-fade-in fixed bottom-6 right-6 z-40 inline-flex min-h-10 items-center gap-1.5 whitespace-nowrap rounded-full border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-zinc-700 shadow-lg hover:bg-zinc-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/50 focus-visible:ring-offset-2 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800 ${className}`}
     >
       <svg
         aria-hidden

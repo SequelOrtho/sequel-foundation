@@ -33,6 +33,10 @@
       "types": "./testing/a11y.d.mts",
       "default": "./testing/a11y.mjs"
     },
+    "./testing/scrollers": {
+      "types": "./testing/scrollers.d.mts",
+      "default": "./testing/scrollers.mjs"
+    },
     "./scripts/*": "./scripts/*"
   },
   "scripts": {

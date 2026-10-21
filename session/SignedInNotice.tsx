@@ -23,7 +23,7 @@ export function SignedInNotice({
       <p className="mt-4 text-sm text-brand-muted">
         Signed in as <span className="font-medium text-brand-navy">{email}</span>.
       </p>
-      <div className="mt-8 flex items-center justify-center gap-3">
+      <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
         <Link href={continueHref} className={buttonClasses({ size: "lg" })}>
           Continue
         </Link>

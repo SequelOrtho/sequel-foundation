@@ -63,7 +63,7 @@ export function ShowMoreControls({ remaining, total, expanded, step, showMore, s
       <p aria-live="polite" className="text-xs text-brand-muted">
         Showing {shown} of {total}
       </p>
-      <div className="flex items-center gap-4">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
         {remaining > 0 && (
           <>
             <button
@@ -73,7 +73,7 @@ export function ShowMoreControls({ remaining, total, expanded, step, showMore, s
                 showMore();
                 refocus(e.currentTarget, ["more", "fewer"]);
               }}
-              className="text-sm font-medium text-brand hover:underline"
+              className="whitespace-nowrap text-sm font-medium text-brand hover:underline"
             >
               Show {Math.min(step, remaining)} more
             </button>
@@ -84,7 +84,7 @@ export function ShowMoreControls({ remaining, total, expanded, step, showMore, s
                 showAll();
                 refocus(e.currentTarget, ["fewer"]);
               }}
-              className="text-sm font-medium text-brand hover:underline"
+              className="whitespace-nowrap text-sm font-medium text-brand hover:underline"
             >
               Show all ({total})
             </button>
@@ -103,7 +103,7 @@ export function ShowMoreControls({ remaining, total, expanded, step, showMore, s
               region?.scrollIntoView?.({ block: "nearest" });
               refocus(e.currentTarget, ["more"]);
             }}
-            className="text-sm font-medium text-red-700 dark:text-red-400 hover:text-red-800 hover:underline"
+            className="whitespace-nowrap text-sm font-medium text-red-700 dark:text-red-400 hover:text-red-800 hover:underline"
           >
             Show fewer
           </button>

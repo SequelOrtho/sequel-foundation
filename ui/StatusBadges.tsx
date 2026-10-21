@@ -26,7 +26,7 @@ export function ApprovedBadge({
   label?: string;
 }) {
   return (
-    <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-100 dark:bg-emerald-900/40 px-2 py-0.5 text-[11px] font-medium text-emerald-800 dark:text-emerald-300">
+    <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full bg-emerald-100 dark:bg-emerald-900/40 px-2 py-0.5 text-[11px] font-medium text-emerald-800 dark:text-emerald-300">
       <CheckCircle />
       {label} · {new Date(approvedAt).toLocaleDateString()}
     </span>
