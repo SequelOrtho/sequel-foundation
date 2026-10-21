@@ -72,6 +72,25 @@ describe("offerUndo + the docked UndoStrip", () => {
     expect(screen.getByRole("button", { name: "Undo Delete" })).toBeTruthy();
   });
 
+  it("the strip's Undo Delete reads as busy while its restore is in flight (v0.30.0 review F2)", async () => {
+    vi.useFakeTimers();
+    const restore = vi.fn(() => new Promise<void>(() => {}));
+    render(<ToastViewport />);
+    offerAndWaitOutToast(ticketIn(30 * 60_000), { restore });
+    const strip = screen.getByRole("region", { name: "Undo delete" });
+    const undo = () => [...strip.querySelectorAll("button")].find((b) => b.textContent === "Undo Delete")!;
+    expect(undo().getAttribute("aria-busy")).toBe("false");
+    await act(async () => {
+      fireEvent.click(undo());
+    });
+    expect(undo().getAttribute("aria-busy")).toBe("true");
+    expect(undo().disabled).toBe(true);
+    // Dismiss is unavailable meanwhile, not itself working: plain disabled.
+    const dismiss = [...strip.querySelectorAll("button")].find((b) => b.textContent === "Dismiss")!;
+    expect(dismiss.disabled).toBe(true);
+    expect(dismiss.getAttribute("aria-busy")).toBe("false");
+  });
+
   it("a refresh that fails after the restore still reads as restored", async () => {
     const restore = vi.fn().mockResolvedValue(undefined);
     const onRestored = vi.fn(() => {
