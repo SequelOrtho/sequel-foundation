@@ -130,3 +130,80 @@ describe("SignedInNotice and MicrosoftSignOutOffer", () => {
     expect(screen.getByText(/Outlook and Teams/)).toBeTruthy();
   });
 });
+
+describe("SessionWatch expiry warning (owner ruling 2026-10-21, UX audit Q6)", () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "setInterval", "clearInterval", "Date", "performance"] });
+    vi.setSystemTime(new Date("2026-10-21T12:00:00Z"));
+    localStorage.clear();
+  });
+  afterEach(() => vi.useRealTimers());
+
+  it("warns two minutes before an idle session ends, then Stay Signed In keeps it", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ user: { email: "a@b" } })));
+    vi.stubGlobal("fetch", fetchMock);
+    render(
+      <>
+        <button>Save Changes</button>
+        <SessionWatch idleTimeoutSeconds={600} />
+      </>,
+    );
+    await act(async () => vi.advanceTimersByTime(7 * 60_000));
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+    await act(async () => vi.advanceTimersByTime(61_000));
+    const dialog = screen.getByRole("alertdialog", { name: "Your session is about to end" });
+    expect(dialog.textContent).toMatch(/signed out in about 2 minutes/);
+    const stay = screen.getByRole("button", { name: "Stay Signed In" });
+    expect(document.activeElement).toBe(stay);
+    expect(screen.getByText("Save Changes").closest("[inert]")).not.toBeNull();
+    await act(async () => {
+      fireEvent.click(stay);
+    });
+    expect(fetchMock).toHaveBeenCalledWith("/api/auth/session", expect.objectContaining({ cache: "no-store" }));
+    // The stay is a request like any other; the clock restarts from it.
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+    expect(screen.getByText("Save Changes").closest("[inert]")).toBeNull();
+    expect(localStorage.getItem("sequel.session.lastActive")).toBe(String(Date.now()));
+    await act(async () => vi.advanceTimersByTime(7 * 60_000));
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+  });
+
+  it("a Stay Signed In that finds the session gone shows the signed-out dialog", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response("null")));
+    render(<SessionWatch idleTimeoutSeconds={600} />);
+    await act(async () => vi.advanceTimersByTime(8 * 60_000 + 100));
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Stay Signed In" }));
+    });
+    expect(screen.getByRole("alertdialog", { name: "You’ve been signed out" })).toBeTruthy();
+  });
+
+  it("shows the signed-out dialog when the countdown runs out, without asking the server", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    render(<SessionWatch idleTimeoutSeconds={600} />);
+    await act(async () => vi.advanceTimersByTime(10 * 60_000 + 100));
+    expect(screen.getByRole("alertdialog", { name: "You’ve been signed out" })).toBeTruthy();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("another tab's activity pushes the warning back", async () => {
+    vi.stubGlobal("fetch", vi.fn());
+    render(<SessionWatch idleTimeoutSeconds={600} />);
+    await act(async () => vi.advanceTimersByTime(5 * 60_000));
+    localStorage.setItem("sequel.session.lastActive", String(Date.now()));
+    await act(async () => window.dispatchEvent(new StorageEvent("storage", { key: "sequel.session.lastActive" })));
+    await act(async () => vi.advanceTimersByTime(4 * 60_000));
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+    await act(async () => vi.advanceTimersByTime(4 * 60_000 + 100));
+    expect(screen.getByRole("alertdialog", { name: "Your session is about to end" })).toBeTruthy();
+  });
+
+  it("is off without idleTimeoutSeconds or without a session URL", async () => {
+    vi.stubGlobal("fetch", vi.fn());
+    render(<SessionWatch />);
+    render(<SessionWatch sessionUrl={null} idleTimeoutSeconds={600} />);
+    await act(async () => vi.advanceTimersByTime(60 * 60_000));
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+  });
+});

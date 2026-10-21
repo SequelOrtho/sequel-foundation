@@ -8,3 +8,5 @@ export { SignOutForm } from "./SignOutForm";
 export { SessionWatch, authjsSessionCheck } from "./SessionWatch";
 export type { SessionCheck } from "./SessionWatch";
 export { SignedInNotice, MicrosoftSignOutOffer } from "./SignedInNotice";
+// The idle-timeout warning's pure half (owner ruling 2026-10-21, "add the warning").
+export { DEFAULT_WARN_BEFORE_SECONDS, LAST_ACTIVE_KEY, expiryWarningText, formatCountdown } from "./expiry";
