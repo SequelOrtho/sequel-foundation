@@ -62,8 +62,8 @@
   --ryg-red: #dc2626;
   --ryg-none: #d4d4d8;
   --ryg-green-text: #15803d;
-  --ryg-yellow-text: #a16207;
-  --ryg-red-text: #dc2626;
+  --ryg-yellow-text: #854d0e;
+  --ryg-red-text: #b91c1c;
 
   /* Semantic status tokens — name the intent, not the hue. Aligned to the RYG
    * scale so success/warning read consistently with the stoplight UI. */
@@ -239,6 +239,10 @@
   --color-ryg-yellow: var(--ryg-yellow);
   --color-ryg-red: var(--ryg-red);
   --color-ryg-none: var(--ryg-none);
+  /* Colored-text variants (text-ryg-*-text), AA on their grounds — RygStatus. */
+  --color-ryg-green-text: var(--ryg-green-text);
+  --color-ryg-yellow-text: var(--ryg-yellow-text);
+  --color-ryg-red-text: var(--ryg-red-text);
 
   --color-brand-success: var(--brand-success);
   --color-brand-warning: var(--brand-warning);

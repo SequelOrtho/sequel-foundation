@@ -177,6 +177,23 @@ export type SignOutRouteOptions = {
   onError?: (error: unknown) => void;
 };
 
+// SessionWatch's Sign In Again posts the page to return to as `callbackUrl`;
+// it rides on to the sign-in page, sanitised like every callbackUrl.
+async function formCallbackUrl(req: Request): Promise<string> {
+  if (!(req.headers.get("content-type") ?? "").includes("application/x-www-form-urlencoded")) return "";
+  try {
+    const value = (await req.clone().formData()).get("callbackUrl"); // a clone: endSession may read the body
+    return safeCallbackUrl(typeof value === "string" ? value : null, "");
+  } catch {
+    return "";
+  }
+}
+
+function withCallback(location: string, back: string): string {
+  if (!back) return location;
+  return `${location}${location.includes("?") ? "&" : "?"}callbackUrl=${encodeURIComponent(back)}`;
+}
+
 // The /auth/sign-out route handler (rules 1 and 2). POST ends the session and
 // 303s to the signed-out page; GET (a bookmark, a typed URL, a prefetch) never
 // signs anyone out — it sends them to the sign-in page, which offers Sign Out
@@ -195,7 +212,7 @@ export function signOutRoute(options: SignOutRouteOptions): {
         return new Response(null, { status: 303, headers: { location: "/", "cache-control": NO_STORE } });
       }
       const headers = new Headers({
-        location: redirectTo,
+        location: withCallback(redirectTo, await formCallbackUrl(req)),
         "cache-control": NO_STORE,
         "clear-site-data": '"cache"',
       });

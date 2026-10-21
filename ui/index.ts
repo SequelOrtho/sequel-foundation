@@ -74,6 +74,18 @@ export { Tabs } from "./Tabs";
 export { pickTab, tabHref, tabClasses, TAB_COUNT_CLASS } from "./tabs";
 export type { TabDef } from "./tabs";
 export { ExportBar } from "./ExportBar";
+// Page structure and patterns from the UX audit (2026-10-21): skip link + title
+// template (DESIGN-CONVENTIONS §5), modal Dialog on native <dialog>, the
+// arm-then-confirm focus helper, the RYG stoplight with glyph + word, and
+// readable chart chrome.
+export { SkipLink, MAIN_CONTENT_ID, SKIP_LINK_TEXT, titleTemplate } from "./SkipLink";
+export { Dialog } from "./Dialog";
+export { useConfirmStep } from "./useConfirmStep";
+export { RygStatus, RYG_LABEL } from "./RygStatus";
+export type { RygLevel } from "./RygStatus";
+export { useChartTheme } from "./chart-theme-hook";
+export { chartTheme } from "../brand/chart-theme";
+export type { ChartTheme } from "../brand/chart-theme";
 // Dropdowns (DESIGN-CONVENTIONS §3): AdaptiveSelect renders a native <select>
 // up to 12 options and the fuzzy SearchCombobox beyond that; use it for every
 // select whose list can grow. comboScore/rankComboOptions expose the matcher.

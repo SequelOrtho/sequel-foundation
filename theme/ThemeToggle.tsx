@@ -42,7 +42,17 @@ function apply(mode: ThemeMode) {
 
 const ICON: Record<ThemeMode, string> = { light: "☀️", dark: "🌙", system: "🖥️" };
 
-export function ThemeToggle({ storageKey = DEFAULT_THEME_STORAGE_KEY }: { storageKey?: string }) {
+// `compact`: "phone" (the default) shows the icon alone below the `sm`
+// breakpoint, where the word pushed crowded headers past the screen (UX audit
+// 2026-10-21, FND-17); `true` always icon-only, `false` always the word. The
+// accessible name and tooltip always carry the mode.
+export function ThemeToggle({
+  storageKey = DEFAULT_THEME_STORAGE_KEY,
+  compact = "phone",
+}: {
+  storageKey?: string;
+  compact?: boolean | "phone";
+}) {
   const mode = useSyncExternalStore(
     subscribe,
     () => readMode(storageKey),
@@ -79,10 +89,12 @@ export function ThemeToggle({ storageKey = DEFAULT_THEME_STORAGE_KEY }: { storag
       onClick={cycle}
       title={`Theme: ${THEME_MODE_LABEL[mode]} (${THEME_MODE_HINT[mode]}) — click to switch`}
       aria-label={`Theme: ${THEME_MODE_LABEL[mode]}. ${THEME_MODE_HINT[mode]}. Activate to switch.`}
-      className="flex shrink-0 items-center gap-1.5 rounded-md border border-zinc-200 px-2 py-1 text-xs font-medium text-zinc-600 hover:border-brand hover:text-brand dark:border-zinc-700 dark:text-zinc-300"
+      className="flex min-h-8 min-w-8 shrink-0 items-center justify-center gap-1.5 rounded-md border border-zinc-200 px-2 py-1 text-xs font-medium text-zinc-600 hover:border-brand hover:text-brand dark:border-zinc-700 dark:text-zinc-300"
     >
       <span aria-hidden>{ICON[mode]}</span>
-      {THEME_MODE_LABEL[mode]}
+      <span aria-hidden className={compact === true ? "sr-only" : compact === "phone" ? "sr-only sm:not-sr-only" : undefined}>
+        {THEME_MODE_LABEL[mode]}
+      </span>
     </button>
   );
 }

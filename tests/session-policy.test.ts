@@ -109,6 +109,22 @@ describe("signOutRoute", () => {
     expect(cookies).toHaveLength(2);
     expect(cookies[0]).toMatch(/^__Secure-authjs\.session-token\.0=; Path=\/; Max-Age=0; .*Secure$/);
   });
+  it("carries SessionWatch's callbackUrl on to the signed-out page, sanitised (round 2)", async () => {
+    const { POST } = signOutRoute({ endSession: vi.fn().mockResolvedValue(undefined) });
+    const post = (body: string) =>
+      POST(
+        req("https://hub.example/auth/sign-out", {
+          method: "POST",
+          headers: { "sec-fetch-site": "same-origin", "content-type": "application/x-www-form-urlencoded" },
+          body,
+        }),
+      );
+    expect((await post("callbackUrl=%2Fadmin%2Froles%3Fq%3D1")).headers.get("location")).toBe(
+      `${SIGNED_OUT_PATH}&callbackUrl=${encodeURIComponent("/admin/roles?q=1")}`,
+    );
+    expect((await post("callbackUrl=https%3A%2F%2Fevil.example")).headers.get("location")).toBe(SIGNED_OUT_PATH);
+    expect((await post("callbackUrl=%2Fapi%2Fx")).headers.get("location")).toBe(SIGNED_OUT_PATH);
+  });
   it("refuses a cross-site POST without signing out", async () => {
     const endSession = vi.fn();
     const { POST } = signOutRoute({ endSession });
