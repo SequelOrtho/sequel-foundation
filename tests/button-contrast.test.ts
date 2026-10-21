@@ -3,6 +3,7 @@ import { ENTITY_KEYS } from "../brand/entities";
 import { brandColors, type BrandColors, type ThemeName } from "../brand/palette";
 import { BUTTON_BUSY_CLASS, BUTTON_DISABLED_CLASS, buttonClasses } from "../ui/Button";
 import { ZINC, contrast } from "./_contrast";
+import { compareSpecificity, compileClasses, specificity } from "./_tailwind";
 
 const WHITE = "#ffffff";
 const ZINC_900 = "#18181b";
@@ -95,15 +96,39 @@ describe("disabled buttons look disabled in both themes", () => {
     ]));
   });
 
-  // Every disabled rule is `:disabled:not([aria-busy=true])` (0,3,0), which
-  // outranks the variants' hover rules (`:hover`, `dark:` + `:hover`: 0,2,0),
-  // so hovering a disabled button changes nothing.
-  it("outranks every hover rule by specificity, not stylesheet order", () => {
-    for (const t of BUTTON_DISABLED_CLASS.split(" ")) expect(t).toMatch(/(^|:)disabled:not-aria-busy:/);
-    for (const variant of VARIANTS) {
-      const hovers = buttonClasses({ variant }).split(" ").filter((t) => t.includes("hover:"));
-      for (const h of hovers) expect(h.split(":").length - 1, h).toBeLessThanOrEqual(2);
+  // Compiled with the real Tailwind v4 engine (tests/_tailwind.ts): every
+  // disabled rule must outrank every hover, dark-mode and dark-mode hover rule
+  // of every variant that sets the same property, by specificity — so neither
+  // hovering a disabled button nor the stylesheet's order can undo the
+  // disabled look — and must leave a busy button alone.
+  it("outranks every variant's hover and dark rules by compiled specificity, and skips busy buttons", async () => {
+    const tokens = VARIANTS.flatMap((variant) => buttonClasses({ variant }).split(" "));
+    const rules = await compileClasses(tokens);
+    const disabledTokens = new Set(BUTTON_DISABLED_CLASS.split(" "));
+    const disabled = rules.filter((r) => disabledTokens.has(r.token));
+    // Every disabled token compiled to a real rule.
+    expect(new Set(disabled.map((r) => r.token))).toEqual(disabledTokens);
+    for (const d of disabled) {
+      expect(d.selector, d.token).toContain(":disabled");
+      expect(d.selector, d.token).toContain(':not(*[aria-busy="true"])');
     }
+    for (const variant of VARIANTS) {
+      const own = new Set(buttonClasses({ variant }).split(" ").filter((t) => !disabledTokens.has(t)));
+      const competitors = rules.filter((r) => own.has(r.token) && /(^|:)(hover|dark|enabled):/.test(r.token));
+      expect(competitors.length, variant).toBeGreaterThan(0);
+      for (const d of disabled) {
+        for (const c of competitors) {
+          if (!c.props.some((p) => d.props.includes(p))) continue;
+          expect(
+            compareSpecificity(specificity(d.selector), specificity(c.selector)),
+            `${variant}: ${d.selector} vs ${c.selector}`,
+          ).toBeGreaterThan(0);
+        }
+      }
+    }
+    const busy = rules.filter((r) => BUTTON_BUSY_CLASS.split(" ").includes(r.token));
+    expect(busy.length).toBe(2);
+    for (const b of busy) expect(b.selector).toContain('[aria-busy="true"]');
   });
 
   it("keeps the disabled label at least 3:1 on its ground", () => {
