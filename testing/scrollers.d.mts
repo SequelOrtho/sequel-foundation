@@ -34,7 +34,7 @@ export interface ScrollerOptions {
  * hub's vitest suite:
  *
  *   const files = collectSourceFiles(process.cwd(), ["app", "components"]);
- *   const hits = findUnpositionedScrollers(files);
+ *   const hits = findUnpositionedScrollers(files, { vertical: true });
  *   expect(hits, formatUnpositionedScrollers(hits)).toEqual([]);
  */
 export declare function findUnpositionedScrollers(files: readonly SourceFile[], options?: ScrollerOptions): UnpositionedScroller[];
