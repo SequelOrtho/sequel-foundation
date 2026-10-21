@@ -2,9 +2,19 @@ import { CheckCircle } from "./StatusBadges";
 
 // Compact, consistent save-state chip used across save surfaces:
 //   Saving…  →  Unsaved changes  →  Saved · 2:14 PM
-// icon + label so meaning never rides on colour alone (same stance as
-// StatusBadges). Renders nothing in the initial untouched state.
-export function SaveStateIndicator({
+// icon + label so meaning never rides on color alone (same stance as
+// StatusBadges). Shows nothing in the initial untouched state. The wrapper is
+// a persistent polite live region so "Saved · 2:14 PM" is announced, not only
+// shown (UX audit 2026-10-21, FND-14).
+export function SaveStateIndicator(props: { saving: boolean; dirty?: boolean; savedAt: number | null }) {
+  return (
+    <span aria-live="polite" aria-atomic="true" className="inline-flex">
+      <SaveStateText {...props} />
+    </span>
+  );
+}
+
+function SaveStateText({
   saving,
   dirty = false,
   savedAt,

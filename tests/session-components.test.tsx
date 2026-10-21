@@ -53,6 +53,40 @@ describe("SessionWatch", () => {
     expect(screen.getByRole("link", { name: "Sign In Again" }).getAttribute("href")).toBe("/auth/signin?callbackUrl=%2F");
   });
 
+  it("makes the rest of the page inert while the dialog shows", async () => {
+    render(
+      <>
+        <button type="button">Save Changes</button>
+        <SessionWatch sessionUrl={null} />
+      </>,
+    );
+    const otherTab = new FakeChannel("sequel-session");
+    act(() => otherTab.postMessage({ type: "signed-out" }));
+    const dialog = await screen.findByRole("alertdialog");
+    expect(dialog.closest("[inert]")).toBeNull();
+    expect(screen.getByText("Save Changes").closest("[inert]")).not.toBeNull();
+    expect(document.activeElement).toBe(screen.getByRole("link", { name: "Sign In Again" }));
+  });
+
+  it("gives the page back when the dialog goes, leaving already-inert parts inert", async () => {
+    const view = render(
+      <>
+        <button type="button">Save Changes</button>
+        <SessionWatch sessionUrl={null} />
+      </>,
+    );
+    const already = document.createElement("div");
+    already.setAttribute("inert", "");
+    document.body.appendChild(already);
+    const otherTab = new FakeChannel("sequel-session");
+    act(() => otherTab.postMessage({ type: "signed-out" }));
+    await screen.findByRole("alertdialog");
+    expect(screen.getByText("Save Changes").closest("[inert]")).not.toBeNull();
+    view.unmount();
+    expect(document.querySelector("[inert]")).toBe(already);
+    already.remove();
+  });
+
   it("checks the session when the tab becomes visible and reports an ended one", async () => {
     const fetchMock = vi.fn().mockResolvedValue(new Response("null", { status: 200 }));
     vi.stubGlobal("fetch", fetchMock);

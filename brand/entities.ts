@@ -48,7 +48,11 @@ export type EntitySwatch = {
 export type EntityRoles = {
   /** Headlines on light, deck/table header fills, `secondary` buttons. */
   navy: string;
-  /** CTAs, links, h2, focus ring (`bg-brand`, `text-brand`). */
+  /** The guide's primary brand color, as published (the mark, charts, logo
+   *  grounds) — `--brand-bright`. Where it is too light for text on white
+   *  (Sequel's #009DDD is 3.1:1), `--brand-primary` (`bg-brand`, `text-brand`)
+   *  is a darker text-safe shade of it (owner ruling 2026-10-21, Mike:
+   *  "Approved", UX audit Q1); elsewhere the two are the same. */
   primary: string;
   /** The assign / hand-off accent (Button `accent`) — dark ink on it, always. */
   accent: string;

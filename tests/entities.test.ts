@@ -46,7 +46,7 @@ describe("entity registry", () => {
     const { roles } = ENTITIES[k];
     const c = ENTITY_BRAND_COLORS[k].light;
     expect(c.navy).toBe(roles.navy.toLowerCase());
-    expect(c.brand).toBe(roles.primary.toLowerCase());
+    expect(c.brandBright).toBe(roles.primary.toLowerCase());
     expect(c.accent).toBe(roles.accent.toLowerCase());
     expect(c.muted).toBe(roles.muted.toLowerCase());
     expect(c.surface).toBe(roles.surface.toLowerCase());

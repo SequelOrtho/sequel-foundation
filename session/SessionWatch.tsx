@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { buttonClasses } from "../ui/Button";
 import { isSigningOutHere, onSessionMessage } from "./channel";
 import { signInHref } from "./policy";
@@ -38,6 +39,7 @@ export function SessionWatch({
   const [ended, setEnded] = useState(false);
   const lastCheck = useRef(0);
   const buttonRef = useRef<HTMLAnchorElement>(null);
+  const overlayRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const end = () => {
@@ -63,14 +65,27 @@ export function SessionWatch({
     };
   }, [sessionUrl, check]);
 
+  // The dialog is modal: everything else on the page goes inert while it
+  // shows, so Tab and a screen reader stay in it instead of walking controls
+  // that no longer work (UX audit 2026-10-21, FND-11). The overlay renders
+  // straight into <body> so its siblings are exactly "the rest of the page".
   useEffect(() => {
-    if (ended) buttonRef.current?.focus();
+    if (!ended) return;
+    const overlay = overlayRef.current;
+    const made: Element[] = [];
+    for (const el of Array.from(document.body.children)) {
+      if (el === overlay || el.hasAttribute("inert")) continue;
+      el.setAttribute("inert", "");
+      made.push(el);
+    }
+    buttonRef.current?.focus();
+    return () => made.forEach((el) => el.removeAttribute("inert"));
   }, [ended]);
 
   if (!ended) return null;
   const href = signInHref(window.location.pathname + window.location.search);
-  return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 p-4">
+  return createPortal(
+    <div ref={overlayRef} className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 p-4">
       <div
         role="alertdialog"
         aria-modal="true"
@@ -90,6 +105,7 @@ export function SessionWatch({
           </a>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

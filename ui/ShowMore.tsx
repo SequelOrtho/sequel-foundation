@@ -41,20 +41,51 @@ type Controls = Pick<
 
 // The footer line: "Showing X of Y" + the three actions. Render it only when
 // the caller's list is expandable (matches the VCP pattern exactly).
+//
+// A pressed button that disappears (Show all, the last Show more, Show fewer)
+// would drop keyboard focus to the top of the page, so focus moves to the
+// control that takes its place (UX audit 2026-10-21, FND-9). Event-time DOM
+// lookup after the commit, like the collapse scroll below.
+function refocus(from: HTMLElement, prefer: string[]) {
+  const box = from.closest("[data-showmore-controls]");
+  setTimeout(() => {
+    if (!box || box.contains(document.activeElement)) return;
+    for (const action of prefer) {
+      const el = box.querySelector<HTMLElement>(`[data-showmore-action="${action}"]`);
+      if (el) return el.focus();
+    }
+  }, 0);
+}
 export function ShowMoreControls({ remaining, total, expanded, step, showMore, showAll, collapse, className }: Controls & { className?: string }) {
   const shown = total - remaining;
   return (
-    <div className={`flex flex-wrap items-center justify-between gap-2 ${className ?? ""}`}>
+    <div data-showmore-controls="" className={`flex flex-wrap items-center justify-between gap-2 ${className ?? ""}`}>
       <p aria-live="polite" className="text-xs text-brand-muted">
         Showing {shown} of {total}
       </p>
       <div className="flex items-center gap-4">
         {remaining > 0 && (
           <>
-            <button type="button" onClick={showMore} className="text-sm font-medium text-brand hover:underline">
+            <button
+              type="button"
+              data-showmore-action="more"
+              onClick={(e) => {
+                showMore();
+                refocus(e.currentTarget, ["more", "fewer"]);
+              }}
+              className="text-sm font-medium text-brand hover:underline"
+            >
               Show {Math.min(step, remaining)} more
             </button>
-            <button type="button" onClick={showAll} className="text-sm font-medium text-brand hover:underline">
+            <button
+              type="button"
+              data-showmore-action="all"
+              onClick={(e) => {
+                showAll();
+                refocus(e.currentTarget, ["fewer"]);
+              }}
+              className="text-sm font-medium text-brand hover:underline"
+            >
               Show all ({total})
             </button>
           </>
@@ -62,6 +93,7 @@ export function ShowMoreControls({ remaining, total, expanded, step, showMore, s
         {expanded && (
           <button
             type="button"
+            data-showmore-action="fewer"
             onClick={(e) => {
               // Scroll the enclosing list (marked data-showmore) back into view
               // on collapse — event-time DOM lookup, not a hook-held ref (the
@@ -69,6 +101,7 @@ export function ShowMoreControls({ remaining, total, expanded, step, showMore, s
               const region = e.currentTarget.closest("[data-showmore]");
               collapse();
               region?.scrollIntoView?.({ block: "nearest" });
+              refocus(e.currentTarget, ["more"]);
             }}
             className="text-sm font-medium text-red-700 dark:text-red-400 hover:text-red-800 hover:underline"
           >

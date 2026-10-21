@@ -32,6 +32,8 @@ export type BrandColors = {
   brand: string;
   brand600: string;
   brand700: string;
+  /** The guide's primary at full brightness: logos, charts, large or decorative fills. */
+  brandBright: string;
   navy: string;
   navyMuted: string;
   accent: string;
@@ -57,6 +59,7 @@ export const BRAND_COLOR_VARS: Record<keyof BrandColors, string> = {
   brand: "--brand-primary",
   brand600: "--brand-primary-600",
   brand700: "--brand-primary-700",
+  brandBright: "--brand-bright",
   navy: "--brand-navy",
   navyMuted: "--brand-navy-muted",
   accent: "--brand-accent",
@@ -79,9 +82,10 @@ const SEQ_COLORS: Record<ThemeName, BrandColors> = {
   light: {
     background: "#ffffff",
     foreground: "#171717",
-    brand: "#009ddd",
-    brand600: "#0083bd",
-    brand700: "#006a9c",
+    brand: "#006a9c",
+    brand600: "#005a85",
+    brand700: "#004b6e",
+    brandBright: "#009ddd",
     navy: "#0f1263",
     navyMuted: "#232a7a",
     accent: "#cad400",
@@ -105,6 +109,7 @@ const SEQ_COLORS: Record<ThemeName, BrandColors> = {
     brand: "#35b5e8",
     brand600: "#54c5ec",
     brand700: "#8fd9f2",
+    brandBright: "#35b5e8",
     navy: "#c3c8f5",
     navyMuted: "#a5abe8",
     accent: "#d6e04a",
@@ -133,6 +138,7 @@ const FVO_COLORS: Record<ThemeName, BrandColors> = {
     brand: "#177255",
     brand600: "#136047",
     brand700: "#104e3a",
+    brandBright: "#177255",
     navy: "#14332d",
     navyMuted: "#15493b",
     accent: "#f4d659",
@@ -146,6 +152,7 @@ const FVO_COLORS: Record<ThemeName, BrandColors> = {
     brand: "#14c579",
     brand600: "#43d394",
     brand700: "#8ee5bc",
+    brandBright: "#14c579",
     navy: "#c2e5d4",
     navyMuted: "#9fd5bc",
     accent: "#f7e07f",
@@ -161,6 +168,7 @@ const ON_COLORS: Record<ThemeName, BrandColors> = {
     brand: "#0072ce",
     brand600: "#0060ad",
     brand700: "#004e8c",
+    brandBright: "#0072ce",
     navy: "#25245c",
     navyMuted: "#3f3e70",
     accent: "#d2d755",
@@ -172,6 +180,7 @@ const ON_COLORS: Record<ThemeName, BrandColors> = {
     brand: "#00a3e0",
     brand600: "#3bb8e8",
     brand700: "#85d3f0",
+    brandBright: "#00a3e0",
     navy: "#c9c8ef",
     navyMuted: "#a9a8e0",
     accent: "#dde27a",
@@ -195,12 +204,13 @@ export function brandColors(theme: ThemeName, entity: EntityKey = DEFAULT_ENTITY
 
 // Categorical chart series per entity, in order — brand-forward and
 // distinguishable within each theme. Sequel's list predates the registry and
-// is unchanged; FVO's three greens are spread apart with its secondaries
+// keeps the guide's bright blue (brandBright — charts are large marks, so the
+// text-safe darker `brand` is not needed there); FVO's three greens are spread apart with its secondaries
 // between them; ON's follows its logo gradient.
 const SERIES: Record<EntityKey, (theme: ThemeName) => string[]> = {
   SEQ: (theme) => {
     const c = SEQ_COLORS[theme];
-    return [c.navy, c.brand, c.rygGreen, "#93328e", c.rygYellow, c.muted];
+    return [c.navy, c.brandBright, c.rygGreen, "#93328e", c.rygYellow, c.muted];
   },
   FVO: (theme) =>
     theme === "light"

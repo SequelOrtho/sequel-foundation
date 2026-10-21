@@ -40,6 +40,7 @@ export function MultiSelectFilter({
   const [query, setQuery] = useState("");
   const rootRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
+  const doneRef = useRef<HTMLButtonElement>(null);
   const panelId = useId();
   // A filter at the right of a narrow bar would otherwise open past the edge.
   const panelRef = useFitInViewport<HTMLDivElement>(open);
@@ -73,12 +74,23 @@ export function MultiSelectFilter({
           close();
         }
       }}
+      // Tabbing out of the panel closes it, like a click outside (UX audit
+      // 2026-10-21, FND-14); focus moves on to wherever Tab was going. A blur
+      // to nowhere (relatedTarget null — a click on the panel's label text or
+      // padding drops focus to <body> in Chrome) is left to the outside-click
+      // handler, or the panel would unmount before the click landed.
+      onBlur={(e) => {
+        const to = e.relatedTarget as Node | null;
+        if (open && to && !e.currentTarget.contains(to)) {
+          setOpen(false);
+          setQuery("");
+        }
+      }}
     >
       <button
         ref={buttonRef}
         type="button"
         aria-label={`${label}: ${summary}`}
-        aria-haspopup="true"
         aria-expanded={open}
         aria-controls={open ? panelId : undefined}
         onClick={() => (open ? close() : setOpen(true))}
@@ -126,11 +138,19 @@ export function MultiSelectFilter({
             <span className="text-brand-muted">{value.length ? `${value.length} selected` : "None selected = all"}</span>
             <span className="flex gap-3">
               {value.length > 0 && (
-                <button type="button" onClick={() => onChange([])} className="font-medium text-brand-navy hover:underline dark:text-zinc-200">
+                // Clear disappears once nothing is picked; hand focus to Done
+                // first so it never drops to <body> with the panel open.
+                <button
+                  type="button"
+                  onClick={() => {
+                    doneRef.current?.focus();
+                    onChange([]);
+                  }}
+                  className="font-medium text-brand-navy hover:underline dark:text-zinc-200">
                   Clear
                 </button>
               )}
-              <button type="button" onClick={close} className="font-medium text-brand-navy hover:underline dark:text-zinc-200">
+              <button ref={doneRef} type="button" onClick={close} className="font-medium text-brand-navy hover:underline dark:text-zinc-200">
                 Done
               </button>
             </span>

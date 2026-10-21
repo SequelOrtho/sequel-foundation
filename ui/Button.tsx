@@ -34,9 +34,15 @@ const SIZES: Record<ButtonSize, string> = {
   lg: "min-h-11 px-5 py-2.5 text-base",
 };
 
+// Solid fills flip to light tokens in dark mode (brand #35b5e8, navy #c3c8f5,
+// danger #f87171 for Sequel), so their label flips to dark ink there: white on
+// those fills was 1.4–2.8:1 (UX audit 2026-10-21, FND-1). The explicit
+// dark:text pair also opts out of theme.css's contrast rescue.
+// tests/button-contrast.test.ts checks every solid variant ≥ 4.5:1 for all
+// three entities in both themes.
 const VARIANTS: Record<ButtonVariant, string> = {
-  primary: "bg-brand text-white hover:bg-brand-600",
-  secondary: "bg-brand-navy text-white hover:bg-brand-navy-muted",
+  primary: "bg-brand text-white hover:bg-brand-600 dark:text-zinc-900",
+  secondary: "bg-brand-navy text-white hover:bg-brand-navy-muted dark:text-zinc-900",
   // Assign / hand-off workflows: the entity accent (SEQ chartreuse, FVO
   // yellow, ON lime). Dark ink on a bright fill reads in BOTH themes (the
   // token flips e.g. #cad400 → #d6e04a in dark mode; text stays zinc-900 —
@@ -51,7 +57,7 @@ const VARIANTS: Record<ButtonVariant, string> = {
   outlineBrand:
     "border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-brand hover:border-brand hover:bg-brand-surface",
   ghost: "text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800",
-  danger: "bg-brand-danger text-white hover:bg-red-700",
+  danger: "bg-brand-danger text-white hover:bg-red-700 dark:text-zinc-900 dark:hover:bg-red-300",
 };
 
 export function buttonClasses(opts?: {

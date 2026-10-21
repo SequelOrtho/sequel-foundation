@@ -56,4 +56,8 @@ describe("inputClasses", () => {
       expect(inputClasses(extra).split(" ")).toContain("w-full");
     }
   });
+  it("draws a focus ring wherever it drops the outline", () => {
+    expect(INPUT_CLASS).toContain("focus-visible:ring-2");
+    expect(INPUT_CLASS).not.toMatch(/(^|\s)focus:outline-none/);
+  });
 });
