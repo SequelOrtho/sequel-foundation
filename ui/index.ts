@@ -1,6 +1,6 @@
 // Shared Sequel UI primitives. Import from "@sequel/foundation/ui" rather than
 // the individual files so adoption sites have one stable path.
-export { Button, buttonClasses } from "./Button";
+export { Button, buttonClasses, BUTTON_DISABLED_CLASS, BUTTON_BUSY_CLASS } from "./Button";
 export type { ButtonProps, ButtonVariant, ButtonSize } from "./Button";
 export { Callout } from "./Callout";
 export type { CalloutTone } from "./Callout";
