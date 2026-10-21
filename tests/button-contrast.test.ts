@@ -75,7 +75,7 @@ describe("solid buttons meet 4.5:1 in every entity and theme", () => {
 // mode fill looking enabled (hub walk-through 2026-10-21).
 describe("disabled buttons look disabled in both themes", () => {
   const VARIANTS = ["primary", "secondary", "accent", "outline", "outlineBrand", "ghost", "danger"] as const;
-  const DISABLED = { light: { ground: ZINC[100], label: ZINC[500] }, dark: { ground: ZINC[800], label: ZINC[500] } };
+  const DISABLED = { light: { ground: ZINC[100], label: ZINC[500] }, dark: { ground: ZINC[900], label: ZINC[500] } };
 
   it("every variant carries the disabled state and no opacity-only disabled", () => {
     for (const variant of VARIANTS) {
@@ -90,7 +90,10 @@ describe("disabled buttons look disabled in both themes", () => {
     expect(t).toEqual(expect.arrayContaining([
       "disabled:not-aria-busy:bg-zinc-100",
       "disabled:not-aria-busy:text-zinc-500",
-      "dark:disabled:not-aria-busy:bg-zinc-800",
+      "dark:disabled:not-aria-busy:bg-zinc-900",
+      "dark:disabled:not-aria-busy:outline-1",
+      "dark:disabled:not-aria-busy:-outline-offset-1",
+      "dark:disabled:not-aria-busy:outline-zinc-700",
       "dark:disabled:not-aria-busy:text-zinc-500",
       "disabled:not-aria-busy:cursor-not-allowed",
     ]));
@@ -155,9 +158,16 @@ describe("disabled buttons look disabled in both themes", () => {
         }
       }
     }
-    // In dark mode it is also lighter than the outline variants' zinc-900, so
-    // a disabled outline Button doesn't look like an enabled one.
-    expect(contrast(DISABLED.dark.ground, ZINC[900])).toBeGreaterThan(1.1);
+    // In dark mode it is not the zinc-800 an outline / ghost button turns on
+    // hover, so a disabled button never reads as an enabled one under the
+    // pointer (owner question on #81, settled by the coordinator), and its box
+    // is drawn by a zinc-700 outline line that stands off the zinc-900 card.
+    expect(contrast(DISABLED.dark.ground, ZINC[800])).toBeGreaterThan(1.1);
+    for (const variant of ["outline", "ghost"] as const) {
+      expect(buttonClasses({ variant })).toContain("dark:hover:bg-zinc-800");
+      expect(buttonClasses({ variant })).not.toContain(`dark:hover:bg-zinc-900`);
+    }
+    expect(contrast(ZINC[700], ZINC[900])).toBeGreaterThan(1.5);
   });
 
   it("leaves a busy button looking busy: its fill, dimmed, with the progress cursor", () => {
