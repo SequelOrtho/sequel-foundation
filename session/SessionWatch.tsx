@@ -47,6 +47,8 @@ export const authjsSessionCheck: SessionCheck = async (res) => {
 const RECHECK_MS = 60_000;
 // How long Stay Signed In waits for an answer before treating it as failed.
 const STAY_TIMEOUT_MS = 10_000;
+/** The longest delay setTimeout honours (2^31 − 1 ms). */
+const MAX_TIMER_MS = 2_147_483_647;
 
 export function SessionWatch({
   sessionUrl = "/api/auth/session",
@@ -129,6 +131,11 @@ export function SessionWatch({
     const latest = () => Math.max(local, readLastActive(storage));
 
     let timer: ReturnType<typeof setTimeout> | undefined;
+    // setTimeout holds a signed 32-bit delay; a longer one fires at once. A
+    // long idle timeout just re-checks after ~24 days, which is harmless.
+    const later = (ms: number) => {
+      timer = setTimeout(schedule, Math.min(Math.max(ms, 0), MAX_TIMER_MS));
+    };
     const schedule = () => {
       clearTimeout(timer);
       const last = latest();
@@ -150,14 +157,14 @@ export function SessionWatch({
       }
       if (now >= at) {
         setWarnUntil(endsAt(last, idleMs));
-        timer = setTimeout(schedule, endsAt(last, idleMs) - now + 50);
+        later(endsAt(last, idleMs) - now + 50);
         return;
       }
       setWarnUntil(null);
       setStayFailed(false);
       // Re-check at the warning time (timers in background tabs can fire late;
       // the comparison above corrects for that).
-      timer = setTimeout(schedule, at - now);
+      later(at - now);
     };
 
     const seen = (at: number) => {
@@ -245,7 +252,7 @@ export function SessionWatch({
 
   if (!ended && warnUntil !== null) {
     return (
-      <ModalShell overlayRef={warnOverlayRef} id="session-expiring" title="Your session is about to end"
+      <ModalShell key="expiring" overlayRef={warnOverlayRef} id="session-expiring" title="Your session is about to end"
         body={<ExpiryBody until={warnUntil} failed={stayFailed} />}>
         <button ref={stayRef} type="button" onClick={staySignedIn} disabled={staying}
           className={buttonClasses({ size: "md" })}>
@@ -260,7 +267,7 @@ export function SessionWatch({
     // Another tab or the server already ended it: the cookie is gone, so this
     // is the plain sign-in link, as in v0.28.0.
     return (
-      <ModalShell overlayRef={overlayRef} id="session-ended" conceal title="You’ve been signed out"
+      <ModalShell key="ended" overlayRef={overlayRef} id="session-ended" conceal title="You’ve been signed out"
         body="Your session ended, here or in another tab. Sign in again to pick up on this page.">
         <a ref={buttonRef as RefObject<HTMLAnchorElement | null>} href={signInHref(here)} className={buttonClasses({ size: "md" })}>
           Sign In Again
@@ -276,7 +283,7 @@ export function SessionWatch({
   // the plain sign-in link, so it never ends that new session.
   const back = safeCallbackUrl(here, "");
   return (
-    <ModalShell overlayRef={overlayRef} id="session-ended" conceal title="You’ve been signed out"
+    <ModalShell key="ended" overlayRef={overlayRef} id="session-ended" conceal title="You’ve been signed out"
       body="Your session ended, here or in another tab. Sign in again to pick up on this page.">
       <form
         method="post"
@@ -344,8 +351,14 @@ function useModal(open: boolean, dialogRef: RefObject<HTMLDialogElement | null>,
     }
     const onCancel = (e: Event) => e.preventDefault();
     let closing = false;
+    // Only a dialog the browser actually closed is reopened. A 'close' event
+    // arrives asynchronously, so one queued by an earlier close() can land
+    // after the dialog is already open again; reopening then would close it
+    // and queue another event, forever (PR #80 review, round 3). The warning
+    // and the signed-out screen are separate <dialog>s (their keys) for the
+    // same reason.
     const onClose = () => {
-      if (!closing) show();
+      if (!closing && !dialog.open) show();
     };
     dialog.addEventListener("cancel", onCancel);
     dialog.addEventListener("close", onClose);

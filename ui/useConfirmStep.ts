@@ -9,11 +9,14 @@ import { useEffect, useRef, useState } from "react";
 // `armRef` on the arming button: arming focuses Confirm, Cancel (or Escape on
 // either) puts focus back on the arming button.
 //
-//   const step = useConfirmStep();
-//   {step.armed
-//     ? <><Button ref={step.confirmRef} onClick={approve}>Confirm Approve</Button>
-//         <Button variant="outline" onClick={step.cancel}>Cancel</Button></>
-//     : <Button ref={step.armRef} onClick={step.arm}>Approve</Button>}
+//   const { armed, arm, cancel, armRef, confirmRef } = useConfirmStep();
+//   {armed
+//     ? <><Button ref={confirmRef} onClick={approve}>Confirm Approve</Button>
+//         <Button variant="outline" onClick={cancel}>Cancel</Button></>
+//     : <Button ref={armRef} onClick={arm}>Approve</Button>}
+//
+// Destructure the result: the React compiler's lint (react-hooks/refs) refuses
+// `step.armRef` read off the object during render.
 
 export function useConfirmStep<A extends HTMLElement = HTMLButtonElement, C extends HTMLElement = HTMLButtonElement>() {
   const [armed, setArmed] = useState(false);

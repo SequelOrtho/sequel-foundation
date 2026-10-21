@@ -265,6 +265,37 @@ describe("SessionWatch expiry warning (owner ruling 2026-10-21, UX audit Q6)", (
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  it("runs from the warning into the signed-out screen without reopening it over and over (round 3)", async () => {
+    // A real browser fires 'close' asynchronously. A stand-in that does the
+    // same: the warning's close() must not reach the signed-out dialog and
+    // close/reopen it forever (seen in Chromium before the fix).
+    const calls: string[] = [];
+    const proto = HTMLDialogElement.prototype as unknown as Record<string, unknown>;
+    proto.showModal = function (this: HTMLDialogElement) {
+      calls.push(`show:${this.getAttribute("aria-labelledby")}`);
+      this.setAttribute("open", "");
+    };
+    proto.close = function (this: HTMLDialogElement) {
+      calls.push(`close:${this.getAttribute("aria-labelledby")}`);
+      this.removeAttribute("open");
+      setTimeout(() => this.dispatchEvent(new Event("close")), 0);
+    };
+    try {
+      render(<SessionWatch idleTimeoutSeconds={600} />);
+      await act(async () => vi.advanceTimersByTime(8 * 60_000 + 100));
+      expect(screen.getByRole("alertdialog", { name: "Your session is about to end" })).toBeTruthy();
+      await act(async () => vi.advanceTimersByTime(2 * 60_000 + 100));
+      await act(async () => vi.advanceTimersByTime(5_000));
+      const ended = screen.getByRole("alertdialog", { name: "You’ve been signed out" });
+      expect(ended.hasAttribute("open")).toBe(true);
+      expect(calls.filter((c) => c.startsWith("show:")).length).toBe(2);
+      expect(calls.filter((c) => c.startsWith("close:")).length).toBe(1);
+    } finally {
+      delete proto.showModal;
+      delete proto.close;
+    }
+  });
+
   it("after a countdown end, Sign In Again signs out first, unless a tab signed in again since (round 2, F6/F10)", async () => {
     vi.stubGlobal("fetch", vi.fn());
     render(<SessionWatch idleTimeoutSeconds={600} />);

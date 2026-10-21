@@ -36,6 +36,9 @@ export function Dialog({
   useEffect(() => {
     onCloseRef.current = onClose;
   }, [onClose]);
+  // Where the last press started: a click whose press began inside the panel
+  // (a text selection dragged out over the backdrop) is not a backdrop click.
+  const pressedOnBackdrop = useRef(false);
 
   useEffect(() => {
     const el = ref.current;
@@ -63,8 +66,25 @@ export function Dialog({
         e.preventDefault(); // the parent decides; it re-renders without `open`
         onCloseRef.current();
       }}
+      onPointerDown={(e) => {
+        pressedOnBackdrop.current = e.target === e.currentTarget;
+      }}
       onClick={(e) => {
-        if (closeOnBackdrop && e.target === e.currentTarget) onCloseRef.current();
+        const fromBackdrop = pressedOnBackdrop.current;
+        pressedOnBackdrop.current = false;
+        if (closeOnBackdrop && fromBackdrop && e.target === e.currentTarget) onCloseRef.current();
+      }}
+      onClose={() => {
+        // The browser closed it while the parent still has it open (Chrome lets
+        // a second Escape through; a <form method="dialog"> closes it too). Tell
+        // the parent, and if it keeps the dialog open, show it again so the
+        // page and the parent's state never disagree.
+        const el = ref.current;
+        if (!el || el.open) return;
+        onCloseRef.current();
+        setTimeout(() => {
+          if (el.isConnected && !el.open && typeof el.showModal === "function") el.showModal();
+        }, 0);
       }}
       className={`m-auto w-[calc(100%-2rem)] max-w-lg rounded-lg border border-zinc-200 bg-white p-0 text-left text-zinc-900 shadow-xl backdrop:bg-black/40 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 ${className}`.trim()}
     >

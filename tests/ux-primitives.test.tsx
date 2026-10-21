@@ -95,21 +95,44 @@ describe("Dialog (FND-18)", () => {
     fireEvent(document.querySelector("dialog")!, new Event("cancel", { cancelable: true }));
     expect(onClose).toHaveBeenCalledTimes(1);
     fireEvent.click(screen.getByRole("button", { name: "Open Picker" }));
-    fireEvent.click(document.querySelector("dialog")!);
+    const dialog = document.querySelector("dialog")!;
+    fireEvent.pointerDown(dialog);
+    fireEvent.click(dialog);
     expect(onClose).toHaveBeenCalledTimes(2);
+  });
+  it("stays open when a press starts inside the panel and ends on the backdrop (a dragged text selection)", () => {
+    const onClose = vi.fn();
+    render(<DialogHost onClose={onClose} />);
+    fireEvent.click(screen.getByRole("button", { name: "Open Picker" }));
+    const dialog = document.querySelector("dialog")!;
+    fireEvent.pointerDown(screen.getByText("Body"));
+    fireEvent.click(dialog); // the browser targets the common ancestor
+    expect(onClose).not.toHaveBeenCalled();
+    expect(document.querySelector("dialog")).not.toBeNull();
+  });
+  it("tells the parent when the browser closes it natively", () => {
+    const onClose = vi.fn();
+    render(<DialogHost onClose={onClose} />);
+    fireEvent.click(screen.getByRole("button", { name: "Open Picker" }));
+    const dialog = document.querySelector("dialog")!;
+    dialog.removeAttribute("open"); // what a native close leaves behind
+    fireEvent(dialog, new Event("close"));
+    expect(onClose).toHaveBeenCalledTimes(1);
   });
 });
 
 // The foundation Button takes the refs (React 19 passes ref as a prop).
+// Destructured, as the docs show: the React compiler lint refuses reading a ref
+// off the returned object during render (`step.armRef`).
 function ConfirmHost() {
-  const step = useConfirmStep();
-  return step.armed ? (
+  const { armed, arm, cancel, armRef, confirmRef } = useConfirmStep();
+  return armed ? (
     <>
-      <Button ref={step.confirmRef}>Confirm Approve</Button>
-      <Button onClick={step.cancel}>Cancel</Button>
+      <Button ref={confirmRef}>Confirm Approve</Button>
+      <Button onClick={cancel}>Cancel</Button>
     </>
   ) : (
-    <Button ref={step.armRef} onClick={step.arm}>
+    <Button ref={armRef} onClick={arm}>
       Approve
     </Button>
   );
