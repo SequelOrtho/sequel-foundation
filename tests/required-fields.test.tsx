@@ -102,6 +102,19 @@ describe("Field", () => {
     expect(screen.getByText("Entity").className).toContain("uppercase");
   });
 
+  it("keeps the wrapping label when the child is a wrapper, not a form control", () => {
+    render(
+      <Field label="Dates" hint="Start and end">
+        <div>
+          <input type="date" />
+        </div>
+      </Field>,
+    );
+    const input = screen.getByLabelText("Dates");
+    expect(input.tagName).toBe("INPUT");
+    expect(input.closest("div[id]")).toBeNull();
+  });
+
   it("FieldError stands alone for hand-rolled fields", () => {
     render(<FieldError id="x-error">Bad</FieldError>);
     expect(screen.getByRole("alert").id).toBe("x-error");

@@ -74,9 +74,13 @@ export function MultiSelectFilter({
         }
       }}
       // Tabbing out of the panel closes it, like a click outside (UX audit
-      // 2026-10-21, FND-14); focus moves on to wherever Tab was going.
+      // 2026-10-21, FND-14); focus moves on to wherever Tab was going. A blur
+      // to nowhere (relatedTarget null — a click on the panel's label text or
+      // padding drops focus to <body> in Chrome) is left to the outside-click
+      // handler, or the panel would unmount before the click landed.
       onBlur={(e) => {
-        if (open && !e.currentTarget.contains(e.relatedTarget as Node | null)) {
+        const to = e.relatedTarget as Node | null;
+        if (open && to && !e.currentTarget.contains(to)) {
           setOpen(false);
           setQuery("");
         }

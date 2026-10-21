@@ -76,4 +76,12 @@ describe("SearchCombobox", () => {
     expect(chosen.textContent).toContain("✓");
     expect(screen.getByRole("option", { name: /Zed/ }).textContent).not.toContain("✓");
   });
+
+  it("draws the listbox with its border classes", () => {
+    render(<SearchCombobox options={options} value={null} onChange={() => {}} label="Resource" />);
+    fireEvent.focus(screen.getByRole("combobox", { name: "Resource" }));
+    const cls = screen.getByRole("listbox").className;
+    expect(cls).toContain("border-zinc-300");
+    expect(cls).not.toContain("${");
+  });
 });

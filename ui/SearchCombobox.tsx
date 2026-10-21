@@ -153,7 +153,7 @@ export function SearchCombobox({
       )}
       {open && !disabled && (
         <ul ref={listRef} id={listboxId} role="listbox" aria-label={`${label} options`}
-          className="absolute z-20 mt-1 max-h-72 w-full min-w-[16rem] overflow-y-auto rounded-md ${BORDER} bg-white p-1 shadow-lg dark:bg-zinc-900">
+          className={`absolute z-20 mt-1 max-h-72 w-full min-w-[16rem] overflow-y-auto rounded-md ${BORDER} bg-white p-1 shadow-lg dark:bg-zinc-900`}>
           {visible.length === 0 && (
             <li className="px-2 py-2 text-sm text-brand-muted">No matches for “{query}”.</li>
           )}

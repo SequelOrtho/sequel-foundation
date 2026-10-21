@@ -30,6 +30,8 @@ import { Children, cloneElement, isValidElement, useId, type ReactElement, type 
 // Errors appear on save under the field (<FieldError/>, role="alert") — never
 // on the first keystroke.
 
+const LABELABLE = new Set(["input", "select", "textarea"]);
+
 export const REQUIRED_LEGEND_TEXT = "Required field";
 export const ALL_REQUIRED_LEGEND_TEXT = "All fields are required";
 
@@ -117,8 +119,12 @@ export function Field({
 }) {
   const autoId = useId();
   const only = Children.count(children) === 1 && isValidElement(children) ? children : null;
-  // A plain DOM element can take an id and aria-describedby from us.
-  const plain = only && typeof only.type === "string" ? (only as ReactElement<Record<string, unknown>>) : null;
+  // A labelable form element can take an id and aria-describedby from us. A
+  // wrapper (<div>, <fieldset>) is not labelable, so it keeps the wrapping label.
+  const plain =
+    only && typeof only.type === "string" && LABELABLE.has(only.type)
+      ? (only as ReactElement<Record<string, unknown>>)
+      : null;
   const controlId = id ?? (plain ? ((plain.props.id as string | undefined) ?? autoId) : undefined);
   const hintId = hint && controlId ? fieldHintId(controlId) : undefined;
   const errorId = error && controlId ? fieldErrorId(controlId) : undefined;

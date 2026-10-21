@@ -23,22 +23,30 @@ const DARK_CARD = "#18181b"; // dark:bg-zinc-900, the outline buttons' ground
 
 // The solid variants' fill token and the label each theme puts on it. Light
 // mode keeps white labels; dark mode flips to zinc-900 (UX audit FND-1).
-const SOLID: { variant: "primary" | "secondary" | "danger"; fill: keyof BrandColors }[] = [
-  { variant: "primary", fill: "brand" },
-  { variant: "secondary", fill: "navy" },
-  { variant: "danger", fill: "danger" },
+const SOLID: { variant: "primary" | "secondary" | "danger"; fill: keyof BrandColors; hover: keyof BrandColors | null }[] = [
+  { variant: "primary", fill: "brand", hover: "brand600" },
+  { variant: "secondary", fill: "navy", hover: "navyMuted" },
+  // danger's hover is a fixed Tailwind red, checked separately below.
+  { variant: "danger", fill: "danger", hover: null },
 ];
+// Tailwind v4 red-700 / red-300 (danger hover, light / dark).
+const RED_700 = "#c10007";
+const RED_300 = "#ffa2a2";
 
 describe("solid buttons meet 4.5:1 in every entity and theme", () => {
   for (const entity of ENTITY_KEYS) {
     for (const theme of ["light", "dark"] as ThemeName[]) {
       const c = brandColors(theme, entity);
       const label = theme === "light" ? WHITE : ZINC_900;
-      for (const { variant, fill } of SOLID) {
+      for (const { variant, fill, hover } of SOLID) {
         it(`${entity} ${theme} ${variant}`, () => {
           expect(contrast(c[fill], label)).toBeGreaterThanOrEqual(4.5);
+          if (hover) expect(contrast(c[hover], label)).toBeGreaterThanOrEqual(4.5);
         });
       }
+      it(`${entity} ${theme} danger hover`, () => {
+        expect(contrast(theme === "light" ? RED_700 : RED_300, label)).toBeGreaterThanOrEqual(4.5);
+      });
       it(`${entity} ${theme} brand text (links, outlineBrand, active tab)`, () => {
         expect(contrast(c.brand, theme === "light" ? WHITE : DARK_CARD)).toBeGreaterThanOrEqual(4.5);
       });

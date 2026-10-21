@@ -50,7 +50,7 @@ export type EntityRoles = {
   navy: string;
   /** The guide's primary brand color, as published (the mark, charts, logo
    *  grounds) — `--brand-bright`. Where it is too light for text on white
-   *  (Sequel's #009DDD is 2.9:1), `--brand-primary` (`bg-brand`, `text-brand`)
+   *  (Sequel's #009DDD is 3.1:1), `--brand-primary` (`bg-brand`, `text-brand`)
    *  is a darker text-safe shade of it (owner ruling 2026-10-21, Mike:
    *  "Approved", UX audit Q1); elsewhere the two are the same. */
   primary: string;

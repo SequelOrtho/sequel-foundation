@@ -45,7 +45,8 @@
     "jszip": ">=3.10.0",
     "next": ">=15",
     "pptx-automizer": ">=0.8.0",
-    "react": ">=19"
+    "react": ">=19",
+    "react-dom": ">=19"
   },
   "peerDependenciesMeta": {
     "@anthropic-ai/sdk": {
