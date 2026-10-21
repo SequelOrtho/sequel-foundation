@@ -193,7 +193,7 @@ export function SessionWatch({
   if (!ended) return null;
   const href = signInHref(window.location.pathname + window.location.search);
   return (
-    <ModalShell overlayRef={overlayRef} id="session-ended" title="You’ve been signed out"
+    <ModalShell overlayRef={overlayRef} id="session-ended" conceal title="You’ve been signed out"
       body="Your session ended, here or in another tab. Sign in again to pick up on this page.">
       <a ref={buttonRef} href={href} className={buttonClasses({ size: "md" })}>
         Sign In Again
@@ -234,15 +234,21 @@ function useModal(open: boolean, overlayRef: RefObject<HTMLElement | null>, focu
   }, [open, overlayRef, focusRef]);
 }
 
-function ModalShell({ overlayRef, id, title, body, children }: {
+function ModalShell({ overlayRef, id, title, body, conceal = false, children }: {
   overlayRef: RefObject<HTMLDivElement | null>;
+  /** Hide the page behind the dialog, not just dim it. */
+  conceal?: boolean;
   id: string;
   title: string;
   body: ReactNode;
   children: ReactNode;
 }) {
   return createPortal(
-    <div ref={overlayRef} className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 p-4">
+    <div
+      ref={overlayRef}
+      data-conceal={conceal || undefined}
+      className={`fixed inset-0 z-[100] flex items-center justify-center p-4 ${conceal ? "bg-zinc-100 dark:bg-zinc-950" : "bg-black/40"}`}
+    >
       <div
         role="alertdialog"
         aria-modal="true"

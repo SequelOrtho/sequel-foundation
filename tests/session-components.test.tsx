@@ -66,6 +66,8 @@ describe("SessionWatch", () => {
     expect(dialog.closest("[inert]")).toBeNull();
     expect(screen.getByText("Save Changes").closest("[inert]")).not.toBeNull();
     expect(document.activeElement).toBe(screen.getByRole("link", { name: "Sign In Again" }));
+    // Signed out: the previous person's page is hidden, not just dimmed.
+    expect(dialog.parentElement?.hasAttribute("data-conceal")).toBe(true);
   });
 
   it("gives the page back when the dialog goes, leaving already-inert parts inert", async () => {
@@ -153,6 +155,8 @@ describe("SessionWatch expiry warning (owner ruling 2026-10-21, UX audit Q6)", (
     await act(async () => vi.advanceTimersByTime(61_000));
     const dialog = screen.getByRole("alertdialog", { name: "Your session is about to end" });
     expect(dialog.textContent).toMatch(/signed out in about 2 minutes/);
+    // Still signed in: the page stays visible behind the warning.
+    expect(dialog.parentElement?.hasAttribute("data-conceal")).toBe(false);
     const stay = screen.getByRole("button", { name: "Stay Signed In" });
     expect(document.activeElement).toBe(stay);
     expect(screen.getByText("Save Changes").closest("[inert]")).not.toBeNull();
