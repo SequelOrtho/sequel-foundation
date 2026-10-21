@@ -73,6 +73,7 @@
     "@types/node": "^24",
     "@types/pg": "^8.23.1",
     "@types/react": "^19",
+    "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^6.0.5",
     "docx": "^9.6.1",
     "exceljs": "^4.4.0",
