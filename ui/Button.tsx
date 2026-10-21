@@ -1,5 +1,5 @@
 import Link from "next/link";
-import type { AnchorHTMLAttributes, ButtonHTMLAttributes, ReactNode } from "react";
+import type { AnchorHTMLAttributes, ButtonHTMLAttributes, ReactNode, Ref } from "react";
 
 // Shared button primitive — the merged canonical of the two hubs' Buttons.
 // Variant vocabulary comes from Project Hub (blue primary, navy secondary, the
@@ -79,6 +79,8 @@ type CommonProps = {
 type ButtonAsButton = CommonProps &
   Omit<ButtonHTMLAttributes<HTMLButtonElement>, "className" | "children"> & {
     href?: undefined;
+    /** React 19 passes ref as a prop; it lands on the <button> (useConfirmStep). */
+    ref?: Ref<HTMLButtonElement>;
     // Disables the control and swaps the label so callers don't re-implement
     // the spinner-text dance.
     busy?: boolean;
@@ -88,6 +90,7 @@ type ButtonAsButton = CommonProps &
 type ButtonAsLink = CommonProps &
   Omit<AnchorHTMLAttributes<HTMLAnchorElement>, "className" | "children" | "href"> & {
     href: string;
+    ref?: Ref<HTMLAnchorElement>;
   };
 
 export type ButtonProps = ButtonAsButton | ButtonAsLink;

@@ -1,7 +1,8 @@
 // A stoplight status that never rides on color alone (UX audit 2026-10-21,
 // FND-20; DESIGN-CONVENTIONS §2 "Icon + label"): each level has its own glyph
 // shape AND its word, and the colors are the theme's RYG text tokens, which
-// meet 4.5:1 on their grounds (a bare yellow dot is 1.9:1 on white).
+// meet 4.5:1 on white, zinc-50 / 100, the surface and the dark grounds
+// (tests/ryg-contrast.test.ts; a bare yellow dot is 1.9:1 on white).
 
 export type RygLevel = "green" | "yellow" | "red" | "none";
 

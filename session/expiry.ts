@@ -31,8 +31,10 @@ export function extendsSession(
     return false;
   }
   if (url.origin !== origin) return false;
-  // /api/auth/* is excluded from the proxy, but the session read there
-  // re-issues the cookie itself, so it counts like any other request.
+  // /api/auth/* skips the proxy. Of those routes only the session read is known
+  // to re-issue the cookie (csrf, providers and the rest are not), so only it
+  // counts; leaving the others out can only make the warning come early.
+  if (url.pathname.startsWith("/api/auth/")) return url.pathname === "/api/auth/session";
   return !NOT_THROUGH_PROXY.test(url.pathname);
 }
 

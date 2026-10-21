@@ -21,6 +21,10 @@ describe("session expiry, pure", () => {
     expect(extendsSession({ name: `${O}/logo.png`, initiatorType: "img" }, O)).toBe(false);
     expect(extendsSession({ name: "https://fonts.gstatic.com/x", initiatorType: "fetch" }, O)).toBe(false);
     expect(extendsSession({ name: "not a url", initiatorType: "fetch" }, O)).toBe(false);
+    // Of the /api/auth routes (outside the proxy) only the session read re-issues the cookie.
+    expect(extendsSession({ name: `${O}/api/auth/session`, initiatorType: "fetch" }, O)).toBe(true);
+    expect(extendsSession({ name: `${O}/api/auth/csrf`, initiatorType: "fetch" }, O)).toBe(false);
+    expect(extendsSession({ name: `${O}/api/auth/providers`, initiatorType: "fetch" }, O)).toBe(false);
   });
 
   it("times the warning and the end from the latest request", () => {

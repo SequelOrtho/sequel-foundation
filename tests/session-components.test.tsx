@@ -2,6 +2,7 @@
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { SessionWatch, SignOutForm, authjsSessionCheck } from "../session";
+import { Dialog } from "../ui/Dialog";
 
 afterEach(() => {
   cleanup();
@@ -67,7 +68,51 @@ describe("SessionWatch", () => {
     expect(screen.getByText("Save Changes").closest("[inert]")).not.toBeNull();
     expect(document.activeElement).toBe(screen.getByRole("link", { name: "Sign In Again" }));
     // Signed out: the previous person's page is hidden, not just dimmed.
-    expect(dialog.parentElement?.hasAttribute("data-conceal")).toBe(true);
+    expect(dialog.hasAttribute("data-conceal")).toBe(true);
+  });
+
+  it("opens on top of a ui/Dialog left open, in the top layer, and can't be closed (PR review F1)", async () => {
+    // jsdom has no showModal; a stand-in records the top-layer order.
+    const topLayer: HTMLDialogElement[] = [];
+    const proto = HTMLDialogElement.prototype as unknown as Record<string, unknown>;
+    proto.showModal = function (this: HTMLDialogElement) {
+      this.setAttribute("open", "");
+      topLayer.push(this);
+    };
+    proto.close = function (this: HTMLDialogElement) {
+      this.removeAttribute("open");
+      topLayer.splice(topLayer.indexOf(this), 1);
+      this.dispatchEvent(new Event("close"));
+    };
+    try {
+      render(
+        <>
+          <Dialog open title="Records" onClose={() => {}}>
+            <p>Previous person’s records</p>
+          </Dialog>
+          <SessionWatch sessionUrl={null} />
+        </>,
+      );
+      act(() => new FakeChannel("sequel-session").postMessage({ type: "signed-out" }));
+      const ended = await screen.findByRole("alertdialog", { name: "You’ve been signed out" });
+      // Shown modal after the open Dialog, so it is the topmost: above it, and
+      // the one element the browser leaves interactive.
+      expect(ended.tagName).toBe("DIALOG");
+      expect(topLayer.at(-1)).toBe(ended);
+      expect(topLayer).toHaveLength(2);
+      // Escape (cancel) is refused, and a browser that closes it anyway gets it back.
+      const cancel = new Event("cancel", { cancelable: true });
+      ended.dispatchEvent(cancel);
+      expect(cancel.defaultPrevented).toBe(true);
+      act(() => (ended as HTMLDialogElement).close());
+      expect(ended.hasAttribute("open")).toBe(true);
+      expect(topLayer.at(-1)).toBe(ended);
+      cleanup();
+      expect(topLayer).toHaveLength(0);
+    } finally {
+      delete proto.showModal;
+      delete proto.close;
+    }
   });
 
   it("gives the page back when the dialog goes, leaving already-inert parts inert", async () => {
@@ -156,7 +201,7 @@ describe("SessionWatch expiry warning (owner ruling 2026-10-21, UX audit Q6)", (
     const dialog = screen.getByRole("alertdialog", { name: "Your session is about to end" });
     expect(dialog.textContent).toMatch(/signed out in about 2 minutes/);
     // Still signed in: the page stays visible behind the warning.
-    expect(dialog.parentElement?.hasAttribute("data-conceal")).toBe(false);
+    expect(dialog.hasAttribute("data-conceal")).toBe(false);
     const stay = screen.getByRole("button", { name: "Stay Signed In" });
     expect(document.activeElement).toBe(stay);
     expect(screen.getByText("Save Changes").closest("[inert]")).not.toBeNull();
@@ -180,6 +225,31 @@ describe("SessionWatch expiry warning (owner ruling 2026-10-21, UX audit Q6)", (
       fireEvent.click(screen.getByRole("button", { name: "Stay Signed In" }));
     });
     expect(screen.getByRole("alertdialog", { name: "You’ve been signed out" })).toBeTruthy();
+  });
+
+  it("a Stay Signed In that gets a 5xx or 429 keeps the warning up with Try Again (PR review F2)", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(null, { status: 502 }));
+    vi.stubGlobal("fetch", fetchMock);
+    render(<SessionWatch idleTimeoutSeconds={600} />);
+    await act(async () => vi.advanceTimersByTime(8 * 60_000 + 100));
+    const before = localStorage.getItem("sequel.session.lastActive");
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Stay Signed In" }));
+    });
+    expect(screen.getByRole("alertdialog", { name: "Your session is about to end" })).toBeTruthy();
+    expect(screen.getByRole("status").textContent).toMatch(/couldn’t reach the server/);
+    expect(localStorage.getItem("sequel.session.lastActive")).toBe(before);
+    fetchMock.mockResolvedValue(new Response(null, { status: 429 }));
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Try Again" }));
+    });
+    expect(screen.getByRole("alertdialog", { name: "Your session is about to end" })).toBeTruthy();
+    expect(localStorage.getItem("sequel.session.lastActive")).toBe(before);
+    fetchMock.mockResolvedValue(new Response(JSON.stringify({ user: {} })));
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Try Again" }));
+    });
+    expect(screen.queryByRole("alertdialog")).toBeNull();
   });
 
   it("shows the signed-out dialog when the countdown runs out, without asking the server", async () => {

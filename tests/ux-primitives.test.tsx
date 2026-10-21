@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { chartTheme } from "../brand/chart-theme";
 import { ENTITY_KEYS } from "../brand/entities";
 import { ThemeToggle } from "../theme/ThemeToggle";
-import { Dialog, RygStatus, SkipLink, titleTemplate, useConfirmStep, MAIN_CONTENT_ID } from "../ui";
+import { Button, Dialog, RygStatus, SkipLink, titleTemplate, useConfirmStep, MAIN_CONTENT_ID } from "../ui";
 
 afterEach(cleanup);
 
@@ -100,17 +100,18 @@ describe("Dialog (FND-18)", () => {
   });
 });
 
+// The foundation Button takes the refs (React 19 passes ref as a prop).
 function ConfirmHost() {
   const step = useConfirmStep();
   return step.armed ? (
     <>
-      <button ref={step.confirmRef}>Confirm Approve</button>
-      <button onClick={step.cancel}>Cancel</button>
+      <Button ref={step.confirmRef}>Confirm Approve</Button>
+      <Button onClick={step.cancel}>Cancel</Button>
     </>
   ) : (
-    <button ref={step.armRef} onClick={step.arm}>
+    <Button ref={step.armRef} onClick={step.arm}>
       Approve
-    </button>
+    </Button>
   );
 }
 

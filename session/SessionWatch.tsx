@@ -63,11 +63,12 @@ export function SessionWatch({
   const [ended, setEnded] = useState(false);
   const [warnUntil, setWarnUntil] = useState<number | null>(null);
   const [staying, setStaying] = useState(false);
+  const [stayFailed, setStayFailed] = useState(false);
   const lastCheck = useRef(0);
   const buttonRef = useRef<HTMLAnchorElement>(null);
-  const overlayRef = useRef<HTMLDivElement>(null);
+  const overlayRef = useRef<HTMLDialogElement>(null);
   const stayRef = useRef<HTMLButtonElement>(null);
-  const warnOverlayRef = useRef<HTMLDivElement>(null);
+  const warnOverlayRef = useRef<HTMLDialogElement>(null);
   const activityRef = useRef<(at: number) => void>(() => {});
   const warnOn = !!sessionUrl && !!idleTimeoutSeconds && idleTimeoutSeconds > 0;
 
@@ -167,13 +168,20 @@ export function SessionWatch({
   async function staySignedIn() {
     if (!sessionUrl) return;
     setStaying(true);
+    setStayFailed(false);
     try {
-      // Reading the session re-issues the cookie: that is what keeps it.
+      // Reading the session re-issues the cookie: that is what keeps it. Only a
+      // real answer counts — a 5xx or 429 (a cold start, a blip) may not have
+      // re-issued it, so the warning stays up with a Try Again.
       const res = await fetch(sessionUrl, { cache: "no-store", credentials: "same-origin" });
-      if (!(await check(res))) setEnded(true);
-      else activityRef.current(Date.now()); // closes the warning, restarts the clock
+      if (res.ok || res.status === 401) {
+        if (await check(res)) activityRef.current(Date.now()); // closes the warning, restarts the clock
+        else setEnded(true);
+      } else {
+        setStayFailed(true);
+      }
     } catch {
-      // Offline: leave the warning up so the person can try again.
+      setStayFailed(true); // offline: leave the warning up so the person can try again
     } finally {
       setStaying(false);
     }
@@ -182,10 +190,10 @@ export function SessionWatch({
   if (!ended && warnUntil !== null) {
     return (
       <ModalShell overlayRef={warnOverlayRef} id="session-expiring" title="Your session is about to end"
-        body={<ExpiryBody until={warnUntil} />}>
+        body={<ExpiryBody until={warnUntil} failed={stayFailed} />}>
         <button ref={stayRef} type="button" onClick={staySignedIn} disabled={staying}
           className={buttonClasses({ size: "md" })}>
-          {staying ? "Staying Signed In…" : "Stay Signed In"}
+          {staying ? "Staying Signed In…" : stayFailed ? "Try Again" : "Stay Signed In"}
         </button>
       </ModalShell>
     );
@@ -210,32 +218,64 @@ function safeLocalStorage(): Storage | null {
   }
 }
 
-// The dialogs are modal: everything else on the page goes inert while one
-// shows, so Tab and a screen reader stay in it instead of walking controls
-// that no longer work (UX audit 2026-10-21, FND-11). The overlay renders
-// straight into <body> so its siblings are exactly "the rest of the page".
-function useModal(open: boolean, overlayRef: RefObject<HTMLElement | null>, focusRef: RefObject<HTMLElement | null>) {
+// The dialogs are modal, on the native <dialog> opened with showModal() (UX
+// audit 2026-10-21, FND-11; PR review F1). That puts them in the browser's top
+// layer ABOVE any modal already open — a ui/Dialog the person left up stays
+// underneath, hidden by the signed-out screen, instead of painting over it and
+// keeping Sign In Again from being clicked (a z-index can't reach the top
+// layer). showModal also makes the rest of the page inert and keeps Tab inside.
+// Without showModal (old browsers, test environments) the page's other <body>
+// children are marked inert by hand. Escape never closes these two: the
+// signed-out screen has no way back but signing in, and the warning closes on
+// Stay Signed In; a browser that closes one anyway (Chrome lets a second
+// Escape through) gets it reopened.
+function useModal(open: boolean, dialogRef: RefObject<HTMLDialogElement | null>, focusRef: RefObject<HTMLElement | null>) {
   useEffect(() => {
     if (!open) return;
-    const overlay = overlayRef.current;
-    const made: Element[] = [];
-    for (const el of Array.from(document.body.children)) {
-      if (el === overlay || el.hasAttribute("inert")) continue;
-      el.setAttribute("inert", "");
-      made.push(el);
-    }
+    const dialog = dialogRef.current;
+    if (!dialog) return;
     const before = document.activeElement as HTMLElement | null;
+    const made: Element[] = [];
+    const native = typeof dialog.showModal === "function";
+    const show = () => {
+      if (native) {
+        if (dialog.open) dialog.close(); // opened non-modal somehow: reopen as modal, on top
+        dialog.showModal();
+      } else {
+        dialog.setAttribute("open", "");
+      }
+    };
+    show();
+    if (!native) {
+      for (const el of Array.from(document.body.children)) {
+        if (el === dialog || el.hasAttribute("inert")) continue;
+        el.setAttribute("inert", "");
+        made.push(el);
+      }
+    }
+    const onCancel = (e: Event) => e.preventDefault();
+    let closing = false;
+    const onClose = () => {
+      if (!closing) show();
+    };
+    dialog.addEventListener("cancel", onCancel);
+    dialog.addEventListener("close", onClose);
     focusRef.current?.focus();
     return () => {
+      closing = true;
+      dialog.removeEventListener("cancel", onCancel);
+      dialog.removeEventListener("close", onClose);
+      if (native && dialog.open && typeof dialog.close === "function") dialog.close();
+      else dialog.removeAttribute("open");
       made.forEach((el) => el.removeAttribute("inert"));
       // Back to where the person was (the warning closes on Stay Signed In).
       if (before && before.isConnected && before !== document.body) before.focus();
     };
-  }, [open, overlayRef, focusRef]);
+  }, [open, dialogRef, focusRef]);
 }
 
 function ModalShell({ overlayRef, id, title, body, conceal = false, children }: {
-  overlayRef: RefObject<HTMLDivElement | null>;
+  overlayRef: RefObject<HTMLDialogElement | null>;
   /** Hide the page behind the dialog, not just dim it. */
   conceal?: boolean;
   id: string;
@@ -243,19 +283,22 @@ function ModalShell({ overlayRef, id, title, body, conceal = false, children }: 
   body: ReactNode;
   children: ReactNode;
 }) {
+  // The <dialog> itself is the full-screen ground (opaque when concealing), so
+  // nothing beneath it shows through whatever else sits in the top layer.
+  // `hidden open:flex`: invisible until it is actually open.
   return createPortal(
-    <div
+    <dialog
       ref={overlayRef}
+      role="alertdialog"
+      aria-modal="true"
+      aria-labelledby={`${id}-title`}
+      aria-describedby={`${id}-body`}
       data-conceal={conceal || undefined}
-      className={`fixed inset-0 z-[100] flex items-center justify-center p-4 ${conceal ? "bg-zinc-100 dark:bg-zinc-950" : "bg-black/40"}`}
+      className={`fixed inset-0 m-0 hidden h-full max-h-none w-full max-w-none items-center justify-center border-0 p-4 backdrop:bg-transparent open:flex ${
+        conceal ? "bg-zinc-100 dark:bg-zinc-950" : "bg-black/40"
+      }`}
     >
-      <div
-        role="alertdialog"
-        aria-modal="true"
-        aria-labelledby={`${id}-title`}
-        aria-describedby={`${id}-body`}
-        className="w-full max-w-sm rounded-lg border border-zinc-200 bg-white p-6 text-left shadow-lg dark:border-zinc-700 dark:bg-zinc-900"
-      >
+      <div className="w-full max-w-sm rounded-lg border border-zinc-200 bg-white p-6 text-left text-zinc-900 shadow-lg dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100">
         <h2 id={`${id}-title`} className="text-lg font-semibold text-brand-navy dark:text-zinc-100">
           {title}
         </h2>
@@ -264,14 +307,14 @@ function ModalShell({ overlayRef, id, title, body, conceal = false, children }: 
         </div>
         <div className="mt-5 flex justify-end">{children}</div>
       </div>
-    </div>,
+    </dialog>,
     document.body,
   );
 }
 
 // The sentence is read once when the dialog opens; the ticking clock beside it
 // is hidden from screen readers so it doesn't announce every second.
-function ExpiryBody({ until }: { until: number }) {
+function ExpiryBody({ until, failed }: { until: number; failed: boolean }) {
   const [opened] = useState(() => until - Date.now());
   const [left, setLeft] = useState(opened);
   useEffect(() => {
@@ -283,6 +326,10 @@ function ExpiryBody({ until }: { until: number }) {
       <p>{expiryWarningText(opened)}</p>
       <p aria-hidden className="mt-2 text-2xl font-semibold tabular-nums text-brand-navy dark:text-zinc-100">
         {formatCountdown(left)}
+      </p>
+      {/* Kept in the page (empty) so the failure is announced when it appears. */}
+      <p role="status" className={failed ? "mt-2 text-brand-danger" : ""}>
+        {failed ? "We couldn’t reach the server to keep you signed in. Try again." : ""}
       </p>
     </>
   );
