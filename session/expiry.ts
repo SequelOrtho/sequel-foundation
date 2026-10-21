@@ -20,10 +20,18 @@ const NOT_THROUGH_PROXY = /^\/(_next\/(static|image)|favicon\.ico)/;
 
 /** True when a resource-timing entry is a request that extended the session. */
 export function extendsSession(
-  entry: { name: string; initiatorType: string },
+  entry: { name: string; initiatorType: string; responseStatus?: number },
   origin: string,
 ): boolean {
   if (entry.initiatorType !== "fetch" && entry.initiatorType !== "xmlhttprequest") return false;
+  // A failed request is not activity (owner ruling 2026-10-21, Mike: "3-No" to
+  // "Should a failed same-origin fetch … count as activity?"): a 4xx or 5xx
+  // reply, or a request that never got one (status 0), leaves the countdown
+  // alone, so a page polling after its session ended still reaches the
+  // signed-out screen. A browser that doesn't report the status counts the
+  // request, as before.
+  const status = entry.responseStatus;
+  if (typeof status === "number" && (status === 0 || status >= 400)) return false;
   let url: URL;
   try {
     url = new URL(entry.name);

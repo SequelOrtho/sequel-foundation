@@ -27,6 +27,17 @@ describe("session expiry, pure", () => {
     expect(extendsSession({ name: `${O}/api/auth/providers`, initiatorType: "fetch" }, O)).toBe(false);
   });
 
+  it("never counts a failed request as activity (owner ruling 2026-10-21, \"3-No\")", () => {
+    const at = (responseStatus?: number) => ({ name: `${O}/api/poll`, initiatorType: "fetch", responseStatus });
+    expect(extendsSession(at(200), O)).toBe(true);
+    expect(extendsSession(at(304), O)).toBe(true);
+    expect(extendsSession(at(401), O)).toBe(false);
+    expect(extendsSession(at(403), O)).toBe(false);
+    expect(extendsSession(at(500), O)).toBe(false);
+    expect(extendsSession(at(0), O)).toBe(false);
+    expect(extendsSession(at(undefined), O)).toBe(true); // a browser that doesn't report it
+  });
+
   it("times the warning and the end from the latest request", () => {
     expect(endsAt(1_000, 600_000)).toBe(601_000);
     expect(warningAt(1_000, 600_000, 120_000)).toBe(481_000);
