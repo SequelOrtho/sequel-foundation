@@ -114,7 +114,7 @@ Per flow:
 
 ## 7. Writing & labels
 
-- **Title Case for buttons, tiles, and nav items** — every word of a multi-word label is capitalized ("Portfolio Hub", "Audit Log", never "Portfolio hub"), across the top-nav menus and menu entries of every hub; sentence case for body and hints. (Owner ruling 2026-09-01, after sentence-case labels crept into the Project Hub's Portfolio and Admin menus.)
+- **Title Case for buttons, tiles, and nav items** — every word of a multi-word label is capitalized ("Portfolio Hub", "Audit Log", never "Portfolio hub"), across the top-nav menus and menu entries of every hub; sentence case for body and hints. (Owner ruling 2026-09-01, after sentence-case labels crept into the Project Hub's Portfolio and Admin menus.) Short function words (a, an, and, as, at, by, for, from, in, of, on, or, the, to, with) stay lower case except as the first or last word ("Reset to Default", "Sign In"). Both halves of a hyphenated word are capitalized ("Revoke Sign-Off", "Go-Live", "Re-Run", "Pre-Expansion"; owner ruling 2026-10-21, Mike chose "Both halves (Sign-Off, Go-Live)"). The same rule covers links styled as buttons, arrow links ("Open Timeline →", "← Back to Projects"), toast actions and tile calls to action; each hub's `tests/button-title-case.test.ts` guards it, and a hub's user guide names each button exactly as it reads.
 - **The arrow (→) means hand-off** — pair it with accent actions; plain views stay arrow-less.
 - Say what unlocks a locked thing ("Complete due diligence to unlock"), not just that it's locked.
 - Error messages name the likely cause and the fix ("the configured API key lacks permission for this model — check ANTHROPIC_API_KEY").
