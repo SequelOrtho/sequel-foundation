@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, type ReactNode, type RefObject } from "react";
 import { createPortal } from "react-dom";
 import { buttonClasses } from "../ui/Button";
-import { isSigningOutHere, onSessionMessage } from "./channel";
+import { announceSignOut, isSigningOutHere, onSessionMessage } from "./channel";
 import {
   DEFAULT_WARN_BEFORE_SECONDS,
   LAST_ACTIVE_KEY,
@@ -15,7 +15,7 @@ import {
   warningAt,
   writeLastActive,
 } from "./expiry";
-import { signInHref } from "./policy";
+import { SIGN_OUT_PATH, safeCallbackUrl } from "./policy";
 
 // Notices when the session behind an open page has ended — signed out in
 // another tab, or expired while the tab sat idle — and says so with a way
@@ -65,12 +65,19 @@ export function SessionWatch({
   const [staying, setStaying] = useState(false);
   const [stayFailed, setStayFailed] = useState(false);
   const lastCheck = useRef(0);
-  const buttonRef = useRef<HTMLAnchorElement>(null);
+  const endedRef = useRef(false);
+  const stayInFlight = useRef(false);
+  const scheduleRef = useRef<() => void>(() => {});
+  const buttonRef = useRef<HTMLButtonElement>(null);
   const overlayRef = useRef<HTMLDialogElement>(null);
   const stayRef = useRef<HTMLButtonElement>(null);
   const warnOverlayRef = useRef<HTMLDialogElement>(null);
   const activityRef = useRef<(at: number) => void>(() => {});
   const warnOn = !!sessionUrl && !!idleTimeoutSeconds && idleTimeoutSeconds > 0;
+
+  useEffect(() => {
+    endedRef.current = ended;
+  }, [ended]);
 
   useEffect(() => {
     const end = () => {
@@ -79,6 +86,10 @@ export function SessionWatch({
     const stop = onSessionMessage(end);
     const onVisible = async () => {
       if (!sessionUrl || document.visibilityState !== "visible") return;
+      // Once the signed-out screen shows, this tab asks the server nothing more:
+      // a session read re-issues the cookie, so asking would keep alive a
+      // session the screen says has ended (PR review, round 2).
+      if (endedRef.current) return;
       const now = Date.now();
       if (now - lastCheck.current < RECHECK_MS) return;
       lastCheck.current = now;
@@ -116,7 +127,11 @@ export function SessionWatch({
       const at = warningAt(last, idleMs, warnMs);
       const now = Date.now();
       if (now >= endsAt(last, idleMs)) {
+        // A Stay Signed In still on its way (a cold start) decides: its answer
+        // reschedules, or ends it if the session is gone.
+        if (stayInFlight.current) return;
         setWarnUntil(null);
+        setStayFailed(false);
         setEnded(true);
         return;
       }
@@ -126,6 +141,7 @@ export function SessionWatch({
         return;
       }
       setWarnUntil(null);
+      setStayFailed(false);
       // Re-check at the warning time (timers in background tabs can fire late;
       // the comparison above corrects for that).
       timer = setTimeout(schedule, at - now);
@@ -138,11 +154,15 @@ export function SessionWatch({
       schedule();
     };
     activityRef.current = seen;
+    scheduleRef.current = schedule;
     let observer: PerformanceObserver | undefined;
     try {
       observer = new PerformanceObserver((list) => {
         for (const e of list.getEntries() as PerformanceResourceTiming[]) {
-          if (extendsSession(e, window.location.origin)) seen(origin + e.startTime);
+          // Dated by its age, not from the page's time origin: performance.now()
+          // stops while the computer sleeps, so origin + startTime would date a
+          // request made after a night's sleep hours too early.
+          if (extendsSession(e, window.location.origin)) seen(Date.now() - (performance.now() - e.startTime));
         }
       });
       observer.observe({ type: "resource", buffered: false });
@@ -154,11 +174,24 @@ export function SessionWatch({
       if (e.key === LAST_ACTIVE_KEY) schedule();
     };
     window.addEventListener("storage", onStorage);
+    // A download link (ExportBar's <a download>) goes through the proxy but
+    // leaves no fetch entry, so its click is counted here.
+    const onClick = (e: MouseEvent) => {
+      const a = (e.target as Element | null)?.closest?.("a[download]") as HTMLAnchorElement | null;
+      if (!a) return;
+      try {
+        if (new URL(a.href, window.location.href).origin === window.location.origin) seen(Date.now());
+      } catch {
+        // Not a URL: nothing was requested.
+      }
+    };
+    document.addEventListener("click", onClick, true);
     schedule();
     return () => {
       clearTimeout(timer);
       observer?.disconnect();
       window.removeEventListener("storage", onStorage);
+      document.removeEventListener("click", onClick, true);
     };
   }, [warnOn, idleTimeoutSeconds, warnBeforeSeconds]);
 
@@ -169,6 +202,7 @@ export function SessionWatch({
     if (!sessionUrl) return;
     setStaying(true);
     setStayFailed(false);
+    stayInFlight.current = true;
     try {
       // Reading the session re-issues the cookie: that is what keeps it. Only a
       // real answer counts — a 5xx or 429 (a cold start, a blip) may not have
@@ -183,7 +217,9 @@ export function SessionWatch({
     } catch {
       setStayFailed(true); // offline: leave the warning up so the person can try again
     } finally {
+      stayInFlight.current = false;
       setStaying(false);
+      scheduleRef.current(); // if the countdown ran out meanwhile, it ends now
     }
   }
 
@@ -199,13 +235,20 @@ export function SessionWatch({
     );
   }
   if (!ended) return null;
-  const href = signInHref(window.location.pathname + window.location.search);
+  const back = safeCallbackUrl(window.location.pathname + window.location.search, "");
+  // Sign In Again signs out for real first (the plain sign-out POST, then the
+  // sign-in page with this page as callbackUrl). The countdown can only
+  // estimate the server's clock, so a cookie may still be alive behind this
+  // screen; on a shared computer the next person must not find it there.
   return (
     <ModalShell overlayRef={overlayRef} id="session-ended" conceal title="You’ve been signed out"
       body="Your session ended, here or in another tab. Sign in again to pick up on this page.">
-      <a ref={buttonRef} href={href} className={buttonClasses({ size: "md" })}>
-        Sign In Again
-      </a>
+      <form method="post" action={SIGN_OUT_PATH} onSubmit={() => announceSignOut()}>
+        {back ? <input type="hidden" name="callbackUrl" value={back} /> : null}
+        <button ref={buttonRef} type="submit" className={buttonClasses({ size: "md" })}>
+          Sign In Again
+        </button>
+      </form>
     </ModalShell>
   );
 }

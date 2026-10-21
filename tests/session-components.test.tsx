@@ -51,7 +51,13 @@ describe("SessionWatch", () => {
     const otherTab = new FakeChannel("sequel-session");
     act(() => otherTab.postMessage({ type: "signed-out" }));
     expect(await screen.findByRole("alertdialog")).toBeTruthy();
-    expect(screen.getByRole("link", { name: "Sign In Again" }).getAttribute("href")).toBe("/auth/signin?callbackUrl=%2F");
+    // Sign In Again signs out for real first: the plain sign-out POST, carrying
+    // the page to come back to (PR review, round 2).
+    const again = screen.getByRole("button", { name: "Sign In Again" });
+    const form = again.closest("form")!;
+    expect(form.getAttribute("method")).toBe("post");
+    expect(form.getAttribute("action")).toBe("/auth/sign-out");
+    expect(form.querySelector<HTMLInputElement>("input[name=callbackUrl]")!.value).toBe("/");
   });
 
   it("makes the rest of the page inert while the dialog shows", async () => {
@@ -66,7 +72,7 @@ describe("SessionWatch", () => {
     const dialog = await screen.findByRole("alertdialog");
     expect(dialog.closest("[inert]")).toBeNull();
     expect(screen.getByText("Save Changes").closest("[inert]")).not.toBeNull();
-    expect(document.activeElement).toBe(screen.getByRole("link", { name: "Sign In Again" }));
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: "Sign In Again" }));
     // Signed out: the previous person's page is hidden, not just dimmed.
     expect(dialog.hasAttribute("data-conceal")).toBe(true);
   });
@@ -259,6 +265,71 @@ describe("SessionWatch expiry warning (owner ruling 2026-10-21, UX audit Q6)", (
     await act(async () => vi.advanceTimersByTime(10 * 60_000 + 100));
     expect(screen.getByRole("alertdialog", { name: "You’ve been signed out" })).toBeTruthy();
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("asks the server nothing more once the countdown has shown the signed-out screen (round 2)", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ user: {} })));
+    vi.stubGlobal("fetch", fetchMock);
+    render(<SessionWatch idleTimeoutSeconds={600} />);
+    await act(async () => vi.advanceTimersByTime(10 * 60_000 + 100));
+    expect(screen.getByRole("alertdialog", { name: "You’ve been signed out" })).toBeTruthy();
+    await act(async () => vi.advanceTimersByTime(2 * 60_000));
+    await act(async () => {
+      fireEvent(document, new Event("visibilitychange"));
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("a Stay Signed In still on its way when the countdown ends decides the outcome (round 2)", async () => {
+    let answer: (r: Response) => void = () => {};
+    vi.stubGlobal("fetch", vi.fn(() => new Promise<Response>((resolve) => (answer = resolve))));
+    render(<SessionWatch idleTimeoutSeconds={600} />);
+    await act(async () => vi.advanceTimersByTime(10 * 60_000 - 1_000));
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Stay Signed In" }));
+    });
+    await act(async () => vi.advanceTimersByTime(3_000)); // a cold start outlasts the countdown
+    expect(screen.queryByRole("alertdialog", { name: "You’ve been signed out" })).toBeNull();
+    await act(async () => answer(new Response(JSON.stringify({ user: {} }))));
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+  });
+
+  it("dates a request by its age, so a sleep doesn't make the warning early (round 2)", async () => {
+    const entries: { name: string; initiatorType: string; startTime: number }[] = [];
+    let notify: (list: { getEntries: () => typeof entries }) => void = () => {};
+    vi.stubGlobal(
+      "PerformanceObserver",
+      class {
+        constructor(cb: typeof notify) {
+          notify = cb;
+        }
+        observe() {}
+        disconnect() {}
+      },
+    );
+    vi.stubGlobal("fetch", vi.fn());
+    render(<SessionWatch idleTimeoutSeconds={600} />);
+    // Five hours of sleep: the wall clock moves, performance.now() doesn't.
+    const perfNow = performance.now();
+    vi.setSystemTime(Date.now() + 5 * 3_600_000);
+    vi.spyOn(performance, "now").mockReturnValue(perfNow + 1_000);
+    act(() => notify({ getEntries: () => [{ name: `${window.location.origin}/api/x`, initiatorType: "fetch", startTime: perfNow + 900 }] }));
+    expect(Number(localStorage.getItem("sequel.session.lastActive"))).toBe(Date.now() - 100);
+  });
+
+  it("counts a click on a same-origin download link as activity (round 2)", async () => {
+    vi.stubGlobal("fetch", vi.fn());
+    render(
+      <>
+        <a href="/api/export/x.xlsx" download onClick={(e) => e.preventDefault()}>
+          Download
+        </a>
+        <SessionWatch idleTimeoutSeconds={600} />
+      </>,
+    );
+    await act(async () => vi.advanceTimersByTime(5 * 60_000));
+    fireEvent.click(screen.getByText("Download"));
+    expect(localStorage.getItem("sequel.session.lastActive")).toBe(String(Date.now()));
   });
 
   it("another tab's activity pushes the warning back", async () => {

@@ -1,7 +1,8 @@
 // A stoplight status that never rides on color alone (UX audit 2026-10-21,
 // FND-20; DESIGN-CONVENTIONS §2 "Icon + label"): each level has its own glyph
 // shape AND its word, and the colors are the theme's RYG text tokens, which
-// meet 4.5:1 on white, zinc-50 / 100, the surface and the dark grounds
+// meet 4.5:1 on white, zinc-50 / 100, the surface and the dark grounds; "none"
+// is zinc-600 / zinc-400, held to the same grounds
 // (tests/ryg-contrast.test.ts; a bare yellow dot is 1.9:1 on white).
 
 export type RygLevel = "green" | "yellow" | "red" | "none";
@@ -20,7 +21,8 @@ const TONE: Record<RygLevel, string> = {
   green: "text-ryg-green-text",
   yellow: "text-ryg-yellow-text",
   red: "text-ryg-red-text",
-  none: "text-brand-muted",
+  // Its own pair, not text-brand-muted: Sequel's muted is 4.36:1 on zinc-100.
+  none: "text-zinc-600 dark:text-zinc-400",
 };
 
 export function RygStatus({

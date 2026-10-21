@@ -23,10 +23,16 @@ const GROUNDS = {
 } as const;
 
 describe("RYG text tokens (RygStatus)", () => {
+  it("the 'none' level uses the zinc pair the contrast check holds", async () => {
+    const src = (await import("node:fs")).readFileSync(new URL("../ui/RygStatus.tsx", import.meta.url), "utf8");
+    expect(src).toContain('none: "text-zinc-600 dark:text-zinc-400"');
+  });
   for (const theme of ["light", "dark"] as const) {
     it(`reach 4.5:1 on every ${theme} ground`, () => {
       const c = brandColors(theme);
-      for (const text of [c.rygGreenText, c.rygYellowText, c.rygRedText]) {
+      // "none" is zinc-600 in light mode, zinc-400 in dark (ui/RygStatus.tsx).
+      const none = theme === "light" ? "#52525b" : "#a1a1aa";
+      for (const text of [c.rygGreenText, c.rygYellowText, c.rygRedText, none]) {
         for (const ground of GROUNDS[theme]) {
           expect(contrast(text, ground), `${text} on ${ground}`).toBeGreaterThanOrEqual(4.5);
         }
