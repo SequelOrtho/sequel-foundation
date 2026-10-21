@@ -15,7 +15,7 @@ import {
   warningAt,
   writeLastActive,
 } from "./expiry";
-import { SIGN_OUT_PATH, safeCallbackUrl } from "./policy";
+import { SIGN_OUT_PATH, safeCallbackUrl, signInHref } from "./policy";
 
 // Notices when the session behind an open page has ended — signed out in
 // another tab, or expired while the tab sat idle — and says so with a way
@@ -45,6 +45,8 @@ export const authjsSessionCheck: SessionCheck = async (res) => {
 };
 
 const RECHECK_MS = 60_000;
+// How long Stay Signed In waits for an answer before treating it as failed.
+const STAY_TIMEOUT_MS = 10_000;
 
 export function SessionWatch({
   sessionUrl = "/api/auth/session",
@@ -61,6 +63,10 @@ export function SessionWatch({
   warnBeforeSeconds?: number;
 }) {
   const [ended, setEnded] = useState(false);
+  // Why it ended: "confirmed" (another tab signed out, or the server said so —
+  // the cookie is already gone) or "countdown" (this tab's own estimate).
+  const [endedBy, setEndedBy] = useState<"confirmed" | "countdown">("confirmed");
+  const countdownLast = useRef(0);
   const [warnUntil, setWarnUntil] = useState<number | null>(null);
   const [staying, setStaying] = useState(false);
   const [stayFailed, setStayFailed] = useState(false);
@@ -68,7 +74,7 @@ export function SessionWatch({
   const endedRef = useRef(false);
   const stayInFlight = useRef(false);
   const scheduleRef = useRef<() => void>(() => {});
-  const buttonRef = useRef<HTMLButtonElement>(null);
+  const buttonRef = useRef<HTMLElement>(null);
   const overlayRef = useRef<HTMLDialogElement>(null);
   const stayRef = useRef<HTMLButtonElement>(null);
   const warnOverlayRef = useRef<HTMLDialogElement>(null);
@@ -81,7 +87,9 @@ export function SessionWatch({
 
   useEffect(() => {
     const end = () => {
-      if (!isSigningOutHere()) setEnded(true);
+      if (isSigningOutHere()) return;
+      setEndedBy("confirmed");
+      setEnded(true);
     };
     const stop = onSessionMessage(end);
     const onVisible = async () => {
@@ -128,10 +136,15 @@ export function SessionWatch({
       const now = Date.now();
       if (now >= endsAt(last, idleMs)) {
         // A Stay Signed In still on its way (a cold start) decides: its answer
-        // reschedules, or ends it if the session is gone.
+        // reschedules, or ends it if the session is gone. It gives up after
+        // STAY_TIMEOUT_MS, so a hung request can't hold the end off.
         if (stayInFlight.current) return;
         setWarnUntil(null);
         setStayFailed(false);
+        if (!endedRef.current) {
+          countdownLast.current = last;
+          setEndedBy("countdown");
+        }
         setEnded(true);
         return;
       }
@@ -207,10 +220,17 @@ export function SessionWatch({
       // Reading the session re-issues the cookie: that is what keeps it. Only a
       // real answer counts — a 5xx or 429 (a cold start, a blip) may not have
       // re-issued it, so the warning stays up with a Try Again.
-      const res = await fetch(sessionUrl, { cache: "no-store", credentials: "same-origin" });
+      const controller = new AbortController();
+      const giveUp = setTimeout(() => controller.abort(), STAY_TIMEOUT_MS);
+      const res = await fetch(sessionUrl, { cache: "no-store", credentials: "same-origin", signal: controller.signal }).finally(
+        () => clearTimeout(giveUp),
+      );
       if (res.ok || res.status === 401) {
         if (await check(res)) activityRef.current(Date.now()); // closes the warning, restarts the clock
-        else setEnded(true);
+        else {
+          setEndedBy("confirmed");
+          setEnded(true);
+        }
       } else {
         setStayFailed(true);
       }
@@ -235,17 +255,43 @@ export function SessionWatch({
     );
   }
   if (!ended) return null;
-  const back = safeCallbackUrl(window.location.pathname + window.location.search, "");
-  // Sign In Again signs out for real first (the plain sign-out POST, then the
-  // sign-in page with this page as callbackUrl). The countdown can only
-  // estimate the server's clock, so a cookie may still be alive behind this
-  // screen; on a shared computer the next person must not find it there.
+  const here = window.location.pathname + window.location.search;
+  if (endedBy === "confirmed") {
+    // Another tab or the server already ended it: the cookie is gone, so this
+    // is the plain sign-in link, as in v0.28.0.
+    return (
+      <ModalShell overlayRef={overlayRef} id="session-ended" conceal title="You’ve been signed out"
+        body="Your session ended, here or in another tab. Sign in again to pick up on this page.">
+        <a ref={buttonRef as RefObject<HTMLAnchorElement | null>} href={signInHref(here)} className={buttonClasses({ size: "md" })}>
+          Sign In Again
+        </a>
+      </ModalShell>
+    );
+  }
+  // The countdown only estimates the server's clock, so a cookie may still be
+  // alive behind this screen; on a shared computer the next person must not
+  // find it there. Sign In Again signs out for real first (the plain sign-out
+  // POST, then the sign-in page with this page as callbackUrl) — unless a tab
+  // has made a request since (the person signed in again elsewhere), when it is
+  // the plain sign-in link, so it never ends that new session.
+  const back = safeCallbackUrl(here, "");
   return (
     <ModalShell overlayRef={overlayRef} id="session-ended" conceal title="You’ve been signed out"
       body="Your session ended, here or in another tab. Sign in again to pick up on this page.">
-      <form method="post" action={SIGN_OUT_PATH} onSubmit={() => announceSignOut()}>
+      <form
+        method="post"
+        action={SIGN_OUT_PATH}
+        onSubmit={(e) => {
+          if (readLastActive(safeLocalStorage()) > countdownLast.current) {
+            e.preventDefault();
+            window.location.assign(signInHref(here));
+            return;
+          }
+          announceSignOut();
+        }}
+      >
         {back ? <input type="hidden" name="callbackUrl" value={back} /> : null}
-        <button ref={buttonRef} type="submit" className={buttonClasses({ size: "md" })}>
+        <button ref={buttonRef as RefObject<HTMLButtonElement | null>} type="submit" className={buttonClasses({ size: "md" })}>
           Sign In Again
         </button>
       </form>

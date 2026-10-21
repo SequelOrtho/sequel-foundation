@@ -51,13 +51,11 @@ describe("SessionWatch", () => {
     const otherTab = new FakeChannel("sequel-session");
     act(() => otherTab.postMessage({ type: "signed-out" }));
     expect(await screen.findByRole("alertdialog")).toBeTruthy();
-    // Sign In Again signs out for real first: the plain sign-out POST, carrying
-    // the page to come back to (PR review, round 2).
-    const again = screen.getByRole("button", { name: "Sign In Again" });
-    const form = again.closest("form")!;
-    expect(form.getAttribute("method")).toBe("post");
-    expect(form.getAttribute("action")).toBe("/auth/sign-out");
-    expect(form.querySelector<HTMLInputElement>("input[name=callbackUrl]")!.value).toBe("/");
+    // Another tab confirmed it: the cookie is gone, so Sign In Again is the
+    // plain sign-in link, never a sign-out (PR review round 2, F10).
+    const again = screen.getByRole("link", { name: "Sign In Again" });
+    expect(again.getAttribute("href")).toBe("/auth/signin?callbackUrl=%2F");
+    expect(again.closest("form")).toBeNull();
   });
 
   it("makes the rest of the page inert while the dialog shows", async () => {
@@ -72,7 +70,7 @@ describe("SessionWatch", () => {
     const dialog = await screen.findByRole("alertdialog");
     expect(dialog.closest("[inert]")).toBeNull();
     expect(screen.getByText("Save Changes").closest("[inert]")).not.toBeNull();
-    expect(document.activeElement).toBe(screen.getByRole("button", { name: "Sign In Again" }));
+    expect(document.activeElement).toBe(screen.getByRole("link", { name: "Sign In Again" }));
     // Signed out: the previous person's page is hidden, not just dimmed.
     expect(dialog.hasAttribute("data-conceal")).toBe(true);
   });
@@ -265,6 +263,43 @@ describe("SessionWatch expiry warning (owner ruling 2026-10-21, UX audit Q6)", (
     await act(async () => vi.advanceTimersByTime(10 * 60_000 + 100));
     expect(screen.getByRole("alertdialog", { name: "You’ve been signed out" })).toBeTruthy();
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("after a countdown end, Sign In Again signs out first, unless a tab signed in again since (round 2, F6/F10)", async () => {
+    vi.stubGlobal("fetch", vi.fn());
+    render(<SessionWatch idleTimeoutSeconds={600} />);
+    await act(async () => vi.advanceTimersByTime(10 * 60_000 + 100));
+    const again = screen.getByRole("button", { name: "Sign In Again" });
+    const form = again.closest("form")!;
+    expect(form.getAttribute("method")).toBe("post");
+    expect(form.getAttribute("action")).toBe("/auth/sign-out");
+    expect(form.querySelector<HTMLInputElement>("input[name=callbackUrl]")!.value).toBe("/");
+    // Submitting with nothing newer: the sign-out POST goes ahead.
+    const first = new Event("submit", { cancelable: true, bubbles: true });
+    form.dispatchEvent(first);
+    expect(first.defaultPrevented).toBe(false);
+    // The person signs in again in another tab, which records a request.
+    localStorage.setItem("sequel.session.lastActive", String(Date.now()));
+    const assign = vi.fn();
+    vi.stubGlobal("location", { ...window.location, pathname: "/", search: "", assign });
+    const second = new Event("submit", { cancelable: true, bubbles: true });
+    form.dispatchEvent(second);
+    expect(second.defaultPrevented).toBe(true);
+    expect(assign).toHaveBeenCalledWith("/auth/signin?callbackUrl=%2F");
+  });
+
+  it("a Stay Signed In that never answers gives up, and the countdown ends it (round 2, F11)", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((_url: string, init: RequestInit) => new Promise<Response>((_, reject) => init.signal?.addEventListener("abort", () => reject(new Error("aborted"))))),
+    );
+    render(<SessionWatch idleTimeoutSeconds={600} />);
+    await act(async () => vi.advanceTimersByTime(10 * 60_000 - 1_000));
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Stay Signed In" }));
+    });
+    await act(async () => vi.advanceTimersByTime(11_000));
+    expect(screen.getByRole("alertdialog", { name: "You’ve been signed out" }).hasAttribute("data-conceal")).toBe(true);
   });
 
   it("asks the server nothing more once the countdown has shown the signed-out screen (round 2)", async () => {
