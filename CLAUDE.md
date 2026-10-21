@@ -32,13 +32,13 @@ A shared-behavior change is one PR here + tag, then one pin-bump PR per app, eac
 | Repo | App | Rollout notes |
 |---|---|---|
 | `project-insights` | Project Hub | PR template enforces the §5a checklist + full local gate (typecheck · lint · test · build); guide-regen rule applies only when the guide's prose covers the changed surface. Squash merges. Largest CI (~6 min); forms use a local uppercase `labelCls` — pass it as `labelClassName` on converted dropdowns. |
-| `Sequel_Ortho` | Acquisition Hub | Imports UI through the `components/ui/index.ts` shim — a new foundation export used by this app must be re-exported there. Phase editors' `Select<T>` wrapper in `editors/_shared.tsx` fronts ~70 dropdowns (`EDITOR_SELECT_CLASS` / `EDITOR_LABEL_CLASS`) — change it once, not per site. **Merge commits**, not squash. |
+| `Sequel_Ortho` | Market Expansion Hub (formerly Acquisition Hub) | Imports UI through the `components/ui/index.ts` shim — a new foundation export used by this app must be re-exported there. Phase editors' `Select<T>` wrapper in `editors/_shared.tsx` fronts ~70 dropdowns (`EDITOR_SELECT_CLASS` / `EDITOR_LABEL_CLASS`) — change it once, not per site. **Merge commits**, not squash. |
 | `sequel-doc-hub` | Document Hub | **Merge commits**, not squash. |
 | `scheduler-hub` | Scheduler Hub | Squash. Header title hidden on phones — keep that treatment when touching the brand link. Apex is Cloudflare-fronted — validate live via the deploy permalink. |
 | `incident-event-hub` | Incident & Event Hub | Squash. |
 | `missed-punch-hub` | Missed Punch Hub | Squash. **npm 11 lockfile** — run `pin-foundation.sh` with npm 11 first on PATH (the container ships npm 10, which strips ~48–148 `libc` lines); a correct pin diff is 3 lines. Reference implementation of the in-app alerts inbox (§3). |
 | `sequel-audit-hub` | Audit Hub | Squash. Apex domain is Cloudflare-fronted — validate live via the Netlify deploy permalink. |
-| `workers-comp-portal` | (unnamed) | Squash. ★ TEMPLATE checklist never completed — header/CLAUDE.md/README still say "Sequel App Template"; rename pending with the owner. No deploy target yet (template step 7), so nothing to validate live. |
+| `workers-comp-portal` | (unnamed) | Outside the multi-hub project's sessions (not in their repository scope); listed so a fleet-wide pin sweep run from elsewhere still covers it. Squash. ★ TEMPLATE checklist never completed — header/CLAUDE.md/README still say "Sequel App Template"; rename pending with the owner. No deploy target yet (template step 7), so nothing to validate live. |
 | `sequel-app-template` | new-app starter | Squash. ADOPTING.md points here for canonical layout wiring — keep `app/layout.tsx` current. |
 
 ## Lessons learned (Aug 2026, HomeLink rollout)
