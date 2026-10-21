@@ -8,7 +8,7 @@ import {
   sameOriginLinks,
   themeInitFor,
   type AxeViolation,
-} from "../testing/a11y";
+} from "../testing/a11y.mjs";
 
 const v = (id: string, impact: AxeViolation["impact"], nodes = 1): AxeViolation => ({
   id,
@@ -67,5 +67,17 @@ describe("a11y CI helpers (UX audit Q5 / FND-22)", () => {
     const localStorage = { setItem: (k: string, val: string) => store.set(k, val) };
     new Function("localStorage", themeInitFor('sch.theme"', "dark"))(localStorage);
     expect(store.get('sch.theme"')).toBe("dark");
+  });
+});
+
+// a11y.mjs and a11y.d.mts are edited by hand side by side (Playwright can't
+// load TypeScript from node_modules); keep their exports in step.
+describe("testing/a11y ships matching JS and types", () => {
+  it("declares every runtime export and nothing else", async () => {
+    const { readFileSync } = await import("node:fs");
+    const runtime = Object.keys(await import("../testing/a11y.mjs")).sort();
+    const dts = readFileSync(new URL("../testing/a11y.d.mts", import.meta.url), "utf8");
+    const declared = [...dts.matchAll(/export declare (?:const|function) (\w+)/g)].map((m) => m[1]).sort();
+    expect(declared).toEqual(runtime);
   });
 });

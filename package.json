@@ -29,7 +29,10 @@
     "./docs-kit/guide-contents": "./docs-kit/guide-contents.mjs",
     "./docs-kit/docx-brand": "./docs-kit/docx-brand.ts",
     "./docs-kit/xlsx-brand": "./docs-kit/xlsx-brand.ts",
-    "./testing/a11y": "./testing/a11y.ts",
+    "./testing/a11y": {
+      "types": "./testing/a11y.d.mts",
+      "default": "./testing/a11y.mjs"
+    },
     "./scripts/*": "./scripts/*"
   },
   "scripts": {
