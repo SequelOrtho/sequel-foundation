@@ -12,11 +12,16 @@
 // `aria-invalid:` border, so without `dark:aria-invalid:` the danger border
 // vanished in dark mode (Audit Hub, 2026-09-29).
 //
+// Keyboard focus draws the family ring (as Button, tabs and IconButton do):
+// the theme's own :focus-visible outline sits in @layer base since v0.28.0,
+// so the old `focus:outline-none` here would otherwise leave only a 1px
+// border-colour change to show focus.
+//
 // A plain module (no "use client") so server components and the hubs'
 // file-local class constants can import it. DESIGN-CONVENTIONS §3
 // "Text inputs share the pickers' ground".
 export const INPUT_CLASS =
-  "block w-full rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-transparent px-2 py-1.5 text-sm focus:border-brand focus:outline-none disabled:opacity-60 aria-invalid:border-brand-danger dark:aria-invalid:border-brand-danger";
+  "block w-full rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-transparent px-2 py-1.5 text-sm focus:border-brand focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/50 disabled:opacity-60 aria-invalid:border-brand-danger dark:aria-invalid:border-brand-danger";
 
 /**
  * INPUT_CLASS plus call-site extras. Pass only additive utilities (width,
