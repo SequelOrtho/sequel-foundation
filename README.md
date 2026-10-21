@@ -1,6 +1,6 @@
 # @sequel/foundation
 
-The shared foundation for Sequel family applications — **Sequel Ortho, Fox Valley Orthopedics, and OrthoNebraska**: per-entity brand tokens and theme, the design-system UI primitives, LLM plumbing, the deck kit, guide-build machinery, and repo hygiene tooling — extracted from **Project Hub** (`project-insights`) and the **Acquisition Hub** (`Sequel_Ortho`), which previously kept these in sync by hand ("the twin registry").
+The shared foundation for Sequel family applications — **Sequel Ortho, Fox Valley Orthopedics, and OrthoNebraska**: per-entity brand tokens and theme, the design-system UI primitives, LLM plumbing, the deck kit, guide-build machinery, and repo hygiene tooling — extracted from **Project Hub** (`project-insights`) and the **Market Expansion Hub** (`Sequel_Ortho`, formerly the Acquisition Hub), which previously kept these in sync by hand ("the twin registry").
 
 **New here? Start with [ADOPTING.md](ADOPTING.md)** — the quick start for building a new Sequel app on the foundation or wiring it into an existing one.
 
