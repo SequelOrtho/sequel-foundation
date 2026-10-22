@@ -80,7 +80,7 @@ export { ExportBar } from "./ExportBar";
 // readable chart chrome.
 export { SkipLink, MAIN_CONTENT_ID, SKIP_LINK_TEXT, titleTemplate } from "./SkipLink";
 // The bell's unread count in the tab title and on the tab's icon (v0.31.0).
-export { UnreadBadge, setUnreadCount, clearUnreadBadge, ICON_BADGE_FILL } from "./UnreadBadge";
+export { UnreadBadge, setUnreadCount, clearUnreadBadge, resetUnreadBadgeForTests, ICON_BADGE_FILL } from "./UnreadBadge";
 export { badgeTitle, stripBadge, sameTitleIgnoringBadge, badgeText, iconBadgeGeometry, TITLE_BADGE_MAX, ICON_BADGE_MAX } from "./tab-badge";
 export { Dialog } from "./Dialog";
 export { useConfirmStep } from "./useConfirmStep";
