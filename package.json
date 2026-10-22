@@ -37,6 +37,7 @@
       "types": "./testing/scrollers.d.mts",
       "default": "./testing/scrollers.mjs"
     },
+    "./testing/unread-badge": "./testing/unread-badge.ts",
     "./scripts/*": "./scripts/*"
   },
   "scripts": {

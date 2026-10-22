@@ -1,5 +1,14 @@
-import { describe, expect, it } from "vitest";
-import { badgeText, badgeTitle, iconBadgeGeometry, sameTitleIgnoringBadge, stripBadge } from "../ui/tab-badge";
+import { afterEach, describe, expect, it } from "vitest";
+import {
+  badgeText,
+  badgeTitle,
+  forgetBadgedTitles,
+  iconBadgeGeometry,
+  rememberBadgedTitle,
+  sameTitleIgnoringBadge,
+  stripBadge,
+  stripShownBadge,
+} from "../ui/tab-badge";
 
 describe("tab badge helpers", () => {
   it("words the count, capped", () => {
@@ -52,5 +61,28 @@ describe("tab badge helpers", () => {
     expect(g.cx + g.r).toBeLessThanOrEqual(32);
     expect(g.cy - g.r).toBeGreaterThanOrEqual(0);
     expect(g.r).toBeGreaterThanOrEqual(8);
+  });
+});
+
+describe("stripShownBadge (review F18)", () => {
+  afterEach(() => forgetBadgedTitles());
+
+  it("takes the count off only a title the badge wrote", () => {
+    rememberBadgedTitle("(3) Alerts · Hub", "Alerts · Hub");
+    expect(stripShownBadge("(3) Alerts · Hub")).toBe("Alerts · Hub");
+    expect(stripShownBadge("(12) Midwest Expansion · Hub")).toBe("(12) Midwest Expansion · Hub");
+    expect(stripShownBadge("Alerts · Hub")).toBe("Alerts · Hub");
+  });
+
+  it("keeps a page's own leading count even when the badge once showed that number elsewhere", () => {
+    rememberBadgedTitle("(12) Alerts · Hub", "Alerts · Hub");
+    expect(stripShownBadge("(12) Midwest Expansion · Hub")).toBe("(12) Midwest Expansion · Hub");
+  });
+
+  it("forgets the oldest titles past its cap", () => {
+    rememberBadgedTitle("(1) First · Hub", "First · Hub");
+    for (let i = 0; i < 200; i++) rememberBadgedTitle(`(2) Page ${i} · Hub`, `Page ${i} · Hub`);
+    expect(stripShownBadge("(1) First · Hub")).toBe("(1) First · Hub");
+    expect(stripShownBadge("(2) Page 199 · Hub")).toBe("Page 199 · Hub");
   });
 });

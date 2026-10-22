@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { badgeText, iconBadgeGeometry, ICON_BADGE_MAX } from "./tab-badge";
+import { badgeText, forgetBadgedTitles, iconBadgeGeometry, ICON_BADGE_MAX, rememberBadgedTitle, stripShownBadge } from "./tab-badge";
 
 // The unread count in the browser tab (DESIGN-CONVENTIONS §3 "In-app alerts";
 // owner ruling 2026-10-22, Mike: "1-yes, 2-yes"). Mount <UnreadBadge count={n}/>
@@ -17,8 +17,8 @@ import { badgeText, iconBadgeGeometry, ICON_BADGE_MAX } from "./tab-badge";
 // Next rewrites the title on every navigation and re-renders the <head> icon
 // links, so one MutationObserver on <head> puts the count back whenever either
 // changes. A page that holds its own title (a DocumentTitle that restores a
-// title it didn't set) must compare titles through `stripBadge`, or the two
-// take turns rewriting it; the write budget below stops such a loop from
+// title it didn't set) must compare titles through `sameTitleIgnoringBadge`
+// and put back `stripShownBadge(previous)`, or the two take turns rewriting it; the write budget below stops such a loop from
 // spinning the page. The badge takes off only a count it put there itself, so a
 // page whose own title starts "(12) " keeps it.
 //
@@ -60,9 +60,6 @@ let scheduled = false;
 let drawToken = 0;
 let writes: number[] = [];
 let strips: number[] = []; // the clear's own budget, so a spent one never keeps a count up
-// Every count text this module has put in front of the title on this page. Only
-// those come off again: a page whose own title starts "(12) " keeps it.
-const written = new Set<string>();
 const drawn = new Map<string, string>(); // `${src}|${text}` → data URL
 
 function current(): number {
@@ -93,17 +90,12 @@ function iconLinks(doc: Document): HTMLLinkElement[] {
   return Array.from(doc.head?.querySelectorAll<HTMLLinkElement>('link[rel~="icon"]') ?? []);
 }
 
-/** The page's own title: without a count this module put in front, and nothing else. */
-function pageTitle(title: string): string {
-  const m = /^\(([^)]*)\)(?: |$)/.exec(title);
-  return m && written.has(m[1]) ? title.slice(m[0].length) : title;
-}
-
 function applyTitle(doc: Document) {
-  const bare = pageTitle(doc.title);
+  // Only a title this module wrote loses its count (tab-badge.ts).
+  const bare = stripShownBadge(doc.title);
   const text = badgeText(current());
-  if (text) written.add(text);
   const next = !text ? bare : bare ? `(${text}) ${bare}` : `(${text})`;
+  if (text) rememberBadgedTitle(next, bare);
   // Taking the count off after Sign Out has a budget of its own: a loop that
   // spent the main one must not leave the last person's count in the tab, and a
   // page that keeps putting a count back still can't spin the tab.
@@ -273,7 +265,11 @@ export function clearUnreadBadge(options: { untilInput?: boolean } = {}): void {
   if (typeof document !== "undefined") apply();
 }
 
-/** Test seam: forget every module state. */
+/**
+ * Test seam: forget every module state. Not on the `ui` barrel — tests import
+ * it from `@sequel/foundation/testing/unread-badge`, since a call in app code
+ * would let a count back onto a signed-out tab.
+ */
 export function resetUnreadBadgeForTests(): void {
   stop();
   if (resumeHandler && typeof document !== "undefined") {
@@ -291,7 +287,7 @@ export function resetUnreadBadgeForTests(): void {
   scheduled = false;
   writes = [];
   strips = [];
-  written.clear();
+  forgetBadgedTitles();
   drawn.clear();
 }
 

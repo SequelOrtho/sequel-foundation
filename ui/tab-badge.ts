@@ -16,6 +16,35 @@ export const ICON_BADGE_MAX = 9;
 // title that starts with "(2026)" or "(0)" is the page's own and stays put.
 const PREFIX = /^\((?:[1-9]\d?|99\+)\)(?: |$)/;
 
+// Every title UnreadBadge has written on this page load, with the page's own
+// title it put the count in front of. Only those titles lose a count again,
+// so a page whose own title starts "(12) " keeps it. Capped: the oldest go.
+const BADGED_TITLES_MAX = 200;
+const badged = new Map<string, string>();
+
+/** UnreadBadge records each title it writes, and the page title under it. */
+export function rememberBadgedTitle(badgedTitle: string, pageTitle: string): void {
+  badged.delete(badgedTitle);
+  badged.set(badgedTitle, pageTitle);
+  if (badged.size > BADGED_TITLES_MAX) badged.delete(badged.keys().next().value as string);
+}
+
+/** Forget every badged title (the test reset). */
+export function forgetBadgedTitles(): void {
+  badged.clear();
+}
+
+/**
+ * The page's own title: a title the badge wrote loses its count, any other
+ * title comes back as it is — "(12) Midwest Expansion" stays when the badge
+ * never wrote it. A page that puts back a title it captured earlier (a
+ * DocumentTitle restore) uses this, not `stripBadge`, so a page's own leading
+ * "(12) " survives.
+ */
+export function stripShownBadge(title: string): string {
+  return badged.get(title) ?? title;
+}
+
 /** "3", or "99+" past `max`. Empty for zero or less. */
 export function badgeText(count: number, max: number = TITLE_BADGE_MAX): string {
   const n = Math.floor(Number.isFinite(count) ? count : 0);
