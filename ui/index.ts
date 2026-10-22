@@ -114,6 +114,16 @@ export {
 export { MultiSelectFilter } from "./MultiSelectFilter";
 export type { MultiSelectOption } from "./MultiSelectFilter";
 export { passesMulti, toggleMulti, multiSummary } from "./multi-select";
+// List filters are remembered (DESIGN-CONVENTIONS §3): useState for a list's
+// filters, search, sort and grouping, kept for this tab so opening an item and
+// coming back shows the list as it was left; Sign Out clears them all.
+export { useRememberedState } from "./useRememberedState";
+export {
+  clearRememberedViews,
+  readLike,
+  parseRemembered,
+  REMEMBERED_VIEW_PREFIX,
+} from "./remembered-view";
 export { useScrollToEdit } from "./useScrollToEdit";
 // Popovers stay on screen (DESIGN-CONVENTIONS §3): put useFitInViewport's ref
 // on any dropdown / menu / popover panel; the pure geometry is exported too.
