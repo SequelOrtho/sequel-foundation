@@ -21,6 +21,10 @@ import { badgeText, badgeTitle, iconBadgeGeometry, ICON_BADGE_MAX } from "./tab-
 // take turns rewriting it; the write budget below stops such a loop from
 // spinning the page.
 //
+// One <UnreadBadge> per page (the bell's); with two, the last count set wins.
+// A Sign Out that is cancelled (the form never leaves the page) keeps the
+// count off until the next page load — on purpose, it fails safe.
+//
 // The installed-app taskbar badge (navigator.setAppBadge) is not used: the hubs
 // are not installable apps (owner ruling 2026-10-22, "3-lets hold off on this
 // for now as what we get from 1 and 2 is good enough").
@@ -60,7 +64,9 @@ function iconLinks(doc: Document): HTMLLinkElement[] {
 
 function applyTitle(doc: Document) {
   const next = badgeTitle(doc.title, current());
-  if (doc.title !== next && withinBudget()) doc.title = next;
+  // Taking the count off after Sign Out never waits on the budget: a loop that
+  // spent it must not leave the last person's count in the tab.
+  if (doc.title !== next && (suppressed || withinBudget())) doc.title = next;
 }
 
 function loadImage(src: string): Promise<HTMLImageElement> {

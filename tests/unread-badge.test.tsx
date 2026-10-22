@@ -2,6 +2,7 @@
 import { act, cleanup, fireEvent, render } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { UnreadBadge, clearUnreadBadge, resetUnreadBadgeForTests } from "../ui/UnreadBadge";
+import { sameTitleIgnoringBadge } from "../ui/tab-badge";
 import { SignOutForm } from "../session";
 
 // jsdom has no canvas: a fake 2D context and an image that loads at once let
@@ -132,18 +133,82 @@ describe("UnreadBadge", () => {
     expect(document.title).toBe("Alerts · Missed Punch Hub");
   });
 
-  it("stands aside instead of spinning when a page keeps rewriting its own title", async () => {
+  // Counts every write to document.title (the setter still runs, so observers fire).
+  function countTitleWrites(): string[] {
+    const proto = Object.getOwnPropertyDescriptor(Document.prototype, "title")!;
+    const writes: string[] = [];
+    Object.defineProperty(document, "title", {
+      configurable: true,
+      get: () => proto.get!.call(document),
+      set: (v: string) => {
+        writes.push(v);
+        proto.set!.call(document, v);
+      },
+    });
+    return writes;
+  }
+
+  afterEach(() => {
+    delete (document as unknown as Record<string, unknown>).title;
+  });
+
+  it("stands aside instead of spinning when a page keeps putting back a bare title (review F3)", async () => {
     render(<UnreadBadge count={1} />);
     await flush();
-    // A title holder that puts back the bare title every time (the bug stripBadge avoids).
+    const writes = countTitleWrites();
+    // A title holder that ignores the badge: it puts back the bare title every time.
     const obs = new MutationObserver(() => {
       if (document.title !== "Alerts · Missed Punch Hub") document.title = "Alerts · Missed Punch Hub";
     });
     obs.observe(document.head, { subtree: true, childList: true, characterData: true });
     document.title = "Alerts · Missed Punch Hub";
     for (let i = 0; i < 40; i++) await flush();
+    const badged = writes.filter((w) => w.startsWith("(1) ")).length;
+    expect(badged).toBeLessThanOrEqual(20); // the write budget
+    expect(badged).toBeGreaterThan(0);
+    const settled = writes.length;
+    for (let i = 0; i < 10; i++) await flush();
+    expect(writes.length).toBe(settled); // the loop has ended
+    expect(document.title).toBe("Alerts · Missed Punch Hub");
     obs.disconnect();
-    expect(true).toBe(true); // reaching here means no endless loop
+  });
+
+  it("settles at once beside a title holder that compares through stripBadge", async () => {
+    render(<UnreadBadge count={1} />);
+    await flush();
+    const writes = countTitleWrites();
+    const obs = new MutationObserver(() => {
+      if (!sameTitleIgnoringBadge(document.title, "Alerts · Missed Punch Hub")) document.title = "Alerts · Missed Punch Hub";
+    });
+    obs.observe(document.head, { subtree: true, childList: true, characterData: true });
+    document.title = "Alerts · Missed Punch Hub";
+    for (let i = 0; i < 10; i++) await flush();
+    expect(document.title).toBe("(1) Alerts · Missed Punch Hub");
+    expect(writes.length).toBeLessThanOrEqual(3);
+    obs.disconnect();
+  });
+
+  it("clearUnreadBadge takes the count off even after a fight spent the budget (review F8)", async () => {
+    render(<UnreadBadge count={1} />);
+    await flush();
+    // Spend the budget with a holder that keeps adding a stale count back.
+    const obs = new MutationObserver(() => {
+      if (!document.title.startsWith("(9) ")) document.title = "(9) Alerts · Missed Punch Hub";
+    });
+    obs.observe(document.head, { subtree: true, childList: true, characterData: true });
+    document.title = "Alerts · Missed Punch Hub";
+    for (let i = 0; i < 40; i++) await flush();
+    obs.disconnect();
+    act(() => clearUnreadBadge());
+    await flush();
+    expect(document.title).toBe("Alerts · Missed Punch Hub");
+  });
+
+  it("a page with no title shows just the count, stably", async () => {
+    document.title = "";
+    render(<UnreadBadge count={3} />);
+    for (let i = 0; i < 10; i++) await flush();
+    expect(document.title).toBe("(3)");
   });
 
   it("works without a canvas: the title still carries the count", async () => {

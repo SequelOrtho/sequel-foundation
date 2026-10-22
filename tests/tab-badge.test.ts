@@ -30,6 +30,23 @@ describe("tab badge helpers", () => {
     expect(sameTitleIgnoringBadge("(4) Page · Hub", "Other · Hub")).toBe(false);
   });
 
+  it("leaves a page's own leading number alone (review F4)", () => {
+    expect(badgeTitle("(2026) Annual Report · Hub", 0)).toBe("(2026) Annual Report · Hub");
+    expect(badgeTitle("(2026) Annual Report · Hub", 3)).toBe("(3) (2026) Annual Report · Hub");
+    expect(badgeTitle("(3) (2026) Annual Report · Hub", 0)).toBe("(2026) Annual Report · Hub");
+    expect(stripBadge("(0) x")).toBe("(0) x");
+    expect(stripBadge("(05) x")).toBe("(05) x");
+    expect(stripBadge("(100) x")).toBe("(100) x");
+  });
+
+  it("is stable on a page with no title (review F9)", () => {
+    expect(badgeTitle("", 3)).toBe("(3)");
+    // The browser trims the trailing space, so "(3)" is what reads back.
+    expect(badgeTitle("(3)", 3)).toBe("(3)");
+    expect(badgeTitle("(3)", 0)).toBe("");
+    expect(badgeTitle("(3)", 5)).toBe("(5)");
+  });
+
   it("places the circle in the top-right corner inside the icon", () => {
     const g = iconBadgeGeometry(32);
     expect(g.cx + g.r).toBeLessThanOrEqual(32);

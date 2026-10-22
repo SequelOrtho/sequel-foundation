@@ -11,7 +11,10 @@ export const TITLE_BADGE_MAX = 99;
 /** The favicon has room for one digit, then "9+". */
 export const ICON_BADGE_MAX = 9;
 
-const PREFIX = /^\(\d+\+?\) /;
+// Only what badgeTitle writes: 1–99 or "99+", then a space (or the end, for a
+// page with no title of its own — the browser trims the trailing space). A
+// title that starts with "(2026)" or "(0)" is the page's own and stays put.
+const PREFIX = /^\((?:[1-9]\d?|99\+)\)(?: |$)/;
 
 /** "3", or "99+" past `max`. Empty for zero or less. */
 export function badgeText(count: number, max: number = TITLE_BADGE_MAX): string {
@@ -33,7 +36,8 @@ export function stripBadge(title: string): string {
 export function badgeTitle(title: string, count: number): string {
   const bare = stripBadge(title);
   const text = badgeText(count);
-  return text ? `(${text}) ${bare}` : bare;
+  if (!text) return bare;
+  return bare ? `(${text}) ${bare}` : `(${text})`;
 }
 
 /** Two titles name the same page once their unread counts are set aside. */
