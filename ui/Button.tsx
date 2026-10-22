@@ -26,7 +26,35 @@ export type ButtonVariant =
 export type ButtonSize = "sm" | "md" | "lg";
 
 const BASE =
-  "inline-flex items-center justify-center gap-1.5 rounded-md font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/50 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50";
+  "inline-flex items-center justify-center gap-1.5 rounded-md font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/50 focus-visible:ring-offset-2";
+
+// Disabled is a state of its own, the same in every variant: a neutral zinc
+// ground, muted text and no hover change (v0.30.0). It used to be
+// `disabled:opacity-50` over the variant's fill, which reads as disabled on a
+// white page but not in dark mode: the solid fills turn light there, and half
+// of a light blue over a near-black card is a mid blue with dark ink — the
+// look of an enabled dark-mode button (hub walk-through 2026-10-21: Scheduler
+// Save Changes / Apply, Project Hub Configuration Delete).
+//
+// Every rule is `disabled:not-aria-busy:` — `.x:disabled:not([aria-busy=true])`,
+// specificity 0,3,0 — so it outranks the variants' hover and dark-mode rules
+// (0,1,0 / 0,2,0) without depending on stylesheet order, and it leaves a busy
+// button alone: `busy` disables the button too, but a busy button keeps its
+// fill, dims a little and shows the progress cursor, so it reads as working,
+// not as unavailable. In dark mode the ground is zinc-900, not the zinc-800 an
+// outline or ghost button turns on hover, so a disabled button never looks
+// like an enabled one under the pointer; a 1px zinc-700 outline drawn over
+// the border line (`outline-1 -outline-offset-1`, no layout change) keeps a
+// borderless solid button's box visible on a zinc-900 card. The label is
+// ≥ 3:1 on the disabled ground in both themes (zinc-500 on zinc-100 ≈ 4.4:1,
+// on zinc-900 ≈ 3.7:1; checked in tests/button-contrast.test.ts). The
+// explicit dark:text pair also keeps theme.css's contrast rescue off the
+// label.
+export const BUTTON_DISABLED_CLASS =
+  "disabled:not-aria-busy:cursor-not-allowed disabled:not-aria-busy:border-zinc-200 disabled:not-aria-busy:bg-zinc-100 disabled:not-aria-busy:text-zinc-500 dark:disabled:not-aria-busy:border-zinc-700 dark:disabled:not-aria-busy:bg-zinc-900 dark:disabled:not-aria-busy:text-zinc-500 dark:disabled:not-aria-busy:outline-1 dark:disabled:not-aria-busy:-outline-offset-1 dark:disabled:not-aria-busy:outline-zinc-700";
+
+/** A busy button (`busy`) keeps its variant's look, dimmed, with the progress cursor. */
+export const BUTTON_BUSY_CLASS = "aria-busy:cursor-progress aria-busy:opacity-80";
 
 const SIZES: Record<ButtonSize, string> = {
   sm: "min-h-9 px-3 py-1.5 text-sm",
@@ -66,7 +94,7 @@ export function buttonClasses(opts?: {
   className?: string;
 }): string {
   const { variant = "primary", size = "md", className = "" } = opts ?? {};
-  return [BASE, SIZES[size], VARIANTS[variant], className].filter(Boolean).join(" ");
+  return [BASE, SIZES[size], VARIANTS[variant], BUTTON_DISABLED_CLASS, BUTTON_BUSY_CLASS, className].filter(Boolean).join(" ");
 }
 
 type CommonProps = {

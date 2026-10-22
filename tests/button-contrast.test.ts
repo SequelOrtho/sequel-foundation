@@ -1,21 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { ENTITY_KEYS } from "../brand/entities";
 import { brandColors, type BrandColors, type ThemeName } from "../brand/palette";
-import { buttonClasses } from "../ui/Button";
-
-// WCAG 2.x contrast ratio between two #rrggbb colors.
-function luminance(hex: string): number {
-  const n = parseInt(hex.slice(1), 16);
-  const ch = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map((v) => {
-    const c = v / 255;
-    return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
-  });
-  return 0.2126 * ch[0] + 0.7152 * ch[1] + 0.0722 * ch[2];
-}
-function contrast(a: string, b: string): number {
-  const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x);
-  return (hi + 0.05) / (lo + 0.05);
-}
+import { BUTTON_BUSY_CLASS, BUTTON_DISABLED_CLASS, buttonClasses } from "../ui/Button";
+import { ZINC, contrast } from "./_contrast";
+import { compareSpecificity, compileClasses, specificity } from "./_tailwind";
 
 const WHITE = "#ffffff";
 const ZINC_900 = "#18181b";
@@ -79,5 +67,132 @@ describe("solid buttons meet 4.5:1 in every entity and theme", () => {
   it("the Sequel guide blue stays available as brandBright for charts and logos", () => {
     expect(brandColors("light", "SEQ").brandBright).toBe("#009ddd");
     expect(contrast("#009ddd", WHITE)).toBeLessThan(4.5); // why it is not the text token
+  });
+});
+
+// Disabled is its own state (v0.30.0): a neutral zinc ground with muted text
+// in every variant, replacing `disabled:opacity-50`, which left a light dark-
+// mode fill looking enabled (hub walk-through 2026-10-21).
+describe("disabled buttons look disabled in both themes", () => {
+  const VARIANTS = ["primary", "secondary", "accent", "outline", "outlineBrand", "ghost", "danger"] as const;
+  const DISABLED = { light: { ground: ZINC[100], label: ZINC[500] }, dark: { ground: ZINC[900], label: ZINC[500] } };
+
+  it("every variant carries the disabled state and no opacity-only disabled", () => {
+    for (const variant of VARIANTS) {
+      const cls = buttonClasses({ variant }).split(" ");
+      for (const t of BUTTON_DISABLED_CLASS.split(" ")) expect(cls, `${variant} ${t}`).toContain(t);
+      expect(cls.some((t) => /^disabled:opacity/.test(t)), variant).toBe(false);
+    }
+  });
+
+  it("paints a neutral ground and a muted label in each theme", () => {
+    const t = BUTTON_DISABLED_CLASS.split(" ");
+    expect(t).toEqual(expect.arrayContaining([
+      "disabled:not-aria-busy:bg-zinc-100",
+      "disabled:not-aria-busy:text-zinc-500",
+      "dark:disabled:not-aria-busy:bg-zinc-900",
+      "dark:disabled:not-aria-busy:outline-1",
+      "dark:disabled:not-aria-busy:-outline-offset-1",
+      "dark:disabled:not-aria-busy:outline-zinc-700",
+      "dark:disabled:not-aria-busy:text-zinc-500",
+      "disabled:not-aria-busy:cursor-not-allowed",
+    ]));
+  });
+
+  // Compiled with the real Tailwind v4 engine (tests/_tailwind.ts): every
+  // disabled rule must outrank every hover, dark-mode and dark-mode hover rule
+  // of every variant that sets the same property, by specificity — so neither
+  // hovering a disabled button nor the stylesheet's order can undo the
+  // disabled look — and must leave a busy button alone.
+  it("outranks every variant's hover and dark rules by compiled specificity, and skips busy buttons", async () => {
+    const tokens = VARIANTS.flatMap((variant) => buttonClasses({ variant }).split(" "));
+    const rules = await compileClasses(tokens);
+    const disabledTokens = new Set(BUTTON_DISABLED_CLASS.split(" "));
+    const disabled = rules.filter((r) => disabledTokens.has(r.token));
+    // Every disabled token compiled to a real rule.
+    expect(new Set(disabled.map((r) => r.token))).toEqual(disabledTokens);
+    for (const d of disabled) {
+      expect(d.selector, d.token).toContain(":disabled");
+      expect(d.selector, d.token).toContain(':not(*[aria-busy="true"])');
+    }
+    for (const variant of VARIANTS) {
+      const own = new Set(buttonClasses({ variant }).split(" ").filter((t) => !disabledTokens.has(t)));
+      const competitors = rules.filter((r) => own.has(r.token) && /(^|:)(hover|dark|enabled):/.test(r.token));
+      expect(competitors.length, variant).toBeGreaterThan(0);
+      for (const d of disabled) {
+        for (const c of competitors) {
+          if (!c.props.some((p) => d.props.includes(p))) continue;
+          expect(
+            compareSpecificity(specificity(d.selector), specificity(c.selector)),
+            `${variant}: ${d.selector} vs ${c.selector}`,
+          ).toBeGreaterThan(0);
+        }
+      }
+    }
+    const busy = rules.filter((r) => BUTTON_BUSY_CLASS.split(" ").includes(r.token));
+    expect(busy.length).toBe(2);
+    for (const b of busy) expect(b.selector).toContain('[aria-busy="true"]');
+  });
+
+  it("keeps the disabled label at least 3:1 on its ground", () => {
+    expect(contrast(DISABLED.light.label, DISABLED.light.ground)).toBeGreaterThanOrEqual(3);
+    expect(contrast(DISABLED.dark.label, DISABLED.dark.ground)).toBeGreaterThanOrEqual(3);
+  });
+
+  // A disabled button reads as disabled by losing its colour, not by fading:
+  // the ground is a neutral gray, and every solid fill differs from it by hue
+  // (a channel spread over 24) or by lightness (3:1 or more).
+  it("sets a neutral ground apart from every solid fill, every entity", () => {
+    const spread = (hex: string) => {
+      const n = parseInt(hex.slice(1), 16);
+      const ch = [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+      return Math.max(...ch) - Math.min(...ch);
+    };
+    for (const theme of ["light", "dark"] as ThemeName[]) expect(spread(DISABLED[theme].ground)).toBeLessThanOrEqual(4);
+    for (const entity of ENTITY_KEYS) {
+      for (const theme of ["light", "dark"] as ThemeName[]) {
+        const c = brandColors(theme, entity);
+        for (const fill of [c.brand, c.navy, c.danger, c.accent]) {
+          const ground = DISABLED[theme].ground;
+          expect(spread(fill) > 24 || contrast(ground, fill) >= 3, `${entity} ${theme} ${fill}`).toBe(true);
+        }
+      }
+    }
+    // In dark mode it is not the zinc-800 an outline / ghost button turns on
+    // hover, so a disabled button never reads as an enabled one under the
+    // pointer (owner question on #81, settled by the coordinator), and its box
+    // is drawn by a zinc-700 outline line that stands off the zinc-900 card.
+    expect(contrast(DISABLED.dark.ground, ZINC[800])).toBeGreaterThan(1.1);
+    for (const variant of ["outline", "ghost"] as const) {
+      expect(buttonClasses({ variant })).toContain("dark:hover:bg-zinc-800");
+      expect(buttonClasses({ variant })).not.toContain(`dark:hover:bg-zinc-900`);
+    }
+    expect(contrast(ZINC[700], ZINC[900])).toBeGreaterThan(1.5);
+  });
+
+  it("leaves a busy button looking busy: its fill, dimmed, with the progress cursor", () => {
+    expect(BUTTON_BUSY_CLASS.split(" ")).toEqual(["aria-busy:cursor-progress", "aria-busy:opacity-80"]);
+    for (const variant of VARIANTS) expect(buttonClasses({ variant })).toContain(BUTTON_BUSY_CLASS);
+  });
+
+  // The fix must not change any enabled button's look: with the disabled and
+  // busy states taken out, every variant's classes are exactly v0.29.0's.
+  it("leaves every enabled button exactly as it was", () => {
+    const V029_BASE =
+      "inline-flex items-center justify-center gap-1.5 rounded-md font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/50 focus-visible:ring-offset-2 min-h-10 px-4 py-2 text-sm";
+    const V029: Record<(typeof VARIANTS)[number], string> = {
+      primary: "bg-brand text-white hover:bg-brand-600 dark:text-zinc-900",
+      secondary: "bg-brand-navy text-white hover:bg-brand-navy-muted dark:text-zinc-900",
+      accent: "bg-brand-accent text-zinc-900 dark:text-zinc-900 hover:bg-brand-accent-dark hover:text-zinc-900 dark:hover:text-zinc-900",
+      outline: "border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800",
+      outlineBrand: "border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-brand hover:border-brand hover:bg-brand-surface",
+      ghost: "text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800",
+      danger: "bg-brand-danger text-white hover:bg-red-700 dark:text-zinc-900 dark:hover:bg-red-300",
+    };
+    const stateTokens = new Set([...BUTTON_DISABLED_CLASS.split(" "), ...BUTTON_BUSY_CLASS.split(" ")]);
+    for (const variant of VARIANTS) {
+      const enabled = buttonClasses({ variant }).split(" ").filter((t) => !stateTokens.has(t)).join(" ");
+      expect(enabled).toBe(`${V029_BASE} ${V029[variant]}`);
+    }
   });
 });

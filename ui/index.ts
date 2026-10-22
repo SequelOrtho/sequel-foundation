@@ -1,6 +1,6 @@
 // Shared Sequel UI primitives. Import from "@sequel/foundation/ui" rather than
 // the individual files so adoption sites have one stable path.
-export { Button, buttonClasses } from "./Button";
+export { Button, buttonClasses, BUTTON_DISABLED_CLASS, BUTTON_BUSY_CLASS } from "./Button";
 export type { ButtonProps, ButtonVariant, ButtonSize } from "./Button";
 export { Callout } from "./Callout";
 export type { CalloutTone } from "./Callout";
@@ -92,6 +92,9 @@ export type { ChartTheme } from "../brand/chart-theme";
 // Text inputs (DESIGN-CONVENTIONS §3): INPUT_CLASS is the pickers' own box
 // (white ground in light mode), so hand-rolled <input>/<textarea> match them.
 export { INPUT_CLASS, inputClasses } from "./input-class";
+// File pickers (DESIGN-CONVENTIONS §3): the native <input type="file"> with its
+// button styled as the outline Button, so it reads as a control.
+export { FILE_INPUT_CLASS, fileInputClasses } from "./file-input-class";
 export { AdaptiveSelect } from "./AdaptiveSelect";
 export type { AdaptiveSelectProps } from "./AdaptiveSelect";
 export { SearchCombobox } from "./SearchCombobox";

@@ -24,18 +24,18 @@ function SaveStateText({
   savedAt: number | null;
 }) {
   if (saving) {
-    return <span className="text-xs text-brand-muted">Saving…</span>;
+    return <span className="whitespace-nowrap text-xs text-brand-muted">Saving…</span>;
   }
   if (dirty) {
     return (
-      <span className="inline-flex items-center gap-1 text-xs text-brand-warning">
+      <span className="inline-flex items-center gap-1 whitespace-nowrap text-xs text-brand-warning">
         <span aria-hidden>●</span> Unsaved changes
       </span>
     );
   }
   if (savedAt) {
     return (
-      <span className="inline-flex items-center gap-1 text-xs text-emerald-700 dark:text-emerald-400">
+      <span className="inline-flex items-center gap-1 whitespace-nowrap text-xs text-emerald-700 dark:text-emerald-400">
         <CheckCircle /> Saved ·{" "}
         {new Date(savedAt).toLocaleTimeString([], {
           hour: "numeric",

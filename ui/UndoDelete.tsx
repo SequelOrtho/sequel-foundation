@@ -152,7 +152,7 @@ export function UndoStrip({ hideWhileToastShows = false }: { hideWhileToastShows
         {ticket.label} deleted. You can undo this until {timeOf(ticket.expiresAt)} ({UNDO_WINDOW_MINUTES} minutes
         from the delete).
       </span>
-      <Button size="sm" variant="outline" disabled={busy} onClick={() => void undoDelete(ticket)}>
+      <Button size="sm" variant="outline" busy={busy} onClick={() => void undoDelete(ticket)}>
         Undo Delete
       </Button>
       <Button size="sm" variant="outline" disabled={busy} onClick={dismissUndo}>

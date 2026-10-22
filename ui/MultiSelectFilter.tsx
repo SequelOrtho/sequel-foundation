@@ -119,7 +119,7 @@ export function MultiSelectFilter({
               className={`${inputClasses()} mb-2`}
             />
           )}
-          <ul className="max-h-72 overflow-y-auto">
+          <ul className="relative max-h-72 overflow-y-auto">
             {shown.map((o) => (
               <li key={o.id}>
                 <label className="flex cursor-pointer items-center gap-2 rounded px-1.5 py-1 text-sm hover:bg-zinc-50 dark:hover:bg-zinc-800">

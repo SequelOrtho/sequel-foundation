@@ -333,6 +333,20 @@ describe("SessionWatch expiry warning (owner ruling 2026-10-21, UX audit Q6)", (
     expect(screen.getByRole("alertdialog", { name: "You’ve been signed out" }).hasAttribute("data-conceal")).toBe(true);
   });
 
+  it("Stay Signed In reads as busy, not unavailable, while its request is in flight (v0.30.0 review F2)", async () => {
+    vi.stubGlobal("fetch", vi.fn(() => new Promise<Response>(() => {})));
+    render(<SessionWatch idleTimeoutSeconds={600} />);
+    await act(async () => vi.advanceTimersByTime(8 * 60_000 + 1_000));
+    const stay = screen.getByRole("button", { name: "Stay Signed In" });
+    expect(stay.getAttribute("aria-busy")).toBe("false");
+    await act(async () => {
+      fireEvent.click(stay);
+    });
+    const busy = screen.getByRole("button", { name: "Staying Signed In…" });
+    expect(busy.getAttribute("aria-busy")).toBe("true");
+    expect((busy as HTMLButtonElement).disabled).toBe(true);
+  });
+
   it("asks the server nothing more once the countdown has shown the signed-out screen (round 2)", async () => {
     const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ user: {} })));
     vi.stubGlobal("fetch", fetchMock);

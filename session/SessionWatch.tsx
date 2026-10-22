@@ -254,7 +254,10 @@ export function SessionWatch({
     return (
       <ModalShell key="expiring" overlayRef={warnOverlayRef} id="session-expiring" title="Your session is about to end"
         body={<ExpiryBody until={warnUntil} failed={stayFailed} />}>
-        <button ref={stayRef} type="button" onClick={staySignedIn} disabled={staying}
+        {/* aria-busy while the request is in flight: buttonClasses greys a
+            disabled button that isn't busy, and this one is working, not
+            unavailable (DESIGN-CONVENTIONS §1, v0.30.0). */}
+        <button ref={stayRef} type="button" onClick={staySignedIn} disabled={staying} aria-busy={staying}
           className={buttonClasses({ size: "md" })}>
           {staying ? "Staying Signed In…" : stayFailed ? "Try Again" : "Stay Signed In"}
         </button>

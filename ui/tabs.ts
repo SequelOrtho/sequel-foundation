@@ -69,4 +69,4 @@ export function tabClasses(selected: boolean, className = ""): string {
 }
 
 export const TAB_COUNT_CLASS =
-  "rounded-full bg-zinc-100 px-1.5 text-[11px] font-medium text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300";
+  "whitespace-nowrap rounded-full bg-zinc-100 px-1.5 text-[11px] font-medium text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300";
