@@ -293,8 +293,11 @@ describe("UnreadBadge", () => {
     expect(document.title).toBe("Alerts · Missed Punch Hub");
   });
 
-  it("the clear's own budget bounds a fight with a page that keeps putting a count back (review F14)", async () => {
-    render(<UnreadBadge count={1} />);
+  it("the clear's own budget bounds a fight with a page that keeps putting a count back (review F14, F17)", async () => {
+    // The badge wrote "(9) " earlier on this page, so it is a count the clear takes off.
+    const { rerender } = render(<UnreadBadge count={9} />);
+    await flush();
+    rerender(<UnreadBadge count={1} />);
     await flush();
     const writes = countTitleWrites();
     const obs = new MutationObserver(() => {
@@ -303,8 +306,10 @@ describe("UnreadBadge", () => {
     obs.observe(document.head, { subtree: true, childList: true, characterData: true });
     act(() => clearUnreadBadge());
     for (let i = 0; i < 60; i++) await flush();
+    const strips = writes.filter((w) => w === "Alerts · Missed Punch Hub").length;
+    expect(strips).toBeGreaterThan(1); // the fight really ran
+    expect(strips).toBeLessThanOrEqual(20); // the strip budget ended it
     const settled = writes.length;
-    expect(settled).toBeLessThanOrEqual(2 * 20 + 45); // strips stay within their budget
     for (let i = 0; i < 10; i++) await flush();
     expect(writes.length).toBe(settled); // the loop has ended
     obs.disconnect();
