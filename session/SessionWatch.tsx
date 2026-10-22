@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { buttonClasses } from "../ui/Button";
 import { announceSignOut, isSigningOutHere, onSessionMessage } from "./channel";
 import { clearUnreadBadge } from "../ui/UnreadBadge";
+import { clearRememberedViews } from "../ui/remembered-view";
 import {
   DEFAULT_WARN_BEFORE_SECONDS,
   LAST_ACTIVE_KEY,
@@ -86,8 +87,12 @@ export function SessionWatch({
 
   useEffect(() => {
     endedRef.current = ended;
-    // The signed-out screen hides the page; the tab's unread count goes with it.
-    if (ended) clearUnreadBadge();
+    // The signed-out screen hides the page; the tab's unread count and its
+    // remembered list filters go with it.
+    if (ended) {
+      clearUnreadBadge();
+      clearRememberedViews();
+    }
   }, [ended]);
 
   useEffect(() => {
