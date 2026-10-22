@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { badgeText, badgeTitle, iconBadgeGeometry, ICON_BADGE_MAX } from "./tab-badge";
+import { badgeText, iconBadgeGeometry, ICON_BADGE_MAX } from "./tab-badge";
 
 // The unread count in the browser tab (DESIGN-CONVENTIONS §3 "In-app alerts";
 // owner ruling 2026-10-22, Mike: "1-yes, 2-yes"). Mount <UnreadBadge count={n}/>
@@ -19,7 +19,8 @@ import { badgeText, badgeTitle, iconBadgeGeometry, ICON_BADGE_MAX } from "./tab-
 // changes. A page that holds its own title (a DocumentTitle that restores a
 // title it didn't set) must compare titles through `stripBadge`, or the two
 // take turns rewriting it; the write budget below stops such a loop from
-// spinning the page.
+// spinning the page. The badge takes off only a count it put there itself, so a
+// page whose own title starts "(12) " keeps it.
 //
 // One <UnreadBadge> per page (the bell's); with two, the last count set wins.
 // A Sign Out that never leaves the page (the person chose Stay on an
@@ -52,12 +53,16 @@ let suppressed = false;
 let paused = false; // Sign Out submitted; lifted by the next input if the page stays
 let pausedAt = 0;
 let resumeListening = false;
+let resumeHandler: ((event: Event) => void) | null = null;
 let lastTitle: string | null = null; // the title this module last wrote
 let observer: MutationObserver | null = null;
 let scheduled = false;
 let drawToken = 0;
 let writes: number[] = [];
 let strips: number[] = []; // the clear's own budget, so a spent one never keeps a count up
+// Every count text this module has put in front of the title on this page. Only
+// those come off again: a page whose own title starts "(12) " keeps it.
+const written = new Set<string>();
 const drawn = new Map<string, string>(); // `${src}|${text}` → data URL
 
 function current(): number {
@@ -88,8 +93,17 @@ function iconLinks(doc: Document): HTMLLinkElement[] {
   return Array.from(doc.head?.querySelectorAll<HTMLLinkElement>('link[rel~="icon"]') ?? []);
 }
 
+/** The page's own title: without a count this module put in front, and nothing else. */
+function pageTitle(title: string): string {
+  const m = /^\(([^)]*)\)(?: |$)/.exec(title);
+  return m && written.has(m[1]) ? title.slice(m[0].length) : title;
+}
+
 function applyTitle(doc: Document) {
-  const next = badgeTitle(doc.title, current());
+  const bare = pageTitle(doc.title);
+  const text = badgeText(current());
+  if (text) written.add(text);
+  const next = !text ? bare : bare ? `(${text}) ${bare}` : `(${text})`;
   // Taking the count off after Sign Out has a budget of its own: a loop that
   // spent the main one must not leave the last person's count in the tab, and a
   // page that keeps putting a count back still can't spin the tab.
@@ -238,7 +252,7 @@ export function clearUnreadBadge(options: { untilInput?: boolean } = {}): void {
     pausedAt = Date.now();
     if (!resumeListening && typeof document !== "undefined") {
       resumeListening = true;
-      const resume = (event: Event) => {
+      const resume = (resumeHandler = (event: Event) => {
         // Input on Sign Out itself, or soon after it, is the sign-out still leaving.
         const target = event.target as Element | null;
         if (target?.closest?.(`[${SIGN_OUT_FORM_ATTR}]`)) return;
@@ -246,9 +260,10 @@ export function clearUnreadBadge(options: { untilInput?: boolean } = {}): void {
         document.removeEventListener("pointerdown", resume, true);
         document.removeEventListener("keydown", resume, true);
         resumeListening = false;
+        resumeHandler = null;
         paused = false;
         apply();
-      };
+      });
       document.addEventListener("pointerdown", resume, true);
       document.addEventListener("keydown", resume, true);
     }
@@ -261,6 +276,12 @@ export function clearUnreadBadge(options: { untilInput?: boolean } = {}): void {
 /** Test seam: forget every module state. */
 export function resetUnreadBadgeForTests(): void {
   stop();
+  if (resumeHandler && typeof document !== "undefined") {
+    document.removeEventListener("pointerdown", resumeHandler, true);
+    document.removeEventListener("keydown", resumeHandler, true);
+  }
+  resumeHandler = null;
+  resumeListening = false;
   mounted = 0;
   wanted = 0;
   suppressed = false;
@@ -270,6 +291,7 @@ export function resetUnreadBadgeForTests(): void {
   scheduled = false;
   writes = [];
   strips = [];
+  written.clear();
   drawn.clear();
 }
 

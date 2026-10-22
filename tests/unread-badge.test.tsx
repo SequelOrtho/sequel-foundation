@@ -96,6 +96,42 @@ describe("UnreadBadge", () => {
     expect(icon().getAttribute("data-unread-original")).toBe("/icon.png?def");
   });
 
+  it("leaves a page's own leading \"(N) \" alone and takes off only a count it wrote (review r3)", async () => {
+    document.title = "(12) Midwest Expansion · Project Hub";
+    const { rerender } = render(<UnreadBadge count={0} />);
+    await flush();
+    expect(document.title).toBe("(12) Midwest Expansion · Project Hub");
+
+    rerender(<UnreadBadge count={3} />);
+    await flush();
+    expect(document.title).toBe("(3) (12) Midwest Expansion · Project Hub");
+
+    rerender(<UnreadBadge count={0} />);
+    await flush();
+    expect(document.title).toBe("(12) Midwest Expansion · Project Hub");
+
+    // A Sign Out on a page that never showed a count changes nothing either.
+    cleanup();
+    resetUnreadBadgeForTests();
+    document.title = "(2) Phase Two · Project Hub";
+    clearUnreadBadge();
+    await flush();
+    expect(document.title).toBe("(2) Phase Two · Project Hub");
+  });
+
+  it("the test reset takes the Sign Out resume listener away (review r3)", () => {
+    const add = vi.spyOn(document, "addEventListener");
+    clearUnreadBadge({ untilInput: true });
+    expect(add).toHaveBeenCalledWith("pointerdown", expect.any(Function), true);
+    const remove = vi.spyOn(document, "removeEventListener");
+    resetUnreadBadgeForTests();
+    expect(remove).toHaveBeenCalledWith("pointerdown", expect.any(Function), true);
+    expect(remove).toHaveBeenCalledWith("keydown", expect.any(Function), true);
+    add.mockClear();
+    clearUnreadBadge({ untilInput: true });
+    expect(add).toHaveBeenCalledWith("pointerdown", expect.any(Function), true);
+  });
+
   it("restores the tab when it unmounts", async () => {
     const { unmount } = render(<UnreadBadge count={4} />);
     await flush();
@@ -240,9 +276,11 @@ describe("UnreadBadge", () => {
   });
 
   it("clearUnreadBadge takes the count off even after a fight spent the budget (review F8)", async () => {
-    render(<UnreadBadge count={1} />);
+    const { rerender } = render(<UnreadBadge count={9} />);
     await flush();
-    // Spend the budget with a holder that keeps adding a stale count back.
+    rerender(<UnreadBadge count={1} />);
+    await flush();
+    // Spend the budget with a holder that keeps adding the stale count it captured back.
     const obs = new MutationObserver(() => {
       if (!document.title.startsWith("(9) ")) document.title = "(9) Alerts · Missed Punch Hub";
     });
