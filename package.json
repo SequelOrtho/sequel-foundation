@@ -1,6 +1,6 @@
 {
   "name": "@sequel/foundation",
-  "version": "0.30.2",
+  "version": "0.31.0",
   "private": true,
   "description": "Shared Sequel family design system (Sequel Ortho, Fox Valley Orthopedics, OrthoNebraska entity brands), UX conventions, branded deck/document kit, and LLM plumbing — extracted from Project Hub (project-insights) and the Acquisition Hub (Sequel_Ortho).",
   "type": "module",
@@ -37,6 +37,7 @@
       "types": "./testing/scrollers.d.mts",
       "default": "./testing/scrollers.mjs"
     },
+    "./testing/unread-badge": "./testing/unread-badge.ts",
     "./scripts/*": "./scripts/*"
   },
   "scripts": {

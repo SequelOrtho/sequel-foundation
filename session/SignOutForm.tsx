@@ -2,6 +2,7 @@
 
 import type { ReactNode } from "react";
 import { buttonClasses } from "../ui/Button";
+import { SIGN_OUT_FORM_ATTR, clearUnreadBadge } from "../ui/UnreadBadge";
 import { announceSignOut } from "./channel";
 import { SIGN_OUT_PATH } from "./policy";
 
@@ -9,7 +10,8 @@ import { SIGN_OUT_PATH } from "./policy";
 // HTML form POST to the hub's /auth/sign-out route, never a Server Action, so it
 // works from any page, before hydration, across a deploy, and after the session
 // has already expired. `children` render before the button (the signed-in
-// email). Submitting tells the hub's other open tabs (SessionWatch).
+// email). Submitting tells the hub's other open tabs (SessionWatch) and takes
+// the unread count off this tab (UnreadBadge).
 
 export function SignOutForm({
   children,
@@ -25,7 +27,10 @@ export function SignOutForm({
   buttonClassName?: string;
 }) {
   return (
-    <form method="post" action={action} className={className} onSubmit={() => announceSignOut()}>
+    <form method="post" action={action} className={className} {...{ [SIGN_OUT_FORM_ATTR]: "" }} onSubmit={() => {
+        clearUnreadBadge({ untilInput: true });
+        announceSignOut();
+      }}>
       {children}
       <button type="submit" className={buttonClassName}>
         {label}

@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, type ReactNode, type RefObject } from "rea
 import { createPortal } from "react-dom";
 import { buttonClasses } from "../ui/Button";
 import { announceSignOut, isSigningOutHere, onSessionMessage } from "./channel";
+import { clearUnreadBadge } from "../ui/UnreadBadge";
 import {
   DEFAULT_WARN_BEFORE_SECONDS,
   LAST_ACTIVE_KEY,
@@ -85,6 +86,8 @@ export function SessionWatch({
 
   useEffect(() => {
     endedRef.current = ended;
+    // The signed-out screen hides the page; the tab's unread count goes with it.
+    if (ended) clearUnreadBadge();
   }, [ended]);
 
   useEffect(() => {
