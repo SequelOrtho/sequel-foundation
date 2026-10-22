@@ -165,3 +165,14 @@ describe("useRememberedState", () => {
     expect(screen.getByText("none")).toBeTruthy();
   });
 });
+
+describe("ForgetSignedInState", () => {
+  it("forgets every remembered list when the sign-in page mounts it", async () => {
+    const { ForgetSignedInState } = await import("../session");
+    writeRememberedRaw("plan-2027.entity", JSON.stringify(["ON"]));
+    expect(readRememberedRaw("plan-2027.entity")).not.toBeNull();
+    render(<ForgetSignedInState />);
+    expect(readRememberedRaw("plan-2027.entity")).toBeNull();
+    expect(Object.keys(window.sessionStorage).some((k) => k.startsWith(REMEMBERED_VIEW_PREFIX))).toBe(false);
+  });
+});
