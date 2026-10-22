@@ -28,7 +28,7 @@ export function SignOutForm({
 }) {
   return (
     <form method="post" action={action} className={className} onSubmit={() => {
-        clearUnreadBadge();
+        clearUnreadBadge({ untilInput: true });
         announceSignOut();
       }}>
       {children}

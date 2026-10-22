@@ -22,8 +22,9 @@ import { badgeText, badgeTitle, iconBadgeGeometry, ICON_BADGE_MAX } from "./tab-
 // spinning the page.
 //
 // One <UnreadBadge> per page (the bell's); with two, the last count set wins.
-// A Sign Out that is cancelled (the form never leaves the page) keeps the
-// count off until the next page load — on purpose, it fails safe.
+// A Sign Out that never leaves the page (the person chose Stay on an
+// unsaved-changes prompt) takes the count off only until their next click or
+// keystroke on the page.
 //
 // The installed-app taskbar badge (navigator.setAppBadge) is not used: the hubs
 // are not installable apps (owner ruling 2026-10-22, "3-lets hold off on this
@@ -40,6 +41,8 @@ const WRITE_BUDGET = 20;
 let mounted = 0;
 let wanted = 0;
 let suppressed = false;
+let paused = false; // Sign Out submitted; lifted by the next input if the page stays
+let resumeListening = false;
 let observer: MutationObserver | null = null;
 let scheduled = false;
 let drawToken = 0;
@@ -47,7 +50,7 @@ let writes: number[] = [];
 const drawn = new Map<string, string>(); // `${src}|${text}` → data URL
 
 function current(): number {
-  return suppressed ? 0 : wanted;
+  return suppressed || paused ? 0 : wanted;
 }
 
 function withinBudget(): boolean {
@@ -66,7 +69,7 @@ function applyTitle(doc: Document) {
   const next = badgeTitle(doc.title, current());
   // Taking the count off after Sign Out never waits on the budget: a loop that
   // spent it must not leave the last person's count in the tab.
-  if (doc.title !== next && (suppressed || withinBudget())) doc.title = next;
+  if (doc.title !== next && (suppressed || paused || withinBudget())) doc.title = next;
 }
 
 function loadImage(src: string): Promise<HTMLImageElement> {
@@ -155,7 +158,7 @@ function schedule() {
   scheduled = true;
   queueMicrotask(() => {
     scheduled = false;
-    if (mounted > 0 || suppressed) apply();
+    if (mounted > 0 || suppressed || paused) apply();
   });
 }
 
@@ -185,12 +188,31 @@ export function setUnreadCount(count: number): void {
 }
 
 /**
- * Take the count off the tab for good on this page: Sign Out and the
- * signed-out screen call it, so a shared computer's next person never sees the
- * last person's count. SignOutForm and SessionWatch already do.
+ * Take the count off the tab. The signed-out screen calls it with no options:
+ * the count stays off for good on this page, so a shared computer's next
+ * person never sees the last person's count. Sign Out calls it with
+ * `{ untilInput: true }`: the count comes back at the next click or keystroke
+ * on the page, which happens only if the sign-out was cancelled and the page
+ * stayed. SignOutForm and SessionWatch already call it.
  */
-export function clearUnreadBadge(): void {
-  suppressed = true;
+export function clearUnreadBadge(options: { untilInput?: boolean } = {}): void {
+  if (options.untilInput) {
+    paused = true;
+    if (!resumeListening && typeof document !== "undefined") {
+      resumeListening = true;
+      const resume = () => {
+        document.removeEventListener("pointerdown", resume, true);
+        document.removeEventListener("keydown", resume, true);
+        resumeListening = false;
+        paused = false;
+        apply();
+      };
+      document.addEventListener("pointerdown", resume, true);
+      document.addEventListener("keydown", resume, true);
+    }
+  } else {
+    suppressed = true;
+  }
   if (typeof document !== "undefined") apply();
 }
 
@@ -200,6 +222,7 @@ export function resetUnreadBadgeForTests(): void {
   mounted = 0;
   wanted = 0;
   suppressed = false;
+  paused = false;
   scheduled = false;
   writes = [];
   drawn.clear();

@@ -133,6 +133,43 @@ describe("UnreadBadge", () => {
     expect(document.title).toBe("Alerts · Missed Punch Hub");
   });
 
+  it("a Sign Out that never leaves the page gives the count back at the next input (review r2)", async () => {
+    const { rerender } = render(
+      <>
+        <UnreadBadge count={2} />
+        <SignOutForm />
+      </>,
+    );
+    await flush();
+    const form = document.querySelector("form") as HTMLFormElement;
+    form.addEventListener("submit", (e) => e.preventDefault()); // the person chose Stay
+    fireEvent.submit(form);
+    await flush();
+    expect(document.title).toBe("Alerts · Missed Punch Hub");
+    rerender(
+      <>
+        <UnreadBadge count={5} />
+        <SignOutForm />
+      </>,
+    );
+    await flush();
+    expect(document.title).toBe("Alerts · Missed Punch Hub");
+    fireEvent.pointerDown(document.body);
+    await flush();
+    expect(document.title).toBe("(5) Alerts · Missed Punch Hub");
+    expect(icon().getAttribute("href")).toMatch(/^data:image\/png/);
+  });
+
+  it("the signed-out screen's clear is for good: input does not bring the count back", async () => {
+    render(<UnreadBadge count={2} />);
+    await flush();
+    act(() => clearUnreadBadge());
+    fireEvent.pointerDown(document.body);
+    fireEvent.keyDown(document.body, { key: "a" });
+    await flush();
+    expect(document.title).toBe("Alerts · Missed Punch Hub");
+  });
+
   // Counts every write to document.title (the setter still runs, so observers fire).
   function countTitleWrites(): string[] {
     const proto = Object.getOwnPropertyDescriptor(Document.prototype, "title")!;
