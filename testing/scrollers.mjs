@@ -145,11 +145,12 @@ function classNameExpressionAround(source, literalStart) {
 // a clsx object key (`{ relative: open }`) still name the class. An arbitrary
 // segment (`group-has-[relative]:p-1`, `[&_td]:relative`, `w-[30rem]`) stays
 // part of its class: it holds no space or quote, so it is masked first and
-// the word inside it never reads as a class of its own. An array literal
-// (`cn(["relative"])`) keeps its quotes and is not masked.
+// the word inside it never reads as a class of its own. A JS array literal is
+// never masked: a quote, a brace or a comma inside the brackets marks one
+// (`cn(["relative"])`, `cn([{relative:open}])`).
 function tokensOf(text) {
   return text
-    .replace(/\[[^\]\s"'`]*\]/g, "§")
+    .replace(/\[[^\]\s"'`{},]*\]/g, "§")
     .split(/[\s"'`{}()[\],?$+]+/)
     .map((t) => t.replace(/^!+|!+$/g, "").replace(/:$/, ""))
     .filter(Boolean);

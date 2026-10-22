@@ -84,6 +84,7 @@ describe("findUnpositionedScrollers", () => {
     expect(hits(`<div className="has-[.sticky]:pt-2 overflow-x-auto">`)).toHaveLength(1);
     expect(hits(`<div className="w-[30rem] relative overflow-x-auto">`)).toEqual([]);
     expect(hits(`<div className={cn(["overflow-x-auto", "relative"])}>`)).toEqual([]);
+    expect(hits(`<div className={cn("overflow-x-auto", [{relative:open}])}>`)).toEqual([]);
   });
 
   it("reports one hit per class string and the right line", () => {
