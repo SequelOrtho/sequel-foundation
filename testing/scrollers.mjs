@@ -142,9 +142,17 @@ function classNameExpressionAround(source, literalStart) {
 }
 
 // Tailwind v4's important marker (`relative!`, or `!relative` in v3 style) and
-// a clsx object key (`{ relative: open }`) still name the class.
+// a clsx object key (`{ relative: open }`, or written tight `{relative:open}`)
+// still name the class. An arbitrary
+// segment (`group-has-[relative]:p-1`, `[&_td]:relative`, `w-[30rem]`) stays
+// part of its class: it holds no space or quote, so it is masked first and
+// the word inside it never reads as a class of its own. Only a bracket that
+// follows a class-name character or opens a variant (`[…]:`) is masked, so a
+// JS array literal never is (`cn(["relative"])`, `cn([{relative:open}])`).
 function tokensOf(text) {
   return text
+    .replace(/(?<=[\w-])\[[^\]\s"'`]*\]|\[[^\]\s"'`]*\](?=:)/g, "§")
+    .replace(/([{,]\s*)(!?[\w-]+!?)\s*:/g, "$1$2 :")
     .split(/[\s"'`{}()[\],?$+]+/)
     .map((t) => t.replace(/^!+|!+$/g, "").replace(/:$/, ""))
     .filter(Boolean);

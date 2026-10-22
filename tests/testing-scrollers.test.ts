@@ -75,7 +75,21 @@ describe("findUnpositionedScrollers", () => {
     expect(hits(`<div className="overflow-x-auto relative!">`)).toEqual([]);
     expect(hits(`<div className="overflow-x-auto !relative">`)).toEqual([]);
     expect(hits(`<div className={clsx("overflow-x-auto", { relative: open })}>`)).toEqual([]);
+    expect(hits(`<div className={clsx("overflow-x-auto", {relative:open})}>`)).toEqual([]);
+    expect(hits(`<div className={cn("overflow-x-auto", "md:relative")}>`)).toHaveLength(1);
     expect(hits(`<div className="overflow-x-auto md:relative!">`)).toHaveLength(1);
+  });
+
+  it("does not read a word inside an arbitrary variant or value as a class", () => {
+    expect(hits(`<div className="group-has-[relative]:p-1 overflow-x-auto">`)).toHaveLength(1);
+    expect(hits(`<div className="[&_td]:relative overflow-x-auto">`)).toHaveLength(1);
+    expect(hits(`<div className="has-[.sticky]:pt-2 overflow-x-auto">`)).toHaveLength(1);
+    expect(hits(`<div className="has-[a,relative]:p-1 overflow-x-auto">`)).toHaveLength(1);
+    expect(hits(`<div className="[&:is(.a,.b)]:relative overflow-x-auto">`)).toHaveLength(1);
+    expect(hits(`<div className="grid-cols-[1fr,auto] relative overflow-x-auto">`)).toEqual([]);
+    expect(hits(`<div className="w-[30rem] relative overflow-x-auto">`)).toEqual([]);
+    expect(hits(`<div className={cn(["overflow-x-auto", "relative"])}>`)).toEqual([]);
+    expect(hits(`<div className={cn("overflow-x-auto", [{relative:open}])}>`)).toEqual([]);
   });
 
   it("reports one hit per class string and the right line", () => {
