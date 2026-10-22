@@ -146,12 +146,12 @@ function classNameExpressionAround(source, literalStart) {
 // still name the class. An arbitrary
 // segment (`group-has-[relative]:p-1`, `[&_td]:relative`, `w-[30rem]`) stays
 // part of its class: it holds no space or quote, so it is masked first and
-// the word inside it never reads as a class of its own. A JS array literal is
-// never masked: a quote, a brace or a comma inside the brackets marks one
-// (`cn(["relative"])`, `cn([{relative:open}])`).
+// the word inside it never reads as a class of its own. Only a bracket that
+// follows a class-name character or opens a variant (`[…]:`) is masked, so a
+// JS array literal never is (`cn(["relative"])`, `cn([{relative:open}])`).
 function tokensOf(text) {
   return text
-    .replace(/\[[^\]\s"'`{},]*\]/g, "§")
+    .replace(/(?<=[\w-])\[[^\]\s"'`]*\]|\[[^\]\s"'`]*\](?=:)/g, "§")
     .replace(/([{,]\s*)(!?[\w-]+!?)\s*:/g, "$1$2 :")
     .split(/[\s"'`{}()[\],?$+]+/)
     .map((t) => t.replace(/^!+|!+$/g, "").replace(/:$/, ""))
