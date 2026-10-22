@@ -2,7 +2,7 @@
 
 import type { ReactNode } from "react";
 import { buttonClasses } from "../ui/Button";
-import { clearUnreadBadge } from "../ui/UnreadBadge";
+import { SIGN_OUT_FORM_ATTR, clearUnreadBadge } from "../ui/UnreadBadge";
 import { announceSignOut } from "./channel";
 import { SIGN_OUT_PATH } from "./policy";
 
@@ -27,7 +27,7 @@ export function SignOutForm({
   buttonClassName?: string;
 }) {
   return (
-    <form method="post" action={action} className={className} onSubmit={() => {
+    <form method="post" action={action} className={className} {...{ [SIGN_OUT_FORM_ATTR]: "" }} onSubmit={() => {
         clearUnreadBadge({ untilInput: true });
         announceSignOut();
       }}>

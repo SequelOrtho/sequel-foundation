@@ -12,7 +12,7 @@ import { badgeText, badgeTitle, iconBadgeGeometry, ICON_BADGE_MAX } from "./tab-
 //     digit, then "9+") — the part you see when tabs are too narrow for titles.
 // It renders nothing. Count only, never content (ruling "6-yes"). Sign Out and
 // the signed-out screen clear it (SignOutForm / SessionWatch call
-// clearUnreadBadge), and it stays cleared on that page.
+// clearUnreadBadge); see clearUnreadBadge for how long each keeps it off.
 //
 // Next rewrites the title on every navigation and re-renders the <head> icon
 // links, so one MutationObserver on <head> puts the count back whenever either
@@ -23,8 +23,9 @@ import { badgeText, badgeTitle, iconBadgeGeometry, ICON_BADGE_MAX } from "./tab-
 //
 // One <UnreadBadge> per page (the bell's); with two, the last count set wins.
 // A Sign Out that never leaves the page (the person chose Stay on an
-// unsaved-changes prompt) takes the count off only until their next click or
-// keystroke on the page.
+// unsaved-changes prompt) keeps the count off until their next click or
+// keystroke elsewhere on the page at least ten seconds later; a double-click or
+// typing while the sign-out is still leaving never brings it back.
 //
 // The installed-app taskbar badge (navigator.setAppBadge) is not used: the hubs
 // are not installable apps (owner ruling 2026-10-22, "3-lets hold off on this
@@ -37,28 +38,50 @@ const ICON_SIZE = 32;
 export const ICON_BADGE_FILL = "#e51919";
 /** At most this many writes per second; past it the badge stands aside. */
 const WRITE_BUDGET = 20;
+/**
+ * After Sign Out is pressed, input this soon is the sign-out still leaving (a
+ * double-click, typing during a slow sign-out), never a cancelled one.
+ */
+export const SIGN_OUT_RESUME_GRACE_MS = 10_000;
+/** Marks the Sign Out form, whose own clicks never bring the count back. */
+export const SIGN_OUT_FORM_ATTR = "data-sign-out";
 
 let mounted = 0;
 let wanted = 0;
 let suppressed = false;
 let paused = false; // Sign Out submitted; lifted by the next input if the page stays
+let pausedAt = 0;
 let resumeListening = false;
+let lastTitle: string | null = null; // the title this module last wrote
 let observer: MutationObserver | null = null;
 let scheduled = false;
 let drawToken = 0;
 let writes: number[] = [];
+let strips: number[] = []; // the clear's own budget, so a spent one never keeps a count up
 const drawn = new Map<string, string>(); // `${src}|${text}` → data URL
 
 function current(): number {
   return suppressed || paused ? 0 : wanted;
 }
 
-function withinBudget(): boolean {
+function spend(log: number[]): number[] | null {
   const now = Date.now();
-  writes = writes.filter((t) => now - t < 1000);
-  if (writes.length >= WRITE_BUDGET) return false;
-  writes.push(now);
-  return true;
+  const recent = log.filter((t) => now - t < 1000);
+  if (recent.length >= WRITE_BUDGET) return null;
+  recent.push(now);
+  return recent;
+}
+
+function withinBudget(): boolean {
+  const next = spend(writes);
+  if (next) writes = next;
+  return next !== null;
+}
+
+function withinStripBudget(): boolean {
+  const next = spend(strips);
+  if (next) strips = next;
+  return next !== null;
 }
 
 function iconLinks(doc: Document): HTMLLinkElement[] {
@@ -67,9 +90,14 @@ function iconLinks(doc: Document): HTMLLinkElement[] {
 
 function applyTitle(doc: Document) {
   const next = badgeTitle(doc.title, current());
-  // Taking the count off after Sign Out never waits on the budget: a loop that
-  // spent it must not leave the last person's count in the tab.
-  if (doc.title !== next && (suppressed || paused || withinBudget())) doc.title = next;
+  // Taking the count off after Sign Out has a budget of its own: a loop that
+  // spent the main one must not leave the last person's count in the tab, and a
+  // page that keeps putting a count back still can't spin the tab.
+  if (doc.title === next) return;
+  if (suppressed || paused ? withinStripBudget() : withinBudget()) {
+    lastTitle = next;
+    doc.title = next;
+  }
 }
 
 function loadImage(src: string): Promise<HTMLImageElement> {
@@ -162,12 +190,19 @@ function schedule() {
   });
 }
 
+function isOwnWrite(r: MutationRecord): boolean {
+  // Our icon writes change only `href` on a link we marked.
+  if (r.type === "attributes") {
+    const el = r.target as Element;
+    return el.getAttribute?.(BADGED) === el.getAttribute?.("href");
+  }
+  // Our title write, while the title still reads what we wrote.
+  const titleEl = r.target.nodeName === "TITLE" ? r.target : r.target.parentNode;
+  return titleEl?.nodeName === "TITLE" && lastTitle !== null && document.title === lastTitle;
+}
+
 function onHeadChange(records: MutationRecord[]) {
-  // Our own icon writes change only `href` on a link we marked; skip those.
-  const foreign = records.some(
-    (r) => !(r.type === "attributes" && (r.target as Element).getAttribute?.(BADGED) === (r.target as Element).getAttribute?.("href")),
-  );
-  if (foreign) schedule();
+  if (records.some((r) => !isOwnWrite(r))) schedule();
 }
 
 function start() {
@@ -191,16 +226,23 @@ export function setUnreadCount(count: number): void {
  * Take the count off the tab. The signed-out screen calls it with no options:
  * the count stays off for good on this page, so a shared computer's next
  * person never sees the last person's count. Sign Out calls it with
- * `{ untilInput: true }`: the count comes back at the next click or keystroke
- * on the page, which happens only if the sign-out was cancelled and the page
- * stayed. SignOutForm and SessionWatch already call it.
+ * `{ untilInput: true }`: the count stays off while the sign-out leaves the
+ * page, and comes back only at a click or keystroke away from the Sign Out
+ * form more than SIGN_OUT_RESUME_GRACE_MS later — that is, only when the
+ * sign-out was cancelled and the page stayed. SignOutForm and SessionWatch
+ * already call it.
  */
 export function clearUnreadBadge(options: { untilInput?: boolean } = {}): void {
   if (options.untilInput) {
     paused = true;
+    pausedAt = Date.now();
     if (!resumeListening && typeof document !== "undefined") {
       resumeListening = true;
-      const resume = () => {
+      const resume = (event: Event) => {
+        // Input on Sign Out itself, or soon after it, is the sign-out still leaving.
+        const target = event.target as Element | null;
+        if (target?.closest?.(`[${SIGN_OUT_FORM_ATTR}]`)) return;
+        if (Date.now() - pausedAt < SIGN_OUT_RESUME_GRACE_MS) return;
         document.removeEventListener("pointerdown", resume, true);
         document.removeEventListener("keydown", resume, true);
         resumeListening = false;
@@ -223,8 +265,11 @@ export function resetUnreadBadgeForTests(): void {
   wanted = 0;
   suppressed = false;
   paused = false;
+  pausedAt = 0;
+  lastTitle = null;
   scheduled = false;
   writes = [];
+  strips = [];
   drawn.clear();
 }
 

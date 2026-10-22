@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { UnreadBadge, clearUnreadBadge, resetUnreadBadgeForTests } from "../ui/UnreadBadge";
+import { SIGN_OUT_RESUME_GRACE_MS, UnreadBadge, clearUnreadBadge, resetUnreadBadgeForTests } from "../ui/UnreadBadge";
 import { sameTitleIgnoringBadge } from "../ui/tab-badge";
 import { SignOutForm } from "../session";
 
@@ -133,31 +133,45 @@ describe("UnreadBadge", () => {
     expect(document.title).toBe("Alerts · Missed Punch Hub");
   });
 
-  it("a Sign Out that never leaves the page gives the count back at the next input (review r2)", async () => {
-    const { rerender } = render(
-      <>
-        <UnreadBadge count={2} />
-        <SignOutForm />
-      </>,
-    );
-    await flush();
-    const form = document.querySelector("form") as HTMLFormElement;
-    form.addEventListener("submit", (e) => e.preventDefault()); // the person chose Stay
-    fireEvent.submit(form);
-    await flush();
-    expect(document.title).toBe("Alerts · Missed Punch Hub");
-    rerender(
-      <>
-        <UnreadBadge count={5} />
-        <SignOutForm />
-      </>,
-    );
-    await flush();
-    expect(document.title).toBe("Alerts · Missed Punch Hub");
-    fireEvent.pointerDown(document.body);
-    await flush();
-    expect(document.title).toBe("(5) Alerts · Missed Punch Hub");
-    expect(icon().getAttribute("href")).toMatch(/^data:image\/png/);
+  it("a Sign Out that never leaves the page gives the count back at a later input (review r2, F13)", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    try {
+      const { rerender } = render(
+        <>
+          <UnreadBadge count={2} />
+          <SignOutForm />
+        </>,
+      );
+      await flush();
+      const form = document.querySelector("form") as HTMLFormElement;
+      form.addEventListener("submit", (e) => e.preventDefault()); // the person chose Stay
+      fireEvent.submit(form);
+      await flush();
+      expect(document.title).toBe("Alerts · Missed Punch Hub");
+      rerender(
+        <>
+          <UnreadBadge count={5} />
+          <SignOutForm />
+        </>,
+      );
+      await flush();
+      // A double-click on Sign Out, or typing while the sign-out is still leaving: stays off.
+      fireEvent.pointerDown(form.querySelector("button") as HTMLButtonElement);
+      fireEvent.keyDown(document.body, { key: "a" });
+      await flush();
+      expect(document.title).toBe("Alerts · Missed Punch Hub");
+      // Later, still on the page: the sign-out was cancelled, so the tab follows the bell again.
+      vi.setSystemTime(Date.now() + SIGN_OUT_RESUME_GRACE_MS + 1);
+      fireEvent.pointerDown(form.querySelector("button") as HTMLButtonElement); // Sign Out itself never resumes
+      await flush();
+      expect(document.title).toBe("Alerts · Missed Punch Hub");
+      fireEvent.pointerDown(document.body);
+      await flush();
+      expect(document.title).toBe("(5) Alerts · Missed Punch Hub");
+      expect(icon().getAttribute("href")).toMatch(/^data:image\/png/);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("the signed-out screen's clear is for good: input does not bring the count back", async () => {
@@ -239,6 +253,40 @@ describe("UnreadBadge", () => {
     act(() => clearUnreadBadge());
     await flush();
     expect(document.title).toBe("Alerts · Missed Punch Hub");
+  });
+
+  it("the clear's own budget bounds a fight with a page that keeps putting a count back (review F14)", async () => {
+    render(<UnreadBadge count={1} />);
+    await flush();
+    const writes = countTitleWrites();
+    const obs = new MutationObserver(() => {
+      if (!document.title.startsWith("(9) ")) document.title = "(9) Alerts · Missed Punch Hub";
+    });
+    obs.observe(document.head, { subtree: true, childList: true, characterData: true });
+    act(() => clearUnreadBadge());
+    for (let i = 0; i < 60; i++) await flush();
+    const settled = writes.length;
+    expect(settled).toBeLessThanOrEqual(2 * 20 + 45); // strips stay within their budget
+    for (let i = 0; i < 10; i++) await flush();
+    expect(writes.length).toBe(settled); // the loop has ended
+    obs.disconnect();
+  });
+
+  it("draws the icon once per count change, not again for its own title write (review F15)", async () => {
+    let loads = 0;
+    class CountingImage extends InstantImage {
+      set src(v: string) {
+        loads += 1;
+        super.src = v;
+      }
+    }
+    vi.stubGlobal("Image", CountingImage);
+    const { rerender } = render(<UnreadBadge count={0} />);
+    await flush();
+    rerender(<UnreadBadge count={3} />);
+    for (let i = 0; i < 5; i++) await flush();
+    expect(document.title).toBe("(3) Alerts · Missed Punch Hub");
+    expect(loads).toBe(1);
   });
 
   it("a page with no title shows just the count, stably", async () => {
