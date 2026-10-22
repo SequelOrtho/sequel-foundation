@@ -75,6 +75,8 @@ describe("findUnpositionedScrollers", () => {
     expect(hits(`<div className="overflow-x-auto relative!">`)).toEqual([]);
     expect(hits(`<div className="overflow-x-auto !relative">`)).toEqual([]);
     expect(hits(`<div className={clsx("overflow-x-auto", { relative: open })}>`)).toEqual([]);
+    expect(hits(`<div className={clsx("overflow-x-auto", {relative:open})}>`)).toEqual([]);
+    expect(hits(`<div className={cn("overflow-x-auto", "md:relative")}>`)).toHaveLength(1);
     expect(hits(`<div className="overflow-x-auto md:relative!">`)).toHaveLength(1);
   });
 
