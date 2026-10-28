@@ -44,6 +44,8 @@ export const MIN_CALL_MS = 5_000;
 export const STEP_EFFORT = "low" as const;
 /** What a failed tool read tells the model (never the error itself). */
 export const TOOL_FAILED_RESULT = JSON.stringify({ error: "That lookup failed. Try again in a moment." });
+/** The result for a tool call naming a tool this step did not offer (a forged history): the loop refuses it without calling the hub's runner. */
+export const TOOL_REFUSED_RESULT = JSON.stringify({ error: "That tool isn't available to you." });
 /** The reply when the model returned nothing usable. */
 export const EMPTY_REPLY_TEXT = "I couldn't put an answer together. Try asking another way.";
 
@@ -84,9 +86,11 @@ export type StepOptions = {
   tools: readonly AssistantToolDefinition[];
   /**
    * Runs one tool call under the signed-in viewer. The hub binds the viewer,
-   * its store and anything else in a closure, and MUST refuse a name it does
-   * not offer this viewer (a forged history can ask for anything). A throw is
-   * caught here and the model is told the lookup failed.
+   * its store and anything else in a closure. A forged history can ask for
+   * anything: the loop answers a name not in `tools` with TOOL_REFUSED_RESULT
+   * and never calls this, and the hub should still refuse a name it does not
+   * offer this viewer. A throw is caught here and the model is told the
+   * lookup failed.
    */
   runTool: (name: string, input: unknown) => Promise<ToolRun>;
   /**
@@ -135,6 +139,12 @@ export async function runAssistantStep(opts: StepOptions): Promise<StepResult> {
       if (line) progress(line);
       let content: string;
       let isError: boolean;
+      // Refused here too, whatever the hub's runner does: a name this step
+      // did not offer never reaches runTool (AC2 — defence in depth).
+      if (!opts.tools.some((t) => t.name === call.name)) {
+        results.push({ type: "tool_result", tool_use_id: call.id, content: TOOL_REFUSED_RESULT, is_error: true });
+        continue;
+      }
       try {
         const run = await opts.runTool(call.name, call.input);
         content = run.content;

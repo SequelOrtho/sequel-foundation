@@ -44,11 +44,25 @@ export function redactionNotice(kinds: readonly string[] | undefined): string | 
   return `Removed from your question before it was sent: ${words.join(", ")}.`;
 }
 
-/** Reads a stored conversation back (useRememberedState's `read`); anything malformed starts clean. */
+/** Each block is an object with a string `type` — what the panel's renderers read. */
+const blocksOk = (content: unknown): boolean =>
+  Array.isArray(content) && content.every((b) => !!b && typeof b === "object" && typeof (b as { type?: unknown }).type === "string");
+
+/** Enough of a message for the panel to render it without throwing; the server re-parses everything it is sent. */
+function messageOk(m: unknown): boolean {
+  if (!m || typeof m !== "object") return false;
+  const { role, content } = m as { role?: unknown; content?: unknown };
+  if (role === "user") return typeof content === "string" || blocksOk(content);
+  if (role === "assistant") return blocksOk(content);
+  return false;
+}
+
+/** Reads a stored conversation back (useRememberedState's `read`); anything malformed starts clean, so a stale or edited tab copy never breaks the header. */
 export function readStoredConversation(initial: StoredConversation, value: unknown): StoredConversation {
   if (!value || typeof value !== "object") return initial;
   const v = value as Partial<StoredConversation>;
   if (!Array.isArray(v.messages) || !Array.isArray(v.links)) return initial;
+  if (!v.messages.every(messageOk)) return initial;
   return { messages: v.messages as Message[], links: v.links.filter((l): l is string => typeof l === "string") };
 }
 

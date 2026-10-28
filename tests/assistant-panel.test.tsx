@@ -11,6 +11,7 @@ import {
   redactionNotice,
   stepErrorMessage,
 } from "../assistant/panel-copy";
+import { exchanges } from "../assistant/conversation";
 
 // The family Ask the Hub panel (ported from the Missed Punch Hub's
 // tests/components/ask-hub.test.tsx). Wrong versions this catches: the browser
@@ -228,5 +229,29 @@ describe("panel copy", () => {
     expect(readStoredConversation(EMPTY_CONVERSATION, good)).toEqual(good);
     expect(readStoredConversation(EMPTY_CONVERSATION, { messages: "nope" })).toEqual(EMPTY_CONVERSATION);
     expect(readStoredConversation(EMPTY_CONVERSATION, null)).toEqual(EMPTY_CONVERSATION);
+  });
+
+  it("starts clean on a stored message the panel could not render, and renders without throwing", () => {
+    const bad = [
+      { messages: [null], links: [] },
+      { messages: [{ role: "user", content: "hi" }, { role: "assistant", content: "plain string" }], links: [] },
+      { messages: [{ role: "assistant", content: [null] }], links: [] },
+      { messages: [{ role: "system", content: "x" }], links: [] },
+    ];
+    for (const value of bad) {
+      expect(readStoredConversation(EMPTY_CONVERSATION, value)).toEqual(EMPTY_CONVERSATION);
+      const read = readStoredConversation(EMPTY_CONVERSATION, value);
+      expect(() => exchanges(read.messages)).not.toThrow();
+    }
+    const withTool = {
+      messages: [
+        { role: "user", content: "hi" },
+        { role: "assistant", content: [{ type: "tool_use", id: "t1", name: "x", input: {} }] },
+        { role: "user", content: [{ type: "tool_result", tool_use_id: "t1", content: "{}" }] },
+        { role: "assistant", content: [{ type: "text", text: "done" }] },
+      ],
+      links: [],
+    };
+    expect(readStoredConversation(EMPTY_CONVERSATION, withTool)).toEqual(withTool);
   });
 });

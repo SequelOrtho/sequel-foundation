@@ -11,6 +11,7 @@ export {
   STEP_EFFORT,
   MIN_CALL_MS,
   TOOL_FAILED_RESULT,
+  TOOL_REFUSED_RESULT,
   EMPTY_REPLY_TEXT,
 } from "./step";
 export type { AssistantToolDefinition, ToolRun, StepOptions, StepResult } from "./step";

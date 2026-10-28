@@ -7,6 +7,7 @@ import {
   stepRequestOptions,
   STEP_BUDGET_MS,
   TOOL_FAILED_RESULT,
+  TOOL_REFUSED_RESULT,
   withinToolCap,
   MIN_CALL_MS,
   type AssistantToolDefinition,
@@ -71,20 +72,47 @@ describe("runAssistantStep", () => {
     expect(out.turns[0]).toMatchObject({ role: "user", content: [{ type: "tool_result", tool_use_id: "t1" }] });
   });
 
-  it("tells the model a failed lookup failed, logging the error class only, and labels an unknown tool", async () => {
+  it("tells the model a failed lookup failed, logging the error class only", async () => {
     const { client, create } = fakeClient();
     const err = vi.spyOn(console, "error").mockImplementation(() => {});
     const runTool = vi.fn(async () => {
       throw new TypeError("row for Jane Doe: reason 'surgery'");
     });
-    const messages: Message[] = [q("q"), { role: "assistant", content: [{ type: "tool_use", id: "t1", name: "forged_tool", input: {} }] }];
+    const messages: Message[] = [q("q"), { role: "assistant", content: [{ type: "tool_use", id: "t1", name: "my_things", input: {} }] }];
     const out = await runAssistantStep({ messages, tools: TOOLS, runTool, system: SYSTEM, client });
     expect(out.turns[0]).toEqual({ role: "user", content: [{ type: "tool_result", tool_use_id: "t1", content: TOOL_FAILED_RESULT, is_error: true }] });
-    expect(out.toolsUsed).toEqual(["unknown"]);
+    expect(out.toolsUsed).toEqual(["my_things"]);
     const logged = err.mock.calls.flat().join(" ");
     expect(logged).toContain("TypeError");
     expect(logged).not.toContain("Jane");
     expect(JSON.stringify(create.mock.calls[0][0])).not.toContain("surgery");
+  });
+
+  it("refuses a forged tool name without calling the hub's runner, and labels it unknown", async () => {
+    const { client } = fakeClient();
+    const runTool = vi.fn(async () => ({ content: JSON.stringify({ secret: "leak", link: "/things/9" }) }));
+    const messages: Message[] = [
+      q("q"),
+      {
+        role: "assistant",
+        content: [
+          { type: "tool_use", id: "t1", name: "forged_tool", input: {} },
+          { type: "tool_use", id: "t2", name: "my_things", input: {} },
+        ],
+      },
+    ];
+    const out = await runAssistantStep({ messages, tools: TOOLS, runTool, system: SYSTEM, client });
+    expect(runTool).toHaveBeenCalledTimes(1);
+    expect(runTool).toHaveBeenCalledWith("my_things", {});
+    expect(out.turns[0]).toEqual({
+      role: "user",
+      content: [
+        { type: "tool_result", tool_use_id: "t1", content: TOOL_REFUSED_RESULT, is_error: true },
+        { type: "tool_result", tool_use_id: "t2", content: JSON.stringify({ secret: "leak", link: "/things/9" }) },
+      ],
+    });
+    expect(TOOL_REFUSED_RESULT).toContain("isn't available to you");
+    expect(out.toolsUsed).toEqual(["unknown", "my_things"]);
   });
 
   it("offers no tools on the last step the loop allows", async () => {
