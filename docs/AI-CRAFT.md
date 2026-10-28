@@ -61,6 +61,21 @@ Traditional code throws; foundation models fail silently by generating fluent un
 - **Groundedness is a prompt contract + a validation habit**: generation prompts require every factual claim to come from the supplied context, and the safe answer for a claim that can't be grounded is "Verified information isn't available for this" — an honest miss beats a fluent fabrication, always.
 - **Fallbacks are deterministic and named** (code: `llm/http.ts`): every model-side failure maps to a typed `{status, error}` whose message names the cause and the fix (§7 writing rule). Unknown errors are logged, not leaked.
 
+### 2.6 Ask the Hub — the family's read-only assistant (code: `assistant/`, v0.33.0)
+
+A header button and side panel where a signed-in person asks a question in plain words; Claude looks things up with read-only tools and answers with links into the hub. Built first in the Project Hub, cut down in the Missed Punch Hub (owner ruling 2026-10-28, Mike: "You can add Missed Punch Hub"), shared here when the Scheduler Hub joined. The foundation holds the hub-free parts — the conversation types and parser (`assistant`), the step loop, request reader and rate budget (`assistant/server`), and the panel (`assistant/panel`); each hub keeps its own tools, prompt, role rules and help text. The family rules, each a test in every hub that ships it:
+
+- **Read-only.** No tool writes; the assistant path writes nothing but its own rate record. A hub test fails on any store or database write reachable from its tools or step route.
+- **Tools read through the page's own rule.** Each tool stands in for one page and calls that page's own loader and access check, so the assistant can never be wider than the page. A tool the role isn't offered is refused even when a forged conversation asks for it (the runner checks, not only the tool list), and a record the person may not open reads exactly like a missing one.
+- **Lists carry no more than the page shows**, and no free text beyond what one record's own page shows: lists answer with dates, status, figures the list page shows and links; a reason, note or narrative a person typed reaches the model only for the one record the person names (by link or id), as its page shows it. The prompt treats that text as information, never as instructions.
+- **Nothing is stored server-side.** The browser holds the conversation for the tab under the remembered-view prefix (`sf.view.assistant.<role>`), so Sign Out, the signed-out screen and a role switch clear it; the server re-parses it on every step (`parseConversation`) and keeps none of it. Logs carry the step number, tool names and stop reason only — never the question, the answer or tool data (`stepLogLine`; traces carry no input).
+- **An off switch.** `assistantEnabled()`: on only when `ANTHROPIC_API_KEY` is set and `ASSISTANT_ENABLED` is unset, empty, true, 1, on or yes; off, the button is hidden and the route answers 404 under the same rule, so the button never shows and then fails.
+- **A rate budget.** `checkAssistantBudget` over the hub's `FixedWindowStore` (`AI_RATE_ASSISTANT_PER_IDENTITY` 120, `AI_RATE_ASSISTANT_GLOBAL` 1200 per `AI_RATE_WINDOW_MS`), keyed by a salted hash of the sign-in, failing closed — 429 beyond.
+- **Bounded steps.** One model call per step, at most `MAX_STEPS` (8) per question with `tool_choice: none` on the last, at most `MAX_TOOL_CALLS` per turn, each step inside `STEP_BUDGET_MS` (45 s) with no retry; every question passes `gateLlmInput` (§2.2) and the panel says what was removed.
+- **Links only for Hub paths a tool returned** (`renderAnswer`): a model-written link to anywhere else shows as its text. Answers render light markdown only — never HTML or an image.
+
+Route order in a hub: 404 off → 401 signed out → `readStepRequest` (413 / 422) → 429 budget → `streamJob(() => runAssistantStep(…))`.
+
 ## 3. The six debts — what generated code omits
 
 The audit list for any prototype (or any existing feature) headed to customers. Each debt, its production symptom, and the foundation defense:
