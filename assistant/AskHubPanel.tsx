@@ -122,14 +122,19 @@ export function AskHubPanel({
   const dialogRef = useRef<HTMLDialogElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const logRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const submitRef = useRef<HTMLButtonElement>(null);
   const titleId = useId();
 
   // The native modal dialog: the page goes inert, Tab stays inside, Escape
-  // closes, and focus returns to the button (as the foundation Dialog does).
+  // closes, and focus returns to the button (as the foundation Dialog does) —
+  // through a ref to it, not whatever held focus when the panel opened, which
+  // a click on a button that doesn't take focus (Safari, Firefox on a Mac)
+  // leaves on the page.
   useEffect(() => {
     const el = dialogRef.current;
     if (!el || !open) return;
-    const opener = document.activeElement as HTMLElement | null;
+    const trigger = triggerRef.current;
     if (typeof el.showModal === "function") {
       if (!el.open) el.showModal();
     } else {
@@ -139,7 +144,7 @@ export function AskHubPanel({
     return () => {
       if (typeof el.close === "function" && el.open) el.close();
       else el.removeAttribute("open");
-      if (opener && opener.isConnected) opener.focus();
+      if (trigger && trigger.isConnected) trigger.focus();
     };
   }, [open]);
 
@@ -186,7 +191,17 @@ export function AskHubPanel({
     } finally {
       setBusy(false);
       setStatus(null);
-      inputRef.current?.focus();
+      // Back to the question box only if focus is still where the person
+      // asked from (the box, Ask, or lost to the page when a starter or the
+      // busy button left) — never away from a link they have moved to.
+      const active = document.activeElement;
+      const fromAsk =
+        active == null ||
+        active === document.body ||
+        active === dialogRef.current ||
+        active === inputRef.current ||
+        active === submitRef.current;
+      if (fromAsk) inputRef.current?.focus();
     }
   }
 
@@ -205,7 +220,7 @@ export function AskHubPanel({
 
   return (
     <>
-      <button type="button" onClick={() => setOpen(true)} title={buttonTitle} className={ASK_BUTTON_CLASS}>
+      <button ref={triggerRef} type="button" onClick={() => setOpen(true)} title={buttonTitle} className={ASK_BUTTON_CLASS}>
         <svg aria-hidden="true" viewBox="0 0 20 20" className="h-4 w-4" fill="currentColor">
           <path d="M10 1.5l1.7 4.8 4.8 1.7-4.8 1.7L10 14.5l-1.7-4.8L3.5 8l4.8-1.7zM16 12.5l.8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8z" />
         </svg>
@@ -321,7 +336,7 @@ export function AskHubPanel({
                 className={inputClasses("resize-none")}
               />
               <div className="mt-2 flex justify-end">
-                <Button type="submit" busy={busy} busyLabel="Asking…">
+                <Button ref={submitRef} type="submit" busy={busy} busyLabel="Asking…">
                   Ask
                 </Button>
               </div>

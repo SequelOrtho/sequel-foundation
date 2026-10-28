@@ -4,6 +4,8 @@
 export {
   runAssistantStep,
   stepRequestOptions,
+  toolTimeLeft,
+  ToolTimeoutError,
   stepLogLine,
   withinToolCap,
   STEP_BUDGET_MS,
@@ -14,7 +16,7 @@ export {
   TOOL_REFUSED_RESULT,
   EMPTY_REPLY_TEXT,
 } from "./step";
-export type { AssistantToolDefinition, ToolRun, StepOptions, StepResult } from "./step";
+export type { AssistantToolDefinition, ToolRun, ToolRunContext, StepOptions, StepResult } from "./step";
 export {
   checkAssistantBudget,
   assistantPerIdentity,
@@ -22,6 +24,7 @@ export {
   assistantWindowMs,
   assistantRateSalt,
   ASSISTANT_RATE_ROUTE,
+  memoryRateStoreForDevOnly,
 } from "./budget";
 export { readStepRequest } from "./request";
 export type { StepRequest } from "./request";

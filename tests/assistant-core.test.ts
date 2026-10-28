@@ -67,6 +67,29 @@ describe("parseConversation", () => {
     expect(parseConversation([{ role: "user", content: "q" }, turn(["t1", "t1"])]).ok).toBe(false);
   });
 
+  // Round-2 review, item 5: a result that answers no call (or misses one)
+  // makes the API refuse the request, and the model fallback then retried it
+  // and logged a false downgrade.
+  it("refuses tool results that don't answer exactly the calls of the turn before", () => {
+    const two: Message = {
+      role: "assistant",
+      content: [
+        { type: "tool_use", id: "a", name: "my_requests", input: {} },
+        { type: "tool_use", id: "b", name: "my_requests", input: {} },
+      ],
+    };
+    const results = (...ids: string[]): Message => ({ role: "user", content: ids.map((id) => ({ type: "tool_result" as const, tool_use_id: id, content: "{}" })) });
+    const after = (r: Message) => parseConversation([{ role: "user", content: "q" }, two, r, toolUse("c")]).ok;
+    expect(after(results("a", "b"))).toBe(true);
+    expect(after(results("b", "a"))).toBe(true);
+    expect(after(results("a"))).toBe(false);
+    expect(after(results("a", "x"))).toBe(false);
+    expect(after(results("a", "a"))).toBe(false);
+    expect(after(results("a", "b", "c"))).toBe(false);
+    // Results after a turn that asked for nothing.
+    expect(parseConversation([{ role: "user", content: "q" }, answer("hi"), result("t1"), toolUse("c")]).ok).toBe(false);
+  });
+
   it("stops a question after MAX_STEPS model calls", () => {
     const loop: Message[] = [{ role: "user", content: "q" }];
     for (let i = 0; i < MAX_STEPS; i++) loop.push(toolUse(`t${i}`), result(`t${i}`));

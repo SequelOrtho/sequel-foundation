@@ -20,6 +20,7 @@ export {
   compactHistory,
   exchanges,
   fit,
+  capToolResult,
 } from "./conversation";
 export type {
   TextBlock,

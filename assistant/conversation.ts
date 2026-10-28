@@ -112,6 +112,17 @@ export function parseConversation(raw: unknown): Parsed {
       } else if (Array.isArray(m.content) && m.content.length > 0 && i > 0) {
         const blocks = m.content.map(toToolResult);
         if (blocks.some((b) => b == null)) return { ok: false, error: "The conversation could not be read." };
+        // Each result answers one call the turn before asked for, once, and
+        // every call gets its answer — otherwise the API refuses the request
+        // (400), and a model fallback would retry it and log a false downgrade.
+        const prev = messages[messages.length - 1];
+        const callIds = prev.role === "assistant" ? prev.content.filter((b): b is ToolUseBlock => b.type === "tool_use").map((b) => b.id) : [];
+        const resultIds = (blocks as ToolResultBlock[]).map((b) => b.tool_use_id);
+        const paired =
+          resultIds.length === callIds.length &&
+          new Set(resultIds).size === resultIds.length &&
+          resultIds.every((id) => callIds.includes(id));
+        if (!paired) return { ok: false, error: "The conversation could not be read." };
         messages.push({ role: "user", content: blocks as ToolResultBlock[] });
       } else {
         return { ok: false, error: "The conversation could not be read." };
@@ -179,6 +190,8 @@ function answerAfter(messages: readonly Message[], i: number, end: number): stri
   return answer;
 }
 
+const TOO_LONG_RESULT = JSON.stringify({ error: "The answer was too long to read. Narrow the question." });
+
 /** JSON within the result cap: long lists are cut (and say so) rather than
  *  the text being chopped mid-record. */
 export function fit(value: unknown): string {
@@ -195,7 +208,22 @@ export function fit(value: unknown): string {
       }
     }
   }
-  return JSON.stringify({ error: "The answer was too long to read. Narrow the question." });
+  return TOO_LONG_RESULT;
+}
+
+/**
+ * A tool result the hub's runner handed back, held to MAX_TOOL_RESULT_CHARS
+ * so the next step's parse accepts it: JSON over the cap is re-cut by `fit`
+ * (lists shortened, and saying so); anything else over the cap becomes the
+ * "too long" error. A result within the cap is passed through as written.
+ */
+export function capToolResult(content: string): string {
+  if (content.length <= MAX_TOOL_RESULT_CHARS) return content;
+  try {
+    return fit(JSON.parse(content));
+  } catch {
+    return TOO_LONG_RESULT;
+  }
 }
 
 /** One question asked so far, with its answer once there is one (the panel's log). */

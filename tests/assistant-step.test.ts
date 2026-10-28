@@ -10,9 +10,11 @@ import {
   TOOL_REFUSED_RESULT,
   withinToolCap,
   MIN_CALL_MS,
+  toolTimeLeft,
+  memoryRateStoreForDevOnly,
   type AssistantToolDefinition,
 } from "../assistant/server";
-import { MAX_BODY_CHARS, MAX_STEPS, MAX_TOOL_CALLS, type Message } from "../assistant";
+import { MAX_BODY_CHARS, MAX_STEPS, MAX_TOOL_CALLS, MAX_TOOL_RESULT_CHARS, parseConversation, type Message } from "../assistant";
 import type { FixedWindowStore, LlmTraceRecord } from "../llm";
 
 // The family step loop and its server helpers (AI-CRAFT §2.6). A fake client
@@ -38,7 +40,10 @@ function fakeClient(content: unknown[] = [{ type: "text", text: "All done." }], 
 
 const q = (text: string): Message => ({ role: "user", content: text });
 
-afterEach(() => vi.restoreAllMocks());
+afterEach(() => {
+  vi.useRealTimers();
+  vi.restoreAllMocks();
+});
 
 describe("runAssistantStep", () => {
   it("makes exactly one model call, with the cached prompt first and the context uncached", async () => {
@@ -65,7 +70,7 @@ describe("runAssistantStep", () => {
     const progress = vi.fn();
     const messages: Message[] = [q("What's mine?"), { role: "assistant", content: [{ type: "tool_use", id: "t1", name: "my_things", input: { a: 1 } }] }];
     const out = await runAssistantStep({ messages, tools: TOOLS, runTool, system: SYSTEM, client, progress, progressFor: () => "Reading your things…" });
-    expect(runTool).toHaveBeenCalledWith("my_things", { a: 1 });
+    expect(runTool).toHaveBeenCalledWith("my_things", { a: 1 }, { signal: expect.any(AbortSignal) });
     expect(progress).toHaveBeenCalledWith("Reading your things…");
     expect(out.links).toEqual(["/things/1"]);
     expect(out.toolsUsed).toEqual(["my_things"]);
@@ -103,7 +108,7 @@ describe("runAssistantStep", () => {
     ];
     const out = await runAssistantStep({ messages, tools: TOOLS, runTool, system: SYSTEM, client });
     expect(runTool).toHaveBeenCalledTimes(1);
-    expect(runTool).toHaveBeenCalledWith("my_things", {});
+    expect(runTool).toHaveBeenCalledWith("my_things", {}, { signal: expect.any(AbortSignal) });
     expect(out.turns[0]).toEqual({
       role: "user",
       content: [
@@ -113,6 +118,100 @@ describe("runAssistantStep", () => {
     });
     expect(TOOL_REFUSED_RESULT).toContain("isn't available to you");
     expect(out.toolsUsed).toEqual(["unknown", "my_things"]);
+  });
+
+  // Round-2 review, item 6: a forged name is refused before any label, so no
+  // forged text reaches the log line or the progress line.
+  it("never hands a forged tool name to the hub's label or progress functions", async () => {
+    const { client } = fakeClient();
+    const toolLabel = vi.fn((name: string) => name);
+    const progressFor = vi.fn(() => undefined);
+    const messages: Message[] = [q("q"), { role: "assistant", content: [{ type: "tool_use", id: "t1", name: "x\nstop=forged", input: {} }] }];
+    const out = await runAssistantStep({ messages, tools: TOOLS, runTool: vi.fn(), system: SYSTEM, client, toolLabel, progressFor });
+    expect(out.toolsUsed).toEqual(["unknown"]);
+    expect(toolLabel).not.toHaveBeenCalled();
+    expect(progressFor).not.toHaveBeenCalled();
+  });
+
+  // Round-2 review, item 1: a hub result over the cap would make the next
+  // step's parse refuse the whole conversation (422); a non-string one threw
+  // in the link scan and failed the step (500).
+  it("holds a tool result to the cap the next step's parse accepts, and reads a non-string result as a failed lookup", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const rows = Array.from({ length: 2000 }, (_, i) => ({ id: i, link: `/things/${i}`, note: "x".repeat(20) }));
+    const results: unknown[] = [
+      { content: JSON.stringify({ rows }) },
+      { content: "y".repeat(MAX_TOOL_RESULT_CHARS + 500) },
+      { content: { rows: [1] } },
+      undefined,
+    ];
+    const tools: AssistantToolDefinition[] = [0, 1, 2, 3].map((i) => ({ ...TOOLS[0], name: `t${i}` }));
+    const runTool = vi.fn(async (name: string) => results[Number(name.slice(1))] as never);
+    const call: Message = { role: "assistant", content: tools.map((t) => ({ type: "tool_use" as const, id: `id_${t.name}`, name: t.name, input: {} })) };
+    const { client } = fakeClient();
+    const out = await runAssistantStep({ messages: [q("q"), call], tools, runTool, system: SYSTEM, client });
+    const blocks = (out.turns[0] as { content: { content: string; is_error?: boolean }[] }).content;
+    expect(blocks.every((b) => b.content.length <= MAX_TOOL_RESULT_CHARS)).toBe(true);
+    expect(JSON.parse(blocks[0].content).more).toMatch(/more not shown/);
+    expect(blocks[0].is_error).toBeUndefined();
+    expect(JSON.parse(blocks[1].content).error).toMatch(/too long/);
+    expect(blocks[2]).toMatchObject({ content: TOOL_FAILED_RESULT, is_error: true });
+    expect(blocks[3]).toMatchObject({ content: TOOL_FAILED_RESULT, is_error: true });
+    // The next step's parse takes the turn back.
+    expect(parseConversation([q("q"), call, out.turns[0], { role: "assistant", content: [{ type: "tool_use", id: "n1", name: "t0", input: {} }] }]).ok).toBe(true);
+  });
+
+  // Round-2 review, item 2: eight 10 s tools plus the model call ran ~85 s,
+  // past the host's 60 s cap. The tools now share the step budget.
+  it("holds the tools to the step budget: cuts off a slow one, skips the rest, and leaves the model call its floor", async () => {
+    vi.useFakeTimers();
+    const err = vi.spyOn(console, "error").mockImplementation(() => {});
+    const signals: AbortSignal[] = [];
+    const runTool = vi.fn((_name: string, _input: unknown, ctx: { signal: AbortSignal }) => {
+      signals.push(ctx.signal);
+      return new Promise<{ content: string }>((r) => setTimeout(() => r({ content: '{"ok":1}' }), 25_000));
+    });
+    const call: Message = {
+      role: "assistant",
+      content: ["a", "b", "c"].map((id) => ({ type: "tool_use" as const, id, name: "my_things", input: {} })),
+    };
+    const { client, create } = fakeClient();
+    const running = runAssistantStep({ messages: [q("q"), call], tools: TOOLS, runTool, system: SYSTEM, client });
+    await vi.advanceTimersByTimeAsync(STEP_BUDGET_MS);
+    const out = await running;
+    const blocks = (out.turns[0] as { content: { content: string; is_error?: boolean }[] }).content;
+    expect(runTool).toHaveBeenCalledTimes(2); // the third had no time left to start
+    expect(blocks[0]).toEqual({ type: "tool_result", tool_use_id: "a", content: '{"ok":1}' });
+    expect(blocks[1]).toMatchObject({ content: TOOL_FAILED_RESULT, is_error: true });
+    expect(blocks[2]).toMatchObject({ content: TOOL_FAILED_RESULT, is_error: true });
+    expect(signals[0].aborted).toBe(false);
+    expect(signals[1].aborted).toBe(true);
+    expect(err.mock.calls.flat().join(" ")).toContain("ToolTimeoutError");
+    // Tools ended by STEP_BUDGET_MS - MIN_CALL_MS, so the model call gets the floor and the step ends inside the budget.
+    expect(create.mock.calls[0][1]).toMatchObject({ timeout: MIN_CALL_MS, maxRetries: 0 });
+  });
+
+  // Round-2 review, item 3: the hub can thread `req.signal` through.
+  it("passes the hub's abort signal to the tools and the model call", async () => {
+    const { client, create } = fakeClient();
+    const controller = new AbortController();
+    let seen: AbortSignal | undefined;
+    const runTool = vi.fn(async (_n: string, _i: unknown, ctx: { signal: AbortSignal }) => {
+      seen = ctx.signal;
+      controller.abort();
+      return { content: "{}" };
+    });
+    const messages: Message[] = [q("q"), { role: "assistant", content: [{ type: "tool_use", id: "t1", name: "my_things", input: {} }] }];
+    await runAssistantStep({ messages, tools: TOOLS, runTool, system: SYSTEM, client, signal: controller.signal });
+    expect(seen?.aborted).toBe(true); // the tool's signal follows the hub's
+    expect((create.mock.calls[0][1] as { signal?: AbortSignal }).signal).toBe(controller.signal);
+
+    const plain = fakeClient();
+    await runAssistantStep({ messages: [q("q")], tools: TOOLS, runTool: vi.fn(), system: SYSTEM, client: plain.client });
+    const plainOpts = plain.create.mock.calls[0][1] as { timeout: number; signal?: AbortSignal };
+    expect(plainOpts).toMatchObject({ maxRetries: 0 });
+    expect(plainOpts.timeout).toBeGreaterThan(STEP_BUDGET_MS - 1000);
+    expect("signal" in plainOpts).toBe(false);
   });
 
   it("offers no tools on the last step the loop allows", async () => {
@@ -167,6 +266,11 @@ describe("step helpers", () => {
     expect(stepRequestOptions(10_000).timeout).toBe(STEP_BUDGET_MS - 10_000);
   });
 
+  it("leaves the tools the step budget less the model call's floor", () => {
+    expect(toolTimeLeft(0)).toBe(STEP_BUDGET_MS - MIN_CALL_MS);
+    expect(toolTimeLeft(STEP_BUDGET_MS - MIN_CALL_MS)).toBe(0);
+  });
+
   it("logs the step, the tools and the stop reason only", () => {
     expect(stepLogLine(2, ["a", "b"], "end_turn")).toBe("[assistant] step=2 tools=a,b stop=end_turn");
     expect(stepLogLine(1, [], null)).toBe("[assistant] step=1 tools=- stop=-");
@@ -188,6 +292,14 @@ describe("readStepRequest", () => {
 
   it("refuses a body over the cap before parsing it (413)", async () => {
     expect(await readStepRequest(post("x".repeat(MAX_BODY_CHARS + 1)))).toMatchObject({ ok: false, status: 413 });
+  });
+
+  // Round-2 review, item 8: a declared length over the cap is refused before the body is read.
+  it("refuses a declared Content-Length over the cap without reading the body", async () => {
+    const text = vi.fn(async () => "{}");
+    const req = { headers: new Headers({ "content-length": String(MAX_BODY_CHARS + 1) }), text } as unknown as Request;
+    expect(await readStepRequest(req)).toMatchObject({ ok: false, status: 413 });
+    expect(text).not.toHaveBeenCalled();
   });
 
   it("refuses unreadable JSON and a conversation the loop never sends (422)", async () => {
@@ -235,6 +347,25 @@ describe("checkAssistantBudget", () => {
     const third = await checkAssistantBudget(store, "pat@example.com", { saltFallback: "x", env, now });
     expect(third.allowed).toBe(false);
     expect(await checkAssistantBudget(store, "lee@example.com", { saltFallback: "x", env, now })).toEqual({ allowed: true });
+  });
+
+  // Round-2 review, item 7: one person, one bucket, however the address is cased or padded.
+  it("keys the bucket by the trimmed, lower-cased sign-in", async () => {
+    const store = memoryRateStoreForDevOnly();
+    const env = { AI_RATE_ASSISTANT_PER_IDENTITY: "2", AI_RATE_SALT: "test-salt" };
+    const now = new Date("2026-10-28T12:00:00Z");
+    expect(await checkAssistantBudget(store, "pat@example.com", { saltFallback: "x", env, now })).toEqual({ allowed: true });
+    expect(await checkAssistantBudget(store, " Pat@Example.COM ", { saltFallback: "x", env, now })).toEqual({ allowed: true });
+    expect((await checkAssistantBudget(store, "PAT@example.com", { saltFallback: "x", env, now })).allowed).toBe(false);
+  });
+
+  it("gives each dev-only memory store its own counts", async () => {
+    const env = { AI_RATE_ASSISTANT_PER_IDENTITY: "1", AI_RATE_SALT: "s" };
+    const now = new Date("2026-10-28T12:00:00Z");
+    const a = memoryRateStoreForDevOnly();
+    expect((await checkAssistantBudget(a, "pat@example.com", { saltFallback: "x", env, now })).allowed).toBe(true);
+    expect((await checkAssistantBudget(a, "pat@example.com", { saltFallback: "x", env, now })).allowed).toBe(false);
+    expect((await checkAssistantBudget(memoryRateStoreForDevOnly(), "pat@example.com", { saltFallback: "x", env, now })).allowed).toBe(true);
   });
 
   it("fails closed when the store throws", async () => {

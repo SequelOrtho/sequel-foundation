@@ -3,6 +3,7 @@ import { getClient } from "../llm/client";
 import { modelFor, withModelFallback, type LlmTaskClass } from "../llm/models";
 import { consoleTraceSink, emitLlmTrace, startLlmTrace, type LlmTraceSink } from "../llm/trace";
 import {
+  capToolResult,
   MAX_STEPS,
   MAX_TOOL_CALLS,
   pendingToolCalls,
@@ -49,6 +50,16 @@ export const TOOL_REFUSED_RESULT = JSON.stringify({ error: "That tool isn't avai
 /** The reply when the model returned nothing usable. */
 export const EMPTY_REPLY_TEXT = "I couldn't put an answer together. Try asking another way.";
 
+/**
+ * Time a tool may still take, `elapsedMs` into the step: the step budget less
+ * the model call's floor, so the tools and the model call together end inside
+ * STEP_BUDGET_MS. A tool is started only while at least MIN_CALL_MS of this
+ * is left; otherwise it is answered with TOOL_FAILED_RESULT unrun.
+ */
+export function toolTimeLeft(elapsedMs: number): number {
+  return STEP_BUDGET_MS - MIN_CALL_MS - elapsedMs;
+}
+
 /** Options for one model call that started `elapsedMs` into the step. */
 export function stepRequestOptions(elapsedMs: number): { timeout: number; maxRetries: 0 } {
   return { timeout: Math.max(MIN_CALL_MS, STEP_BUDGET_MS - elapsedMs), maxRetries: 0 };
@@ -79,6 +90,13 @@ export type AssistantToolDefinition = {
 /** What the hub's runner hands back for one call: the JSON the model reads. */
 export type ToolRun = { content: string; isError?: boolean };
 
+/**
+ * What the loop hands the hub's runner with each call. `signal` aborts when the
+ * tool's share of the step budget runs out or the hub's own `signal` (the
+ * request's) aborts — a runner may pass it to its database or fetch calls.
+ */
+export type ToolRunContext = { signal: AbortSignal };
+
 export type StepOptions = {
   /** The conversation the browser posted (already parsed and gated). */
   messages: readonly Message[];
@@ -92,7 +110,12 @@ export type StepOptions = {
    * offer this viewer. A throw is caught here and the model is told the
    * lookup failed.
    */
-  runTool: (name: string, input: unknown) => Promise<ToolRun>;
+  runTool: (name: string, input: unknown, context: ToolRunContext) => Promise<ToolRun>;
+  /**
+   * Optional: the request's abort signal (`req.signal`). It aborts the tool
+   * runs and the model call when the browser goes away.
+   */
+  signal?: AbortSignal;
   /**
    * The cached system prompt (static — no per-request data, AI-CRAFT §2.4) and
    * an optional uncached context block (the viewer's role, today's date).
@@ -108,7 +131,13 @@ export type StepOptions = {
   taskClass?: LlmTaskClass;
   maxTokens?: number;
   traceSink?: LlmTraceSink;
-  /** For tests; defaults to the foundation client seam. */
+  /**
+   * The Anthropic client; defaults to the foundation's `getClient()`. The
+   * loop imports that seam by relative path, so a hub's
+   * `vi.mock("@sequel/foundation/llm")` does not reach it: a hub passes its
+   * own client seam here (`client: getClient()` from its `@/lib/llm/client`
+   * shim), and its tests mock that seam or pass a fake.
+   */
   client?: Pick<Anthropic, "messages">;
 };
 
@@ -134,21 +163,39 @@ export async function runAssistantStep(opts: StepOptions): Promise<StepResult> {
   if (calls.length > 0) {
     const results: ToolResultBlock[] = [];
     for (const call of calls) {
+      // Refused here too, whatever the hub's runner does: a name this step
+      // did not offer never reaches runTool, its progress line or the log as
+      // written (AC2 — defence in depth).
+      if (!opts.tools.some((t) => t.name === call.name)) {
+        toolsUsed.push("unknown");
+        results.push({ type: "tool_result", tool_use_id: call.id, content: TOOL_REFUSED_RESULT, is_error: true });
+        continue;
+      }
       toolsUsed.push(label(call.name));
+      // The step budget binds the tools too: a tool starts only with time left
+      // for it and the model call after it, and is cut off when that runs out.
+      const timeLeft = toolTimeLeft(Date.now() - startedAt);
+      if (timeLeft < MIN_CALL_MS) {
+        results.push({ type: "tool_result", tool_use_id: call.id, content: TOOL_FAILED_RESULT, is_error: true });
+        continue;
+      }
       const line = opts.progressFor?.(call.name);
       if (line) progress(line);
       let content: string;
       let isError: boolean;
-      // Refused here too, whatever the hub's runner does: a name this step
-      // did not offer never reaches runTool (AC2 — defence in depth).
-      if (!opts.tools.some((t) => t.name === call.name)) {
-        results.push({ type: "tool_result", tool_use_id: call.id, content: TOOL_REFUSED_RESULT, is_error: true });
-        continue;
-      }
       try {
-        const run = await opts.runTool(call.name, call.input);
-        content = run.content;
-        isError = run.isError === true;
+        const run = await runWithin(timeLeft, opts.signal, (signal) => opts.runTool(call.name, call.input, { signal }));
+        // A hub runner is typed to return a string, but nothing stops one
+        // returning something else; a result over the cap would make the next
+        // step's parse refuse the whole conversation.
+        if (run && typeof run.content === "string") {
+          content = capToolResult(run.content);
+          isError = run.isError === true;
+        } else {
+          console.error(`[assistant] tool ${label(call.name)} failed: not a string result`);
+          content = TOOL_FAILED_RESULT;
+          isError = true;
+        }
       } catch (err) {
         // The error class only: a message can carry the data the tool read.
         console.error(`[assistant] tool ${label(call.name)} failed: ${err instanceof Error ? err.constructor.name : "unknown"}`);
@@ -188,7 +235,7 @@ export async function runAssistantStep(opts: StepOptions): Promise<StepResult> {
           ...(lastStep ? { tool_choice: { type: "none" as const } } : {}),
           messages: history as Anthropic.MessageParam[],
         },
-        stepRequestOptions(Date.now() - startedAt),
+        { ...stepRequestOptions(Date.now() - startedAt), ...(opts.signal ? { signal: opts.signal } : {}) },
       ),
     );
     response = result;
@@ -209,4 +256,41 @@ export async function runAssistantStep(opts: StepOptions): Promise<StepResult> {
     console.info(stepLogLine(stepsSinceQuestion([...history, reply]), toolsUsed, response.stop_reason));
   }
   return { turns, done, links: [...new Set(links)], toolsUsed };
+}
+
+/** Thrown when a tool runs past its share of the step budget. */
+export class ToolTimeoutError extends Error {
+  constructor() {
+    super("tool timed out");
+    this.name = "ToolTimeoutError";
+  }
+}
+
+/**
+ * Runs `fn` against a deadline of `ms`, handing it a signal that aborts at the
+ * deadline or when `outer` aborts. A late result is dropped (and a late
+ * rejection swallowed); the step goes on without it.
+ */
+async function runWithin<T>(ms: number, outer: AbortSignal | undefined, fn: (signal: AbortSignal) => Promise<T>): Promise<T> {
+  const controller = new AbortController();
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const onOuterAbort = () => controller.abort(outer?.reason);
+  if (outer?.aborted) controller.abort(outer.reason);
+  else outer?.addEventListener("abort", onOuterAbort, { once: true });
+  const stopped = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => {
+      controller.abort(new ToolTimeoutError());
+      reject(new ToolTimeoutError());
+    }, ms);
+    controller.signal.addEventListener("abort", () => reject(controller.signal.reason ?? new ToolTimeoutError()), { once: true });
+  });
+  const work = Promise.resolve().then(() => fn(controller.signal));
+  work.catch(() => {});
+  stopped.catch(() => {});
+  try {
+    return await Promise.race([work, stopped]);
+  } finally {
+    clearTimeout(timer);
+    outer?.removeEventListener("abort", onOuterAbort);
+  }
 }

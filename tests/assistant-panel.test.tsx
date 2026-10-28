@@ -196,6 +196,44 @@ describe("AskHubPanel", () => {
     expect(screen.queryByText(/Failed to fetch/)).toBeNull();
   });
 
+  // Round-2 review, item 9: focus goes back to the trigger by ref, even when
+  // something else held focus as the panel opened (a click on a button that
+  // doesn't take focus, Safari / Firefox on a Mac).
+  it("returns focus to the Ask the Hub button on close, whatever held focus as it opened", async () => {
+    render(
+      <>
+        <a href="/elsewhere">Elsewhere</a>
+        <Panel />
+      </>,
+    );
+    const button = screen.getByRole("button", { name: "Ask the Hub" });
+    screen.getByRole("link", { name: "Elsewhere" }).focus();
+    open();
+    fireEvent.click(screen.getByRole("button", { name: "Close" }));
+    await waitFor(() => expect(document.activeElement).toBe(button));
+  });
+
+  // Round-2 review, item 10: an answer landing never pulls focus off a link
+  // the person moved to while it was on its way.
+  it("puts focus back in the question box after an answer only if focus was still on Ask or the box", async () => {
+    fetchMock.mockResolvedValueOnce(answer("See [Tuesday](/requests/mp_1).", { links: ["/requests/mp_1"] }));
+    render(<Panel starters={[]} />);
+    open();
+    askTyped("first");
+    const link = await screen.findByRole("link", { name: "Tuesday" });
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByLabelText("Your question")));
+
+    let resolve: (r: Response) => void = () => {};
+    fetchMock.mockReturnValueOnce(new Promise<Response>((r) => (resolve = r)));
+    askTyped("second");
+    await screen.findByRole("button", { name: "Asking…" });
+    link.focus();
+    resolve(answer("Second answer."));
+    await screen.findByText("Second answer.");
+    await waitFor(() => expect(screen.getByRole("button", { name: "Ask" }).getAttribute("aria-busy")).not.toBe("true"));
+    expect(document.activeElement).toBe(link);
+  });
+
   it("closes on a backdrop click, not on a click inside the panel", async () => {
     render(<Panel />);
     open();

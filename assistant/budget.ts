@@ -1,4 +1,4 @@
-import { checkRateBudget, type FixedWindowStore, type RateDecision } from "../llm/rate-limit";
+import { checkRateBudget, type FixedWindowStore, type RateDecision, type RateWindowRow } from "../llm/rate-limit";
 
 // Ask the Hub's rate budget (foundation AI-CRAFT §2.2 and §2.6; the Project
 // Hub's numbers). Each step of the tool loop is one model call and counts
@@ -29,8 +29,9 @@ export function assistantRateSalt(fallback: string, env: NodeJS.ProcessEnv = pro
 }
 
 /**
- * Check and count one Ask the Hub step for this person (a lower-cased sign-in
- * address). A blocked answer carries `retryAfterSeconds` for the 429's
+ * Check and count one Ask the Hub step for this person (their sign-in
+ * address — trimmed and lower-cased here, so "Pat@Example.com " and
+ * "pat@example.com" share one bucket). A blocked answer carries `retryAfterSeconds` for the 429's
  * Retry-After header.
  */
 export function checkAssistantBudget(
@@ -43,7 +44,7 @@ export function checkAssistantBudget(
     store,
     {
       route: ASSISTANT_RATE_ROUTE,
-      identity,
+      identity: identity.trim().toLowerCase(),
       perIdentity: assistantPerIdentity(env),
       global: assistantGlobal(env),
       windowMs: assistantWindowMs(env),
@@ -51,4 +52,26 @@ export function checkAssistantBudget(
     },
     opts.now ?? new Date(),
   );
+}
+
+/**
+ * An in-memory `FixedWindowStore` for LOCAL DEVELOPMENT, TESTS AND DEMOS ONLY —
+ * never production. Each server instance (each Netlify function instance)
+ * keeps its own count, so it is no real budget; before go-live a hub swaps in
+ * a durable store (a Postgres table, or a document store's `rate` namespace,
+ * AI-CRAFT §2.2). Each call returns a fresh, empty store.
+ */
+export function memoryRateStoreForDevOnly(): FixedWindowStore {
+  const windows = new Map<string, RateWindowRow>();
+  return {
+    async bump(key, now, windowMs) {
+      const row = windows.get(key);
+      const next =
+        row && now.getTime() - row.windowStart.getTime() < windowMs
+          ? { count: row.count + 1, windowStart: row.windowStart }
+          : { count: 1, windowStart: now };
+      windows.set(key, next);
+      return next;
+    },
+  };
 }

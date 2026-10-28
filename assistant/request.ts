@@ -12,9 +12,16 @@ export type StepRequest =
   | { ok: true; messages: Message[]; redactions: LlmRedactionKind[] }
   | { ok: false; status: 413 | 422; error: string };
 
+const TOO_LONG = "This conversation is too long. Start a new one.";
+
 export async function readStepRequest(req: Request): Promise<StepRequest> {
+  // A declared length over the cap is refused before the body is buffered
+  // (bytes, so at least as strict as the character cap); the read body is
+  // checked again, since the header may be absent or wrong.
+  const declared = Number(req.headers.get("content-length"));
+  if (Number.isFinite(declared) && declared > MAX_BODY_CHARS) return { ok: false, status: 413, error: TOO_LONG };
   const raw = await req.text();
-  if (raw.length > MAX_BODY_CHARS) return { ok: false, status: 413, error: "This conversation is too long. Start a new one." };
+  if (raw.length > MAX_BODY_CHARS) return { ok: false, status: 413, error: TOO_LONG };
   let body: unknown;
   try {
     body = JSON.parse(raw);
