@@ -1,5 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { LlmOutputError } from "./output";
+import { AssistantModelNotApprovedError } from "../assistant/approved-models";
 
 // Shared mapping of typed Anthropic SDK exceptions to a {status, error} pair for
 // the LLM-backed routes. Never string-match error messages — map the typed
@@ -8,6 +9,11 @@ import { LlmOutputError } from "./output";
 // the HTTP status is already committed to 200 — we cannot re-throw to surface a
 // 500, so we log and emit a generic error event instead.
 export function llmErrorEvent(err: unknown): { status: number; error: string } {
+  // Ask the Hub refused an unlisted model before calling it (AI-CRAFT §2.6
+  // rule 5): its own words, which the panel shows as written.
+  if (err instanceof AssistantModelNotApprovedError) {
+    return { status: err.status, error: err.message };
+  }
   if (err instanceof Anthropic.AuthenticationError) {
     return { status: 503, error: "AI service is not configured (missing or invalid API key)." };
   }

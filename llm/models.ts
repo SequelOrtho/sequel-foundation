@@ -79,16 +79,20 @@ function logServedModel(model: string, viaFallback: boolean): void {
   console.info(`[llm] served by ${model}${viaFallback ? " (via fallback)" : ""}`);
 }
 
+// `options.fallback: false` turns the rescue off, so the primary's error
+// stands — Ask the Hub passes it when the fallback model is not on a hub's
+// approved list (AI-CRAFT §2.6). Omitted = the rescue runs as always.
 export async function withModelFallback<T>(
   primaryModel: string,
   call: (model: string) => Promise<T>,
+  options?: { fallback?: boolean },
 ): Promise<{ result: T; model: string }> {
   try {
     const result = await call(primaryModel);
     logServedModel(primaryModel, false);
     return { result, model: primaryModel };
   } catch (err) {
-    if (primaryModel !== LLM_FALLBACK_MODEL && isModelUnavailableError(err)) {
+    if (options?.fallback !== false && primaryModel !== LLM_FALLBACK_MODEL && isModelUnavailableError(err)) {
       console.warn(
         `[llm] ${primaryModel} unavailable (${describeError(err)}) — retrying on ${LLM_FALLBACK_MODEL}`,
       );

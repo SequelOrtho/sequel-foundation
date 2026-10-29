@@ -1,6 +1,7 @@
 import { LlmStreamError } from "../llm/stream-client";
 import type { LlmRedactionKind } from "../llm/input-gate";
 import type { Message } from "./conversation";
+import { MODEL_NOT_APPROVED_MESSAGE, MODEL_NOT_APPROVED_STATUS } from "./approved-models";
 
 // The Ask the Hub panel's pure half: what it stores for the tab, how it reads
 // that back, and the words it shows when a step fails. Kept out of the React
@@ -25,6 +26,8 @@ export function stepErrorMessage(err: unknown): string {
   if (err instanceof DOMException && (err.name === "TimeoutError" || err.name === "AbortError")) return STEP_TOO_LONG;
   if (err instanceof LlmStreamError) {
     if (err.status === 504) return STEP_TOO_LONG;
+    // The approved-model refusal (AI-CRAFT §2.6 rule 5) is shown as written; any other 503 stays generic.
+    if (err.status === MODEL_NOT_APPROVED_STATUS && err.message === MODEL_NOT_APPROVED_MESSAGE) return err.message;
     if (PLAIN_STATUSES.has(err.status) && err.message && !/^Failed \(/.test(err.message)) return err.message;
   }
   return STEP_RETRY_LATER;

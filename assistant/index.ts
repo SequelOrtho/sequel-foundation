@@ -49,3 +49,10 @@ export {
   ASK_BUTTON_CLASS,
 } from "./panel-copy";
 export type { StoredConversation } from "./panel-copy";
+export {
+  MODEL_NOT_APPROVED_STATUS,
+  MODEL_NOT_APPROVED_MESSAGE,
+  AssistantModelNotApprovedError,
+  modelApproved,
+  modelNotApprovedLogLine,
+} from "./approved-models";
