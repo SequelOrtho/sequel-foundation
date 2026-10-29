@@ -3,6 +3,7 @@
 // the hub's route supplies the session, the store and the tools.
 export {
   runAssistantStep,
+  assistantModelIssue,
   stepRequestOptions,
   toolTimeLeft,
   ToolTimeoutError,

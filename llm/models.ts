@@ -1,4 +1,11 @@
 import Anthropic from "@anthropic-ai/sdk";
+import {
+  isApprovedModel,
+  ModelNotApprovedError,
+  modelLockLogLine,
+  MODEL_NOT_APPROVED_MESSAGE,
+  MODEL_NOT_APPROVED_STATUS,
+} from "./approved-models";
 
 // Model selection is CONFIGURATION, not code. Call sites declare a task class
 // and read the model from here, so adopting a new model is an env-var change
@@ -14,12 +21,18 @@ import Anthropic from "@anthropic-ai/sdk";
 //  - "presentation" → content that lands in decks/graphics
 //                     (deck commentary, brand-diagram generation)
 //
+// THE MODEL LOCK (llm/approved-models.ts; owner ruling 2026-10-29, Mike: "we
+// need to lock all now"): every call may only reach a model on APPROVED_MODELS
+// (zero-data-retention eligible: claude-opus-5, claude-opus-4-8). The env vars
+// below choose between approved models; a value off the list (Fable 5, say,
+// which needs 30-day retention) is refused by `withModelFallback` before any
+// call is made, and an unlisted fallback is never tried.
+//
 // If the configured model is unavailable on the org — 404 (unknown id / no
-// access), 403 (key lacks the model), or 400 (e.g. Fable 5 without 30-day
-// data retention, if an env override selects it) — `withModelFallback` retries
-// the call once on the fallback model. Opus 4.8 stays the fallback because it
-// is the recommended rescue for Opus 5 and carries no retention requirement;
-// it is a rescue target only, never what a healthy call is issued on.
+// access), 403 (key lacks the model), or 400 — `withModelFallback` retries the
+// call once on the fallback model. Opus 4.8 stays the fallback because it is
+// the recommended rescue for Opus 5 and carries no retention requirement; it
+// is a rescue target only, never what a healthy call is issued on.
 //
 // All three accept the request shapes used in lib/llm/ (adaptive thinking or
 // omitted, no sampling params, output_config.effort). Note Opus 5 thinks by
@@ -41,7 +54,7 @@ export function modelFor(task: LlmTaskClass): string {
 
 // Typed-exception check per the repo convention (never string-match messages).
 // BadRequestError is included because model unavailability can surface as a 400
-// (e.g. an env override selecting Fable 5 on a non-retention org); a genuinely
+// (e.g. a model with a retention requirement the org doesn't meet); a genuinely
 // malformed request costs one extra attempt and then surfaces the same error
 // from the fallback call.
 function isModelUnavailableError(err: unknown): boolean {
@@ -79,22 +92,52 @@ function logServedModel(model: string, viaFallback: boolean): void {
   console.info(`[llm] served by ${model}${viaFallback ? " (via fallback)" : ""}`);
 }
 
+/**
+ * For a route that wants to refuse before doing any work: the refusal
+ * `withModelFallback` would end the call with, or null when the configured
+ * model for `task` is on the approved list.
+ */
+export function modelLockIssue(task: LlmTaskClass = "prose"): { status: number; error: string } | null {
+  return isApprovedModel(modelFor(task)) ? null : { status: MODEL_NOT_APPROVED_STATUS, error: MODEL_NOT_APPROVED_MESSAGE };
+}
+
+// The one funnel every model call goes through, and so where the lock holds:
+//  - a primary not on APPROVED_MODELS throws ModelNotApprovedError without
+//    `call` ever running, after one log line naming the model id only;
+//  - the fallback is tried only when it is on the list too (else the
+//    primary's own error stands).
+// `options.fallback: false` turns the rescue off as well — Ask the Hub passes
+// it when the fallback is not on a hub's narrower list (AI-CRAFT §2.6).
+// Omitted = the rescue runs whenever the fallback is approved.
 export async function withModelFallback<T>(
   primaryModel: string,
   call: (model: string) => Promise<T>,
+  options?: { fallback?: boolean },
 ): Promise<{ result: T; model: string }> {
+  if (!isApprovedModel(primaryModel)) {
+    console.error(modelLockLogLine(primaryModel));
+    throw new ModelNotApprovedError(primaryModel);
+  }
   try {
     const result = await call(primaryModel);
     logServedModel(primaryModel, false);
     return { result, model: primaryModel };
   } catch (err) {
-    if (primaryModel !== LLM_FALLBACK_MODEL && isModelUnavailableError(err)) {
+    if (
+      options?.fallback !== false &&
+      primaryModel !== LLM_FALLBACK_MODEL &&
+      isApprovedModel(LLM_FALLBACK_MODEL) &&
+      isModelUnavailableError(err)
+    ) {
       console.warn(
         `[llm] ${primaryModel} unavailable (${describeError(err)}) — retrying on ${LLM_FALLBACK_MODEL}`,
       );
       const result = await call(LLM_FALLBACK_MODEL);
       logServedModel(LLM_FALLBACK_MODEL, true);
       return { result, model: LLM_FALLBACK_MODEL };
+    }
+    if (!isApprovedModel(LLM_FALLBACK_MODEL) && isModelUnavailableError(err)) {
+      console.warn(`[llm] ${primaryModel} unavailable; fallback ${LLM_FALLBACK_MODEL} is not on the approved list and was not tried`);
     }
     throw err;
   }

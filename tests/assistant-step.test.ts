@@ -14,7 +14,7 @@ import {
   memoryRateStoreForDevOnly,
   type AssistantToolDefinition,
 } from "../assistant/server";
-import { MAX_BODY_CHARS, MAX_STEPS, MAX_TOOL_CALLS, MAX_TOOL_RESULT_CHARS, parseConversation, type Message } from "../assistant";
+import { ASSISTANT_PRIVACY_PROMPT, MAX_BODY_CHARS, MAX_STEPS, MAX_TOOL_CALLS, MAX_TOOL_RESULT_CHARS, parseConversation, type Message } from "../assistant";
 import type { FixedWindowStore, LlmTraceRecord } from "../llm";
 
 // The family step loop and its server helpers (AI-CRAFT §2.6). A fake client
@@ -46,13 +46,14 @@ afterEach(() => {
 });
 
 describe("runAssistantStep", () => {
-  it("makes exactly one model call, with the cached prompt first and the context uncached", async () => {
+  it("makes exactly one model call: the hub prompt, then the privacy block (cached), then the context uncached", async () => {
     const { client, create } = fakeClient();
     const out = await runAssistantStep({ messages: [q("What's mine?")], tools: TOOLS, runTool: vi.fn(), system: SYSTEM, client });
     expect(create).toHaveBeenCalledTimes(1);
     const body = create.mock.calls[0][0] as Record<string, unknown>;
     expect(body.system).toEqual([
-      { type: "text", text: SYSTEM.prompt, cache_control: { type: "ephemeral" } },
+      { type: "text", text: SYSTEM.prompt },
+      { type: "text", text: ASSISTANT_PRIVACY_PROMPT, cache_control: { type: "ephemeral" } },
       { type: "text", text: SYSTEM.context },
     ]);
     expect(body.thinking).toEqual({ type: "adaptive" });

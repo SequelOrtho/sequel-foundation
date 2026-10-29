@@ -8,6 +8,7 @@ import { useRememberedState } from "../ui/useRememberedState";
 import { consumeLlmStream } from "../llm/stream-client";
 import { compactHistory, exchanges, MAX_QUESTION_CHARS, MAX_STEPS, type Message } from "./conversation";
 import { renderAnswer, type Inline } from "./render";
+import { DEFAULT_PRIVACY_NOTE } from "./withheld";
 import {
   ASK_BUTTON_CLASS,
   conversationKey,
@@ -54,6 +55,14 @@ export type AskHubPanelProps = {
   buttonTitle: string;
   /** The hub's step route. */
   endpoint?: string;
+  /**
+   * The standing line under the input saying some details are left out on
+   * purpose (AI-CRAFT §2.6 "withheld on purpose is said in words"; owner
+   * ruling: the line is standing). Omitted (or `true`) = DEFAULT_PRIVACY_NOTE;
+   * a string = the hub's own sentence (sentence case; a blank one falls back
+   * to the family sentence); `false` = no line.
+   */
+  privacyNote?: string | boolean;
 };
 
 function InlineText({ parts, onNavigate }: { parts: Inline[]; onNavigate: () => void }) {
@@ -100,6 +109,13 @@ function Answer({ text, links, onNavigate }: { text: string; links: ReadonlySet<
   );
 }
 
+/** The panel's privacy line: the family sentence unless the hub names its own or passes `false`. */
+export function privacyNoteText(privacyNote: string | boolean | undefined): string | null {
+  if (privacyNote === false) return null;
+  if (typeof privacyNote === "string" && privacyNote.trim()) return privacyNote.trim();
+  return DEFAULT_PRIVACY_NOTE;
+}
+
 export function AskHubPanel({
   role,
   starters,
@@ -107,7 +123,9 @@ export function AskHubPanel({
   placeholder,
   buttonTitle,
   endpoint = "/api/assistant/step",
+  privacyNote,
 }: AskHubPanelProps) {
+  const privacyText = privacyNoteText(privacyNote);
   const [open, setOpen] = useState(false);
   const [stored, setStored, resetStored] = useRememberedState(
     conversationKey(role),
@@ -334,7 +352,13 @@ export function AskHubPanel({
                 }}
                 placeholder={placeholder}
                 className={inputClasses("resize-none")}
+                aria-describedby={privacyText ? `${titleId}-privacy` : undefined}
               />
+              {privacyText && (
+                <p id={`${titleId}-privacy`} className="mt-1 text-xs text-brand-muted">
+                  {privacyText}
+                </p>
+              )}
               <div className="mt-2 flex justify-end">
                 <Button ref={submitRef} type="submit" busy={busy} busyLabel="Asking…">
                   Ask

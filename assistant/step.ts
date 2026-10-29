@@ -1,6 +1,6 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import { getClient } from "../llm/client";
-import { modelFor, withModelFallback, type LlmTaskClass } from "../llm/models";
+import { LLM_FALLBACK_MODEL, modelFor, withModelFallback, type LlmTaskClass } from "../llm/models";
 import { consoleTraceSink, emitLlmTrace, startLlmTrace, type LlmTraceSink } from "../llm/trace";
 import {
   capToolResult,
@@ -16,6 +16,14 @@ import {
   type UserMessage,
 } from "./conversation";
 import { linksInToolResult } from "./render";
+import { ASSISTANT_PRIVACY_PROMPT } from "./withheld";
+import {
+  AssistantModelNotApprovedError,
+  ASSISTANT_MODEL_NOT_APPROVED_MESSAGE,
+  MODEL_NOT_APPROVED_STATUS,
+  modelApproved,
+  modelNotApprovedLogLine,
+} from "./approved-models";
 
 // One step of the family Ask the Hub loop (foundation AI-CRAFT §2.6), lifted
 // from the Missed Punch Hub's copy of the Project Hub loop. The browser drives
@@ -118,7 +126,9 @@ export type StepOptions = {
   signal?: AbortSignal;
   /**
    * The cached system prompt (static — no per-request data, AI-CRAFT §2.4) and
-   * an optional uncached context block (the viewer's role, today's date).
+   * an optional uncached context block (the viewer's role, today's date). The
+   * loop appends ASSISTANT_PRIVACY_PROMPT after `prompt`, inside the cached
+   * prefix, so the hub's prompt need not say how to report withheld fields.
    */
   system: { prompt: string; context?: string };
   /** A safe label for a tool name in the log; an unknown name should read "unknown". */
@@ -139,6 +149,17 @@ export type StepOptions = {
    * shim), and its tests mock that seam or pass a fake.
    */
   client?: Pick<Anthropic, "messages">;
+  /**
+   * Optional: a narrower list of models this step may call (exact ids), on top
+   * of the family lock (APPROVED_MODELS, which always applies). When the
+   * configured model (`modelFor(taskClass)`, which an LLM_MODEL_* override can
+   * change) is not on both, the step runs no tool and makes no model call and
+   * throws AssistantModelNotApprovedError (`streamJob` sends it as
+   * `{ status: 503, error: ASSISTANT_MODEL_NOT_APPROVED_MESSAGE }`); the
+   * fallback model is tried only when it is on both too. Omitted = the family
+   * list alone.
+   */
+  allowedModels?: readonly string[];
 };
 
 export type StepResult = {
@@ -150,8 +171,31 @@ export type StepResult = {
   toolsUsed: string[];
 };
 
+/**
+ * For a hub route that wants to refuse before reading the request: the
+ * refusal `runAssistantStep` would end the step with, or null when the
+ * configured model for `taskClass` is on the family list and on `allowed`
+ * (when one is given).
+ */
+export function assistantModelIssue(
+  allowed: readonly string[] | undefined,
+  taskClass: LlmTaskClass = "prose",
+): { status: number; error: string } | null {
+  return modelApproved(modelFor(taskClass), allowed)
+    ? null
+    : { status: MODEL_NOT_APPROVED_STATUS, error: ASSISTANT_MODEL_NOT_APPROVED_MESSAGE };
+}
+
 export async function runAssistantStep(opts: StepOptions): Promise<StepResult> {
   const { messages } = opts;
+  const primary = modelFor(opts.taskClass ?? "prose");
+  // The model lock (AI-CRAFT §1, §2.6 rule 5): an unapproved model is refused before any tool reads
+  // data or any model call is made. The log names the configured model only.
+  if (!modelApproved(primary, opts.allowedModels)) {
+    console.error(modelNotApprovedLogLine(primary, opts.allowedModels));
+    throw new AssistantModelNotApprovedError(primary);
+  }
+  const fallbackAllowed = modelApproved(LLM_FALLBACK_MODEL, opts.allowedModels);
   const progress = opts.progress ?? (() => {});
   const label = opts.toolLabel ?? ((name: string) => (opts.tools.some((t) => t.name === name) ? name : "unknown"));
   const startedAt = Date.now();
@@ -213,12 +257,15 @@ export async function runAssistantStep(opts: StepOptions): Promise<StepResult> {
   const lastStep = stepsSinceQuestion(history) + 1 >= MAX_STEPS;
   progress(calls.length > 0 ? "Writing the answer…" : "Thinking…");
   const client = opts.client ?? getClient();
-  const primary = modelFor(opts.taskClass ?? "prose");
   const sink = opts.traceSink ?? consoleTraceSink;
   // No input: the trace never carries the question.
   const trace = startLlmTrace({ feature: opts.feature ?? "assistant" });
+  // The hub's prompt, then the family's fixed "withheld on purpose" block
+  // (static, so the cache breakpoint on it covers both), then the uncached
+  // viewer context.
   const system: Anthropic.TextBlockParam[] = [
-    { type: "text", text: opts.system.prompt, cache_control: { type: "ephemeral" } },
+    { type: "text", text: opts.system.prompt },
+    { type: "text", text: ASSISTANT_PRIVACY_PROMPT, cache_control: { type: "ephemeral" } },
     ...(opts.system.context ? [{ type: "text" as const, text: opts.system.context }] : []),
   ];
   let response: Anthropic.Message;
@@ -237,6 +284,7 @@ export async function runAssistantStep(opts: StepOptions): Promise<StepResult> {
         },
         { ...stepRequestOptions(Date.now() - startedAt), ...(opts.signal ? { signal: opts.signal } : {}) },
       ),
+      { fallback: fallbackAllowed },
     );
     response = result;
     emitLlmTrace(sink, trace.succeed({ model, viaFallback: model !== primary, usage: result.usage }));
