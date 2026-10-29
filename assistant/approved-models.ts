@@ -1,43 +1,49 @@
-// Ask the Hub's approved-model list (AI-CRAFT §2.6, "rule 5" for the
-// patient-data hubs). A hub whose tools can read patient data passes
-// `allowedModels` to `runAssistantStep`: only models eligible for zero data
-// retention (claude-opus-5, claude-opus-4-8 — never Fable 5, which needs
-// 30-day retention). An LLM_MODEL_PROSE / LLM_MODEL_FALLBACK override can then
-// never move the assistant onto a model outside the list: an unlisted primary
-// makes no call at all, and an unlisted fallback is never tried.
+// Ask the Hub's side of the model lock (AI-CRAFT §2.6 rule 5). The family
+// lock (llm/approved-models.ts, APPROVED_MODELS) binds every AI call: only
+// models eligible for zero data retention, never Fable 5. A hub may narrow it
+// further for the assistant with `runAssistantStep({ allowedModels })`; the
+// step then accepts a model only when it is on BOTH lists. An unlisted primary
+// runs no tool and makes no model call; an unlisted fallback is never tried.
 //
 // Pure and client-safe (no SDK): the panel reads the message from here to show
 // it as written.
+import {
+  isApprovedModel,
+  ModelNotApprovedError,
+  MODEL_NOT_APPROVED_MESSAGE,
+  MODEL_NOT_APPROVED_STATUS,
+} from "../llm/approved-models";
 
-/** The status the refusal travels with (the stream's error event and a route's early answer). */
-export const MODEL_NOT_APPROVED_STATUS = 503;
+export { MODEL_NOT_APPROVED_STATUS, MODEL_NOT_APPROVED_MESSAGE };
 
-/** What the person sees when the configured model isn't on the hub's list. */
-export const MODEL_NOT_APPROVED_MESSAGE =
+/** What the person sees in Ask the Hub when its configured model isn't approved. */
+export const ASSISTANT_MODEL_NOT_APPROVED_MESSAGE =
   "Ask the Hub is switched off on this site: its AI model isn't one approved for patient data. Contact the System Administrator.";
 
 /**
  * Thrown by `runAssistantStep` (before any tool or model call) when the
- * configured model is not on `allowedModels`. `streamJob` turns it into the
- * error event `{ status: 503, error: MODEL_NOT_APPROVED_MESSAGE }`. It carries
+ * configured model is not on the family list or the hub's `allowedModels`.
+ * A ModelNotApprovedError, so `llmErrorEvent` sends it as
+ * `{ status: 503, error: ASSISTANT_MODEL_NOT_APPROVED_MESSAGE }`. It carries
  * the model id for the server's own use; the message never names it.
  */
-export class AssistantModelNotApprovedError extends Error {
-  readonly status = MODEL_NOT_APPROVED_STATUS;
-  readonly model: string;
+export class AssistantModelNotApprovedError extends ModelNotApprovedError {
   constructor(model: string) {
-    super(MODEL_NOT_APPROVED_MESSAGE);
+    super(model, ASSISTANT_MODEL_NOT_APPROVED_MESSAGE);
     this.name = "AssistantModelNotApprovedError";
-    this.model = model;
   }
 }
 
-/** True when `model` is on the list (exact id match). No list = every model. */
+/**
+ * True when `model` may run: it is on the family list (APPROVED_MODELS) and,
+ * when the hub passes a narrower `allowed` list, on that too. No hub list =
+ * the family list alone — never every model.
+ */
 export function modelApproved(model: string, allowed: readonly string[] | undefined): boolean {
-  return allowed === undefined || allowed.includes(model);
+  return isApprovedModel(model) && (allowed === undefined || allowed.includes(model));
 }
 
 /** The one log line for a refusal: the configured model id only, never the question. */
 export function modelNotApprovedLogLine(model: string): string {
-  return `[assistant] model ${model} is not on this hub's approved list; no model call made`;
+  return `[assistant] model ${model} is not on the approved list; no model call made`;
 }

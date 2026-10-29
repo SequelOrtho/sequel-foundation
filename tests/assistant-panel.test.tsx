@@ -12,6 +12,7 @@ import {
   stepErrorMessage,
 } from "../assistant/panel-copy";
 import { exchanges } from "../assistant/conversation";
+import { DEFAULT_PRIVACY_NOTE } from "../assistant/withheld";
 
 // The family Ask the Hub panel (ported from the Missed Punch Hub's
 // tests/components/ask-hub.test.tsx). Wrong versions this catches: the browser
@@ -45,10 +46,19 @@ afterEach(() => {
 });
 
 const STARTERS = ["What's waiting for me?", "Did my last request get approved?"];
-const Panel = ({ role = "member", starters = STARTERS }: { role?: string; starters?: string[] }) => (
+const Panel = ({
+  role = "member",
+  starters = STARTERS,
+  privacyNote,
+}: {
+  role?: string;
+  starters?: string[];
+  privacyNote?: string | true;
+}) => (
   <AskHubPanel
     role={role}
     starters={starters}
+    privacyNote={privacyNote}
     intro="Answers come only from what you can open. It never changes anything."
     placeholder="Ask a question"
     buttonTitle="Ask a question about this hub"
@@ -291,5 +301,39 @@ describe("panel copy", () => {
       links: [],
     };
     expect(readStoredConversation(EMPTY_CONVERSATION, withTool)).toEqual(withTool);
+  });
+});
+
+// Owner ruling 2026-10-29, Mike: "let's make sure when results are purposely
+// being redacted based on rules that that is made clear to the user so it isn't
+// reported as a 'bug'". The panel line is opt-in: a hub whose tools withhold
+// nothing shows none.
+describe("AskHubPanel privacy note", () => {
+  it("shows no note unless the hub asks for one", () => {
+    render(<Panel />);
+    open();
+    expect(screen.queryByText(DEFAULT_PRIVACY_NOTE)).toBeNull();
+    expect(screen.getByLabelText("Your question").getAttribute("aria-describedby")).toBeNull();
+  });
+
+  it("privacyNote={true} shows the family sentence, muted, and describes the question box", () => {
+    render(<Panel privacyNote />);
+    open();
+    const note = screen.getByText(DEFAULT_PRIVACY_NOTE);
+    expect(note.className).toContain("text-brand-muted");
+    const box = screen.getByLabelText("Your question");
+    expect(box.getAttribute("aria-describedby")).toBe(note.id);
+    expect(note.id).toBeTruthy();
+  });
+
+  it("a hub's own sentence replaces the family one; a blank one shows nothing", () => {
+    const { unmount } = render(<Panel privacyNote="Visit notes stay out of answers on purpose. Open the visit to read them." />);
+    open();
+    expect(screen.getByText("Visit notes stay out of answers on purpose. Open the visit to read them.")).toBeTruthy();
+    expect(screen.queryByText(DEFAULT_PRIVACY_NOTE)).toBeNull();
+    unmount();
+    render(<Panel privacyNote="   " />);
+    open();
+    expect(screen.getByLabelText("Your question").getAttribute("aria-describedby")).toBeNull();
   });
 });

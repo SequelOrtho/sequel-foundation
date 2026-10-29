@@ -2,8 +2,8 @@ import { describe, it, expect, vi, afterEach } from "vitest";
 import Anthropic from "@anthropic-ai/sdk";
 import { assistantModelIssue, runAssistantStep, type AssistantToolDefinition } from "../assistant/server";
 import {
+  ASSISTANT_MODEL_NOT_APPROVED_MESSAGE as MODEL_NOT_APPROVED_MESSAGE,
   AssistantModelNotApprovedError,
-  MODEL_NOT_APPROVED_MESSAGE,
   MODEL_NOT_APPROVED_STATUS,
   modelApproved,
   modelNotApprovedLogLine,
@@ -15,12 +15,14 @@ import { llmErrorEvent } from "../llm/http";
 import { LLM_FALLBACK_MODEL, LLM_MODEL_PROSE, withModelFallback } from "../llm/models";
 import type { LlmTraceRecord } from "../llm";
 
-// Rule 5 for the patient-data hubs (AI-CRAFT §2.6): Ask the Hub pinned to an
-// approved-model list. Wrong versions these catch: a refused step that still
-// runs a tool or calls the model, a fallback onto an unlisted model, an
-// LLM_MODEL_PROSE override that escapes the list, a refusal the panel shows
-// as "didn't answer just now", the question reaching the log or the trace,
-// and a hub with no list that changes behaviour.
+// Rule 5 (AI-CRAFT §2.6): Ask the Hub runs only on an approved model. Since
+// the family lock (owner ruling 2026-10-29, Mike: "we need to lock all now")
+// every hub is held to APPROVED_MODELS, and a hub's `allowedModels` narrows it
+// further. Wrong versions these catch: a refused step that still runs a tool or
+// calls the model, a fallback onto an unlisted model, an LLM_MODEL_PROSE
+// override that escapes the list, a refusal the panel shows as "didn't answer
+// just now", the question reaching the log or the trace, and a hub with no
+// list of its own that can still reach an unapproved model.
 
 const TOOLS: AssistantToolDefinition[] = [
   { name: "my_things", description: "The viewer's own things.", input_schema: { type: "object", properties: {} } },
@@ -100,7 +102,9 @@ describe("approved models (AI-CRAFT §2.6 rule 5)", () => {
     expect(assistantModelIssue(["claude-opus-4-8"])).toEqual({ status: 503, error: MODEL_NOT_APPROVED_MESSAGE });
     expect(assistantModelIssue([], "presentation")).toEqual({ status: 503, error: MODEL_NOT_APPROVED_MESSAGE });
     expect(modelApproved("claude-fable-5", ZDR)).toBe(false);
-    expect(modelApproved("claude-fable-5", undefined)).toBe(true);
+    // No hub list = the family list alone: Fable 5 is still refused.
+    expect(modelApproved("claude-fable-5", undefined)).toBe(false);
+    expect(modelApproved("claude-opus-4-8", undefined)).toBe(true);
   });
 
   it("AC3: an unlisted fallback is never tried; the primary's error stands", async () => {
@@ -168,17 +172,31 @@ describe("approved models (AI-CRAFT §2.6 rule 5)", () => {
     expect((create.mock.calls[0] as unknown as [{ model: string }])[0].model).toBe("claude-opus-5");
   });
 
-  it("AC5: no list = unchanged — any configured model runs and the fallback rescues", async () => {
+  it("AC5: no hub list = the family lock — an unapproved override is refused before any call", async () => {
     vi.stubEnv("LLM_MODEL_PROSE", "claude-fable-5");
+    vi.resetModules();
+    const server = await import("../assistant/server");
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const { client, create } = fakeClient();
+    await expect(
+      server.runAssistantStep({ messages: [q("q")], tools: TOOLS, runTool: vi.fn(), system: SYSTEM, client }),
+    ).rejects.toMatchObject({ name: "AssistantModelNotApprovedError", status: 503, model: "claude-fable-5" });
+    expect(create).not.toHaveBeenCalled();
+    expect(server.assistantModelIssue(undefined)).toEqual({ status: 503, error: MODEL_NOT_APPROVED_MESSAGE });
+  });
+
+  it("AC5: no hub list — an approved override runs, and the fallback still rescues", async () => {
+    vi.stubEnv("LLM_MODEL_PROSE", "claude-opus-4-8");
+    vi.stubEnv("LLM_MODEL_FALLBACK", "claude-opus-5");
     vi.resetModules();
     const server = await import("../assistant/server");
     vi.spyOn(console, "warn").mockImplementation(() => {});
     const create = vi
       .fn()
-      .mockRejectedValueOnce(Object.create(Anthropic.BadRequestError.prototype) as Error)
+      .mockRejectedValueOnce(Object.create(Anthropic.NotFoundError.prototype) as Error)
       .mockResolvedValueOnce({ content: [{ type: "text", text: "ok" }], stop_reason: "end_turn", usage: {} });
     const out = await server.runAssistantStep({ messages: [q("q")], tools: TOOLS, runTool: vi.fn(), system: SYSTEM, client: { messages: { create } } as never });
-    expect(create.mock.calls.map((c) => (c[0] as { model: string }).model)).toEqual(["claude-fable-5", "claude-opus-4-8"]);
+    expect(create.mock.calls.map((c) => (c[0] as { model: string }).model)).toEqual(["claude-opus-4-8", "claude-opus-5"]);
     expect(out.done).toBe(true);
   });
 

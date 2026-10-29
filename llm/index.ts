@@ -7,12 +7,22 @@
 export { getClient, LLM_MAX_TOKENS, LLM_TIMEOUT_MS, LLM_MAX_RETRIES } from "./client";
 export {
   modelFor,
+  modelLockIssue,
   withModelFallback,
   LLM_MODEL_PROSE,
   LLM_MODEL_PRESENTATION,
   LLM_FALLBACK_MODEL,
 } from "./models";
 export type { LlmTaskClass } from "./models";
+export {
+  APPROVED_MODELS,
+  isApprovedModel,
+  ModelNotApprovedError,
+  modelLockLogLine,
+  MODEL_NOT_APPROVED_STATUS,
+  MODEL_NOT_APPROVED_MESSAGE,
+} from "./approved-models";
+export type { ApprovedModel } from "./approved-models";
 export { llmErrorEvent } from "./http";
 export { extractJsonPayload, parseLlmJson, LlmOutputError } from "./output";
 export { gateLlmInput, redactSecrets, LLM_INPUT_MAX_CHARS } from "./input-gate";
