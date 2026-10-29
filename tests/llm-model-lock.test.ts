@@ -66,6 +66,27 @@ describe("withModelFallback: the lock", () => {
     expect(modelLockLogLine(FABLE)).toBe(`[llm] model ${FABLE} is not on the approved list; no model call made`);
   });
 
+  it("refuses an approved id with surrounding whitespace, and the log line says why (independent review)", async () => {
+    vi.stubEnv("LLM_MODEL_PROSE", "claude-opus-5 \n");
+    const models = await freshModels();
+    const err = vi.spyOn(console, "error").mockImplementation(() => {});
+    const call = vi.fn();
+    // Still refused — never trimmed silently — and the person's message is unchanged.
+    await expect(models.withModelFallback(models.modelFor("prose"), call)).rejects.toMatchObject({
+      status: MODEL_NOT_APPROVED_STATUS,
+      message: MODEL_NOT_APPROVED_MESSAGE,
+      model: "claude-opus-5 \n",
+    });
+    expect(call).not.toHaveBeenCalled();
+    const line = err.mock.calls[0][0] as string;
+    expect(line).toMatch(/has surrounding whitespace/);
+    expect(line).toContain(JSON.stringify("claude-opus-5 \n"));
+    expect(line).not.toContain("\n");
+    // A wrong id with whitespace gets the plain line, not the hint.
+    expect(modelLockLogLine(` ${FABLE} `)).not.toMatch(/whitespace/);
+    expect(modelLockLogLine("claude-opus-5")).not.toMatch(/whitespace/);
+  });
+
   it("the same for the presentation class and a model id passed directly", async () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
     vi.stubEnv("LLM_MODEL_PRESENTATION", FABLE);

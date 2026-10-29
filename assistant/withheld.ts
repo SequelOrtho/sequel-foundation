@@ -9,14 +9,15 @@
 //  - ASSISTANT_PRIVACY_PROMPT — one fixed sentence block `runAssistantStep`
 //    appends to the system prompt, telling the model to say so plainly and
 //    never call it an error (static, so the prompt stays cacheable);
-//  - the panel's opt-in `privacyNote` — a standing muted line under the input.
+//  - the panel's `privacyNote` — a standing muted line under the input, on
+//    by default (owner ruling: standing); `false` hides it.
 //
 // Pure and client-safe.
 
 /** What a tool says when it doesn't name how to see the rest. */
 export const WITHHELD_DEFAULT_HOW_TO_SEE = "Open the linked page to see them.";
 
-/** The panel's standing line when a hub passes `privacyNote: true`. */
+/** The panel's standing line: shown unless a hub passes its own sentence or `privacyNote: false`. */
 export const DEFAULT_PRIVACY_NOTE =
   "Ask the Hub leaves out some details on purpose to protect privacy. Open a record to see everything you have access to.";
 

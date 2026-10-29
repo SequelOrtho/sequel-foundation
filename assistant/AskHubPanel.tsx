@@ -56,12 +56,13 @@ export type AskHubPanelProps = {
   /** The hub's step route. */
   endpoint?: string;
   /**
-   * Opt-in standing line under the input saying some details are left out on
-   * purpose (AI-CRAFT §2.6 "withheld on purpose is said in words"). `true` =
-   * DEFAULT_PRIVACY_NOTE; a string = the hub's own sentence (sentence case).
-   * Omitted = no line.
+   * The standing line under the input saying some details are left out on
+   * purpose (AI-CRAFT §2.6 "withheld on purpose is said in words"; owner
+   * ruling: the line is standing). Omitted (or `true`) = DEFAULT_PRIVACY_NOTE;
+   * a string = the hub's own sentence (sentence case; a blank one falls back
+   * to the family sentence); `false` = no line.
    */
-  privacyNote?: string | true;
+  privacyNote?: string | boolean;
 };
 
 function InlineText({ parts, onNavigate }: { parts: Inline[]; onNavigate: () => void }) {
@@ -108,6 +109,13 @@ function Answer({ text, links, onNavigate }: { text: string; links: ReadonlySet<
   );
 }
 
+/** The panel's privacy line: the family sentence unless the hub names its own or passes `false`. */
+export function privacyNoteText(privacyNote: string | boolean | undefined): string | null {
+  if (privacyNote === false) return null;
+  if (typeof privacyNote === "string" && privacyNote.trim()) return privacyNote.trim();
+  return DEFAULT_PRIVACY_NOTE;
+}
+
 export function AskHubPanel({
   role,
   starters,
@@ -117,7 +125,7 @@ export function AskHubPanel({
   endpoint = "/api/assistant/step",
   privacyNote,
 }: AskHubPanelProps) {
-  const privacyText = privacyNote === true ? DEFAULT_PRIVACY_NOTE : privacyNote?.trim() || null;
+  const privacyText = privacyNoteText(privacyNote);
   const [open, setOpen] = useState(false);
   const [stored, setStored, resetStored] = useRememberedState(
     conversationKey(role),

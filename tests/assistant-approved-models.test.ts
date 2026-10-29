@@ -86,6 +86,21 @@ describe("approved models (AI-CRAFT §2.6 rule 5)", () => {
     expect(err.mock.calls.flat().join(" ")).not.toContain("Jane");
   });
 
+  it("AC2: an approved id with surrounding whitespace is still refused; the log line says why (independent review)", async () => {
+    vi.stubEnv("LLM_MODEL_PROSE", " claude-opus-5");
+    vi.resetModules();
+    const { runAssistantStep: fresh } = await import("../assistant/server");
+    const { client, create } = fakeClient();
+    const err = vi.spyOn(console, "error").mockImplementation(() => {});
+    const step = fresh({ messages: pending, tools: TOOLS, runTool: vi.fn(), system: SYSTEM, client, allowedModels: ZDR });
+    await expect(step).rejects.toMatchObject({ status: 503, message: MODEL_NOT_APPROVED_MESSAGE, model: " claude-opus-5" });
+    expect(create).not.toHaveBeenCalled();
+    expect(err.mock.calls[0][0]).toMatch(/has surrounding whitespace/);
+    // Off the hub's narrower list once trimmed: no hint, the plain line.
+    expect(modelNotApprovedLogLine(" claude-opus-5", ["claude-opus-4-8"])).not.toMatch(/whitespace/);
+    expect(modelNotApprovedLogLine(" claude-opus-5")).toMatch(/whitespace/);
+  });
+
   it("AC2: the refusal travels as a 503 event the panel shows as written", () => {
     const event = llmErrorEvent(new AssistantModelNotApprovedError("claude-fable-5"));
     expect(event).toEqual({ status: MODEL_NOT_APPROVED_STATUS, error: MODEL_NOT_APPROVED_MESSAGE });

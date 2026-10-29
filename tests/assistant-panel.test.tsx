@@ -53,7 +53,7 @@ const Panel = ({
 }: {
   role?: string;
   starters?: string[];
-  privacyNote?: string | true;
+  privacyNote?: string | boolean;
 }) => (
   <AskHubPanel
     role={role}
@@ -306,18 +306,12 @@ describe("panel copy", () => {
 
 // Owner ruling 2026-10-29, Mike: "let's make sure when results are purposely
 // being redacted based on rules that that is made clear to the user so it isn't
-// reported as a 'bug'". The panel line is opt-in: a hub whose tools withhold
-// nothing shows none.
+// reported as a 'bug'". The panel line is STANDING (owner ruling on the
+// independent review): on by default, a hub's own sentence replaces it, and
+// only an explicit `privacyNote={false}` hides it.
 describe("AskHubPanel privacy note", () => {
-  it("shows no note unless the hub asks for one", () => {
+  it("shows the family sentence by default, muted, and describes the question box", () => {
     render(<Panel />);
-    open();
-    expect(screen.queryByText(DEFAULT_PRIVACY_NOTE)).toBeNull();
-    expect(screen.getByLabelText("Your question").getAttribute("aria-describedby")).toBeNull();
-  });
-
-  it("privacyNote={true} shows the family sentence, muted, and describes the question box", () => {
-    render(<Panel privacyNote />);
     open();
     const note = screen.getByText(DEFAULT_PRIVACY_NOTE);
     expect(note.className).toContain("text-brand-muted");
@@ -326,7 +320,20 @@ describe("AskHubPanel privacy note", () => {
     expect(note.id).toBeTruthy();
   });
 
-  it("a hub's own sentence replaces the family one; a blank one shows nothing", () => {
+  it("privacyNote={true} shows the family sentence too", () => {
+    render(<Panel privacyNote />);
+    open();
+    expect(screen.getByText(DEFAULT_PRIVACY_NOTE)).toBeTruthy();
+  });
+
+  it("privacyNote={false} hides the line", () => {
+    render(<Panel privacyNote={false} />);
+    open();
+    expect(screen.queryByText(DEFAULT_PRIVACY_NOTE)).toBeNull();
+    expect(screen.getByLabelText("Your question").getAttribute("aria-describedby")).toBeNull();
+  });
+
+  it("a hub's own sentence replaces the family one; a blank one falls back to it", () => {
     const { unmount } = render(<Panel privacyNote="Visit notes stay out of answers on purpose. Open the visit to read them." />);
     open();
     expect(screen.getByText("Visit notes stay out of answers on purpose. Open the visit to read them.")).toBeTruthy();
@@ -334,6 +341,6 @@ describe("AskHubPanel privacy note", () => {
     unmount();
     render(<Panel privacyNote="   " />);
     open();
-    expect(screen.getByLabelText("Your question").getAttribute("aria-describedby")).toBeNull();
+    expect(screen.getByText(DEFAULT_PRIVACY_NOTE)).toBeTruthy();
   });
 });

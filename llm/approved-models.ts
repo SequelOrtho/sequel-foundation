@@ -45,7 +45,15 @@ export class ModelNotApprovedError extends Error {
   }
 }
 
-/** The one log line for a refusal: the model id only, never the prompt. */
+/**
+ * The one log line for a refusal: the model id only, never the prompt. When
+ * the id would be approved without its surrounding whitespace (a setting
+ * pasted with a trailing space or newline), the line says so — the call is
+ * still refused; the setting is fixed, never trimmed silently.
+ */
 export function modelLockLogLine(model: string): string {
+  if (model !== model.trim() && isApprovedModel(model.trim())) {
+    return `[llm] model ${JSON.stringify(model)} is not on the approved list: it has surrounding whitespace (without it, ${model.trim()} is approved — fix the setting); no model call made`;
+  }
   return `[llm] model ${model} is not on the approved list; no model call made`;
 }

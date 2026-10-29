@@ -43,7 +43,15 @@ export function modelApproved(model: string, allowed: readonly string[] | undefi
   return isApprovedModel(model) && (allowed === undefined || allowed.includes(model));
 }
 
-/** The one log line for a refusal: the configured model id only, never the question. */
-export function modelNotApprovedLogLine(model: string): string {
+/**
+ * The one log line for a refusal: the configured model id only, never the
+ * question. When the id would be approved without its surrounding whitespace
+ * (on the family list and the hub's `allowed` list), the line says so — the
+ * step is still refused; the setting is fixed, never trimmed silently.
+ */
+export function modelNotApprovedLogLine(model: string, allowed?: readonly string[]): string {
+  if (model !== model.trim() && modelApproved(model.trim(), allowed)) {
+    return `[assistant] model ${JSON.stringify(model)} is not on the approved list: it has surrounding whitespace (without it, ${model.trim()} is approved — fix the setting); no model call made`;
+  }
   return `[assistant] model ${model} is not on the approved list; no model call made`;
 }

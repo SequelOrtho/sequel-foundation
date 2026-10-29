@@ -128,6 +128,37 @@ const res = await client.messages.parse({ model, max_tokens: 1, messages });`,
   });
 });
 
+describe("findUnlockedModelCalls — optional chaining (independent review)", () => {
+  it("flags an optional-chained SDK call outside the lock exactly like the plain form", () => {
+    for (const src of [
+      `client.messages?.create({ model: "claude-fable-5" })`,
+      `client?.messages.create({ model: "claude-fable-5" })`,
+      `client.messages.create?.({ model: "claude-fable-5" })`,
+      `client?.messages?.create?.({ model: "claude-fable-5" })`,
+      `client.messages?.batches?.create({ requests })`,
+    ]) {
+      const r = hits(src);
+      expect(r.map((h) => [h.line, h.reason]), src).toEqual([[1, "outside-lock"]]);
+    }
+    expect(hits(`client.messages?.create({ model: "claude-fable-5" })`)[0].call).toBe("messages?.create(");
+  });
+
+  it("checks the model of an optional-chained call inside the lock", () => {
+    expect(hits(`await withModelFallback(p, (model) => client?.messages?.create?.({ model, messages }));`)).toEqual([]);
+    expect(
+      hits(`await withModelFallback(p, (model) => client.messages?.create({ model: "claude-fable-5", messages }));`).map((h) => h.reason),
+    ).toEqual(["model-not-from-lock"]);
+  });
+
+  it("flags an optional-chained reference, destructure or alias", () => {
+    expect(hits(`const send = client?.messages?.create;`).map((h) => h.reason)).toEqual(["outside-lock"]);
+    expect(hits(`const { create } = client?.messages;`).map((h) => h.reason)).toEqual(["outside-lock"]);
+    expect(hits(`const m = client?.messages;\nawait m?.create({ model: "claude-fable-5" });`).map((h) => [h.line, h.reason])).toEqual([
+      [2, "outside-lock"],
+    ]);
+  });
+});
+
 describe("findUnlockedModelCalls — lockWrappers", () => {
   const traced = {
     path: "lib/llm/traced.ts",

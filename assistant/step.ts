@@ -192,7 +192,7 @@ export async function runAssistantStep(opts: StepOptions): Promise<StepResult> {
   // The model lock (AI-CRAFT §1, §2.6 rule 5): an unapproved model is refused before any tool reads
   // data or any model call is made. The log names the configured model only.
   if (!modelApproved(primary, opts.allowedModels)) {
-    console.error(modelNotApprovedLogLine(primary));
+    console.error(modelNotApprovedLogLine(primary, opts.allowedModels));
     throw new AssistantModelNotApprovedError(primary);
   }
   const fallbackAllowed = modelApproved(LLM_FALLBACK_MODEL, opts.allowedModels);
