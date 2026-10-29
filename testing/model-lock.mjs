@@ -43,6 +43,7 @@ const SDK_CALL = /\bmessages\s*\.\s*(?:batches\s*\.\s*)?(?:create|parse|stream|t
 const SDK_REFERENCE = /\bmessages\s*\.\s*(?:batches\s*\.\s*)?(?:create|parse|stream|toolRunner)\b(?!\s*\()/g;
 const SDK_DESTRUCTURE = /\}\s*=\s*[\w$.()?!\s]*\bmessages\s*(?:\.\s*batches\s*)?(?=[;,)\n]|$)/gm;
 const IDENT = "[A-Za-z_$][\\w$]*";
+const SDK_ALIAS = /\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*(?::[^=]+)?=\s*[\w$.?!()\s]*\.\s*messages\s*(?:\.\s*batches\s*)?(?=[;,)\n]|$)/gm;
 
 // Comments and the contents of strings and template literals become spaces
 // (newlines kept, so indexes and line numbers still line up). A quoted string
@@ -290,6 +291,14 @@ export function findUnlockedModelCalls(files, options = {}) {
         if (allowed(m.index)) continue;
         const call = source.slice(m.index, m.index + m[0].length).replace(/\s+/g, "");
         hits.push({ path, line: lineOf(source, m.index), call, reason: "outside-lock" });
+      }
+    }
+    // `const m = client.messages; m.create(…)` — an alias the SDK_CALL pattern can't see.
+    for (const a of code.matchAll(SDK_ALIAS)) {
+      const use = new RegExp(`(?<![\\w$.])${escapeRe(a[1])}\\s*\\.\\s*(?:batches\\s*\\.\\s*)?(?:create|parse|stream|toolRunner)\\b`, "g");
+      for (const u of code.matchAll(use)) {
+        if (allowed(u.index)) continue;
+        hits.push({ path, line: lineOf(source, u.index), call: source.slice(u.index, u.index + u[0].length).replace(/\s+/g, ""), reason: "outside-lock" });
       }
     }
     for (const m of code.matchAll(SDK_CALL)) {

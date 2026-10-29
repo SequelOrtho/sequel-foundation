@@ -110,6 +110,10 @@ describe("findUnlockedModelCalls — overrides inside the lock (review round 1)"
     expect(hits(`const send = client.messages.create.bind(client.messages);`).map((h) => h.reason)).toEqual(["outside-lock"]);
     expect(hits(`const { create } = client.messages;`).map((h) => h.reason)).toEqual(["outside-lock"]);
     expect(hits(`type P = Parameters<typeof client.messages.create>[0];`)).toEqual([]);
+    expect(hits(`const m = client.messages;\nawait m.create({ model: "claude-fable-5" });`)).toEqual([
+      { path: "lib/llm/x.ts", line: 2, call: "m.create", reason: "outside-lock" },
+    ]);
+    expect(hits(`const history = body.messages;\nhistory.push(x);`)).toEqual([]);
     expect(hits(`client.beta.messages.toolRunner({ model: "claude-opus-5" })`).map((h) => h.reason)).toEqual(["outside-lock"]);
   });
 
