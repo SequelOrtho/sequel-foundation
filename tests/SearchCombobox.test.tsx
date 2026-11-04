@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { SearchCombobox } from "../ui/SearchCombobox";
 
@@ -117,12 +117,19 @@ describe("SearchCombobox", () => {
     expect(screen.getByRole("option", { name: /Onboarding and Credentialing Acceleration/ }).textContent).toContain(
       "Physician & APP Onboarding and Credentialing Acceleration",
     );
+    // Every name line wraps: never cut off, never held to one line.
+    const wraps = (el: HTMLElement) => {
+      expect(el.className).toContain("break-words");
+      expect(el.className).not.toMatch(/truncate|whitespace-nowrap|text-ellipsis/);
+    };
+    wraps(within(list).getByText("Physician & APP Onboarding and Credentialing Acceleration"));
+    wraps(within(list).getByText("Grow Core Provider Base Organically · $1.2M"));
     // The chosen card wraps too.
     first.unmount();
     render(<SearchCombobox options={long} value={1} onChange={() => {}} label="Key Initiative" />);
     expect(screen.queryByRole("listbox")).toBeNull();
     const card = screen.getByText("Physician & APP Onboarding and Credentialing Acceleration");
-    expect(card.className).toContain("break-words");
-    expect(card.className).not.toContain("truncate");
+    wraps(card);
+    wraps(screen.getByText("Grow Core Provider Base Organically · $1.2M"));
   });
 });
