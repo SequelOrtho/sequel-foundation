@@ -101,4 +101,28 @@ describe("SearchCombobox", () => {
     expect(cls).toContain("border-zinc-300");
     expect(cls).not.toContain("${");
   });
+
+  // Project Hub, 2026-11-04: long Key Initiative and project names were cut
+  // off with "…" in a list as narrow as its box.
+  it("opens a list wider than a narrow box and wraps long names instead of cutting them off", () => {
+    const long = [
+      { id: 1, label: "Physician & APP Onboarding and Credentialing Acceleration", sublabel: "Grow Core Provider Base Organically · $1.2M" },
+      { id: 2, label: "Zed" },
+    ];
+    const first = render(<SearchCombobox options={long} value={null} onChange={() => {}} label="Key Initiative" />);
+    fireEvent.focus(screen.getByRole("combobox", { name: "Key Initiative" }));
+    const list = screen.getByRole("listbox");
+    expect(list.className).toContain("min-w-[min(24rem,calc(100vw-1rem))]");
+    expect(list.innerHTML).not.toContain("truncate");
+    expect(screen.getByRole("option", { name: /Onboarding and Credentialing Acceleration/ }).textContent).toContain(
+      "Physician & APP Onboarding and Credentialing Acceleration",
+    );
+    // The chosen card wraps too.
+    first.unmount();
+    render(<SearchCombobox options={long} value={1} onChange={() => {}} label="Key Initiative" />);
+    expect(screen.queryByRole("listbox")).toBeNull();
+    const card = screen.getByText("Physician & APP Onboarding and Credentialing Acceleration");
+    expect(card.className).toContain("break-words");
+    expect(card.className).not.toContain("truncate");
+  });
 });
