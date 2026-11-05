@@ -81,9 +81,9 @@ The connector lets a person ask the hub's read tools from their own Claude. The 
 
 - `/.well-known/oauth-protected-resource/api/mcp` and `/.well-known/oauth-authorization-server`: `protectedResourceMetadata` and `authorizationServerMetadata`.
 - `POST /api/connector/register`: `checkRegistration`, then `registrationResponse`. It writes nothing.
-- `/connect/authorize`: the consent page, on the hub's own address, behind sign-in, never framed. Run `checkAuthorize`, name the person, warn about links sent by others, ask for a role the person holds and a company-account confirmation (`companyAccountLabel`). Its Allow post calls `createGrant` and redirects with `withParams`. Send a refusal back to the page with `consentPath`.
+- `/connect/authorize`: the consent page, on the hub's own address, behind sign-in, never framed. Run `checkAuthorize`, name the person, warn about links sent by others, ask for a role the person holds and a company-account confirmation (`companyAccountLabel`). Its Allow post runs the member check when one is set (`members.membership`; `"not-member"` and `"unavailable"` refuse), calls `createGrant` and redirects with `withParams`. Send a refusal back to the page with `consentPath`.
 - `POST /api/connector/token`: `exchangeCode` or `refresh`, answered with `tokenResponse`.
-- `POST /api/mcp`: `verifyAccessToken`, then `answerMcp` inside `runAsConnector`. Answer a bad token with 401 and `bearerChallenge`. GET and DELETE answer 405.
+- `POST /api/mcp`: `verifyAccessToken(token, { resource: <this endpoint's MCP address> })` (a token issued for another hub's endpoint is refused), then `answerMcp` inside `runAsConnector`. Answer a bad token with 401 and `bearerChallenge`; a `retry` answer (the sign-in check couldn't run) is a 503, never an ended connection. Pass `onToolError` to log a tool that throws (its name only); the model gets a fixed "didn't work" line. GET and DELETE answer 405.
 - A Connections page: `listGrants` and `endOwnGrant`, plus the admin ends.
 
 **Proxy.** Let through exactly what `isConnectorOpenRequest(method, path)` allows. The consent page and its post stay behind sign-in.

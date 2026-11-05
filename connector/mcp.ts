@@ -35,6 +35,12 @@ export type McpDeps = {
   instructions?: string;
   /** The busy line when `beforeCall` refuses. */
   busyMessage?: string;
+  /**
+   * Called when a tool throws. The caller answers the model with a fixed
+   * "didn't work" line (`isError: true`); log the error's name here, never
+   * its message, which may carry data.
+   */
+  onToolError?: (tool: string, error: unknown) => void;
 };
 
 type Id = string | number;
@@ -103,12 +109,17 @@ export function toolList(tools: readonly ConnectorTool[]) {
   });
 }
 
+const NULL_ID = "A request id must be a string or a number.";
+export const TOOL_FAILED = "That didn't work just now. Try again in a moment.";
+
 const DEFAULT_BUSY = "The Hub is busy for you right now. Try again in a few minutes.";
 
 /** Answers one JSON-RPC request (never a notification). */
 export async function handleRpc(msg: unknown, deps: McpDeps): Promise<RpcResponse> {
   const req = asRequest(msg);
   if (!req) return err(null, RPC.invalidRequest, "Not a JSON-RPC 2.0 request.");
+  // MCP: a request id is a string or a number, never null.
+  if (req.id === null) return err(null, RPC.invalidRequest, NULL_ID);
   const id = req.id ?? null;
   const params = (req.params && typeof req.params === "object" ? req.params : {}) as Record<string, unknown>;
   switch (req.method) {
@@ -136,7 +147,15 @@ export async function handleRpc(msg: unknown, deps: McpDeps): Promise<RpcRespons
           result: { content: [{ type: "text", text: JSON.stringify({ error: deps.busyMessage ?? DEFAULT_BUSY }) }], isError: true },
         };
       }
-      const out = await tool.run(args as Record<string, unknown>);
+      let out: Awaited<ReturnType<typeof tool.run>>;
+      try {
+        out = await tool.run(args as Record<string, unknown>);
+      } catch (e) {
+        // A tool that throws is answered as a failed call, never a bare 500.
+        // The error itself stays out of the answer (it may name hub internals).
+        deps.onToolError?.(tool.name, e);
+        return { jsonrpc: "2.0", id, result: { content: [{ type: "text", text: JSON.stringify({ error: TOOL_FAILED }) }], isError: true } };
+      }
       return { jsonrpc: "2.0", id, result: { content: [{ type: "text", text: absoluteLinks(out.content, deps.appUrl) }], isError: out.isError ?? false } };
     }
     default:
@@ -155,6 +174,8 @@ export async function answerMcp(body: unknown, deps: McpDeps): Promise<McpHttpAn
   if (body === undefined) return { status: 400, body: err(null, RPC.parse, "The body is not JSON.") };
   if (Array.isArray(body)) return { status: 400, body: err(null, RPC.invalidRequest, "Batches are not supported. Send one message at a time.") };
   if (isNotification(body)) return { status: 202, body: null };
-  if (!asRequest(body)) return { status: 400, body: err(null, RPC.invalidRequest, "Not a JSON-RPC 2.0 request.") };
+  const req = asRequest(body);
+  if (!req) return { status: 400, body: err(null, RPC.invalidRequest, "Not a JSON-RPC 2.0 request.") };
+  if (req.id === null) return { status: 400, body: err(null, RPC.invalidRequest, NULL_ID) };
   return { status: 200, body: await handleRpc(body, deps) };
 }

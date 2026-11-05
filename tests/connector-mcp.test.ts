@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { absoluteLinks, answerMcp, handleRpc, isNotification, LATEST_PROTOCOL_VERSION, RPC, type McpDeps } from "../connector";
+import { absoluteLinks, answerMcp, handleRpc, isNotification, LATEST_PROTOCOL_VERSION, RPC, TOOL_FAILED, type McpDeps } from "../connector";
 
 const run = vi.fn(async (input: Record<string, unknown>) => ({ content: JSON.stringify({ link: "/projects/1", echo: input, other: "/x" }) }));
 const deps = (extra: Partial<McpDeps> = {}): McpDeps => ({
@@ -46,5 +46,22 @@ describe("MCP answers", () => {
   it("leaves protocol-relative and non-JSON text alone", () => {
     expect(absoluteLinks('{"link":"//evil.com"}', "https://hub.com")).toBe('{"link":"//evil.com"}');
     expect(absoluteLinks("plain", "https://hub.com")).toBe("plain");
+  });
+});
+
+describe("MCP round-1 fixes", () => {
+  it("a tool that throws is a failed call, not a crash, and is reported", async () => {
+    const onToolError = vi.fn();
+    const boom = { name: "boom", description: "b", inputSchema: { type: "object" }, run: async () => { throw new Error("secret detail"); } };
+    const r = await handleRpc({ jsonrpc: "2.0", id: 9, method: "tools/call", params: { name: "boom", arguments: {} } }, deps({ tools: [boom], onToolError }));
+    expect(r).toMatchObject({ id: 9, result: { isError: true } });
+    expect(JSON.stringify(r)).toContain(TOOL_FAILED);
+    expect(JSON.stringify(r)).not.toContain("secret detail");
+    expect(onToolError).toHaveBeenCalledWith("boom", expect.any(Error));
+  });
+  it("a null request id is refused", async () => {
+    const msg = { jsonrpc: "2.0", id: null, method: "ping" };
+    expect(await handleRpc(msg, deps())).toMatchObject({ id: null, error: { code: RPC.invalidRequest } });
+    expect(await answerMcp(msg, deps())).toMatchObject({ status: 400 });
   });
 });

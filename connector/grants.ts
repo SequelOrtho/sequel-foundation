@@ -176,6 +176,25 @@ export function createConnectorGrants(opts: ConnectorGrantsOptions) {
     return ended[0];
   }
 
+  /** The sign-in rule; a lookup that throws answers "retry" and ends nothing. */
+  async function signInCheck(email: string): Promise<boolean | "retry"> {
+    try {
+      return await identity.signInAllowed(email);
+    } catch {
+      return "retry";
+    }
+  }
+
+  /** The Claude member check, when configured; anything but a definite "not-member" lets it through. */
+  async function memberCheck(row: { email: string; altEmails: readonly string[] }, now: Date) {
+    if (!members) return "member" as const;
+    try {
+      return await members.membership([row.email, ...row.altEmails], now.getTime());
+    } catch {
+      return "unavailable" as const;
+    }
+  }
+
   function freshTokens(now: Date, absoluteExpiresAt: Date) {
     const accessToken = newToken("access", opts.tokenPrefixes);
     const refreshToken = newToken("refresh", opts.tokenPrefixes);
@@ -249,7 +268,7 @@ export function createConnectorGrants(opts: ConnectorGrantsOptions) {
       return { id: row.id, code };
     },
 
-    /** The authorization_code grant. */
+    /** The authorization_code grant. Runs the member check too (a consent post should run it as well). */
     async exchangeCode(input: { code: string; clientId: string; redirectUri: string | null; verifier: string | null; resource: string | null }): Promise<TokenResult> {
       const now = clock();
       if (!input.code || input.code.length > 200) return { ok: false, error: BAD_CODE };
@@ -267,8 +286,14 @@ export function createConnectorGrants(opts: ConnectorGrantsOptions) {
       // RFC 8707: `resource` may be left out; the token is then for the grant's own.
       if (input.resource != null && input.resource !== row.resource) return { ok: false, error: BAD_CODE };
       if (!pkceMatches(input.verifier, row.codeChallenge)) return { ok: false, error: BAD_CODE };
-      if (!(await identity.signInAllowed(row.email))) {
+      const allowed = await signInCheck(row.email);
+      if (allowed === "retry") return { ok: false, error: BAD_CODE };
+      if (!allowed) {
         await systemEnd(row.id, "sign-in-not-allowed", now);
+        return { ok: false, error: BAD_CODE };
+      }
+      if ((await memberCheck(row, now)) === "not-member") {
+        await systemEnd(row.id, "not-claude-member", now);
         return { ok: false, error: BAD_CODE };
       }
       const fresh = freshTokens(now, row.absoluteExpiresAt);
@@ -277,7 +302,14 @@ export function createConnectorGrants(opts: ConnectorGrantsOptions) {
       return { ok: true, tokens: fresh.pair, grantId: row.id };
     },
 
-    /** The refresh_token grant. Rotates on every use. */
+    /**
+     * The refresh_token grant. Rotates on every use. A refresh whose answer is
+     * lost (the network drops it) leaves the client holding a token that was
+     * just replaced: inside `refreshGraceMs` it is refused without ending the
+     * connection, but it can't be recovered, so the person connects again.
+     * Hub roles are not re-checked here: every MCP call re-checks them in
+     * `verifyAccessToken`, so a token minted for a lost role ends on first use.
+     */
     async refresh(input: { refreshToken: string; clientId: string; resource: string | null }): Promise<TokenResult> {
       const now = clock();
       if (!input.refreshToken || input.refreshToken.length > 200) return { ok: false, error: BAD_REFRESH };
@@ -297,12 +329,14 @@ export function createConnectorGrants(opts: ConnectorGrantsOptions) {
       if (row.revokedAt || !row.refreshExpiresAt || row.refreshExpiresAt <= now || row.absoluteExpiresAt <= now) {
         return { ok: false, error: BAD_REFRESH };
       }
-      if (!(await identity.signInAllowed(row.email))) {
+      const allowed = await signInCheck(row.email);
+      if (allowed === "retry") return { ok: false, error: BAD_REFRESH };
+      if (!allowed) {
         await systemEnd(row.id, "sign-in-not-allowed", now);
         return { ok: false, error: BAD_REFRESH };
       }
       // Only a definite "not a member" ends it: an unreadable list keeps going.
-      if (members && (await members.membership([row.email, ...row.altEmails], now.getTime())) === "not-member") {
+      if ((await memberCheck(row, now)) === "not-member") {
         await systemEnd(row.id, "not-claude-member", now);
         return { ok: false, error: BAD_REFRESH };
       }
@@ -322,15 +356,20 @@ export function createConnectorGrants(opts: ConnectorGrantsOptions) {
      * The person behind an MCP call's bearer token. Counts the call. With
      * `identity.hubRoles`, a chosen role no longer held ends the connection
      * ("role-gone"); a failed lookup answers "retry" and ends nothing.
+     * `expected.resource` is this MCP endpoint's address (the grant's RFC 8707
+     * audience): a token issued for another hub's endpoint is "invalid".
      */
-    async verifyAccessToken(token: string | null | undefined): Promise<VerifiedToken> {
+    async verifyAccessToken(token: string | null | undefined, expected: { resource: string }): Promise<VerifiedToken> {
       const now = clock();
       if (!token || token.length > 200) return { ok: false, reason: "invalid" };
       const row = await store.findByAccessHash(tokenHash(token));
       if (!row || row.revokedAt || !row.accessExpiresAt || row.accessExpiresAt <= now || row.absoluteExpiresAt <= now) {
         return { ok: false, reason: "invalid" };
       }
-      if (!(await identity.signInAllowed(row.email))) {
+      if (row.resource !== expected.resource) return { ok: false, reason: "invalid" };
+      const allowed = await signInCheck(row.email);
+      if (allowed === "retry") return { ok: false, reason: "retry" };
+      if (!allowed) {
         await systemEnd(row.id, "sign-in-not-allowed", now);
         return { ok: false, reason: "ended" };
       }
@@ -353,7 +392,11 @@ export function createConnectorGrants(opts: ConnectorGrantsOptions) {
 
     endGrants,
 
-    /** The person ends one of their own connections. False when it isn't theirs or has already ended. */
+    /**
+     * The person ends one of their own connections. False when it isn't theirs
+     * or has already ended. Only their newest 50 are looked at (the same list
+     * Claude Connections shows), so an older one can't be ended from here.
+     */
     async endOwnGrant(id: string, emails: readonly string[]): Promise<boolean> {
       const mine = new Set(emails.map(lower));
       const rows = await store.listByEmail([...mine], 50);

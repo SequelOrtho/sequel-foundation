@@ -13,6 +13,7 @@ import {
   type EndReason,
   type IdentityAdapter,
 } from "../connector/server";
+import type { ClaudeMemberCheck, ClaudeMembership } from "../connector/members";
 
 const KEY = { secret: "s".repeat(32), label: "test" };
 const RESOURCE = "https://hub.netlify.app/api/mcp";
@@ -21,7 +22,7 @@ const verifier = "v".repeat(43) + "-._~";
 const challenge = createHash("sha256").update(verifier).digest("base64url");
 const callback = CLAUDE_CALLBACKS[0];
 
-function setup(identity: Partial<IdentityAdapter> = {}) {
+function setup(identity: Partial<IdentityAdapter> = {}, members?: ClaudeMemberCheck) {
   let t = new Date("2026-11-05T12:00:00Z").getTime();
   const now = () => new Date(t);
   const advance = (ms: number) => (t += ms);
@@ -34,6 +35,7 @@ function setup(identity: Partial<IdentityAdapter> = {}) {
     notices: { audit: (e) => void audits.push(e), tell: (ended, reason) => void told.push({ ended, reason }) },
     now,
     log: () => {},
+    members,
   });
   const clientId = issueClientId({ redirectUris: [callback], name: "Claude" }, KEY);
   const check = checkAuthorize(
@@ -57,13 +59,13 @@ describe("connector grants: the full flow", () => {
     if (!out.ok) return;
     expect(out.tokens.expiresIn).toBe(DEFAULT_LIFETIMES.accessTtlMs / 1000);
     expect(tokenResponse(out.tokens).token_type).toBe("Bearer");
-    const v = await s.grants.verifyAccessToken(out.tokens.accessToken);
+    const v = await s.grants.verifyAccessToken(out.tokens.accessToken, { resource: RESOURCE });
     expect(v).toMatchObject({ ok: true, grantId: id, email: "pat@example.com", role: "PM" });
     const r = await s.refresh(out.tokens.refreshToken);
     expect(r.ok).toBe(true);
     if (!r.ok) return;
-    expect((await s.grants.verifyAccessToken(out.tokens.accessToken)).ok).toBe(false);
-    expect((await s.grants.verifyAccessToken(r.tokens.accessToken)).ok).toBe(true);
+    expect((await s.grants.verifyAccessToken(out.tokens.accessToken, { resource: RESOURCE })).ok).toBe(false);
+    expect((await s.grants.verifyAccessToken(r.tokens.accessToken, { resource: RESOURCE })).ok).toBe(true);
     const list = await s.grants.listGrants(["PAT.ALT@example.com"]);
     expect(list).toHaveLength(1);
     expect(list[0]).toMatchObject({ id, state: "active", calls: 2 });
@@ -88,7 +90,7 @@ describe("connector grants: the full flow", () => {
     expect(s.store.rows()[0].revokedReason).toBe("code-reused");
     expect(s.audits.at(-1)).toMatchObject({ action: "connector.reuse", reason: "code-reused", actor: null });
     expect(s.told.at(-1)?.reason).toBe("code-reused");
-    if (first.ok) expect((await s.grants.verifyAccessToken(first.tokens.accessToken)).ok).toBe(false);
+    if (first.ok) expect((await s.grants.verifyAccessToken(first.tokens.accessToken, { resource: RESOURCE })).ok).toBe(false);
   });
 });
 
@@ -151,8 +153,8 @@ describe("connector grants: refresh races and replays", () => {
     const out = await s.exchange(code);
     if (!out.ok) throw new Error("exchange");
     const before = s.store.rows()[0].version;
-    await s.grants.verifyAccessToken(out.tokens.accessToken);
-    await s.grants.verifyAccessToken(out.tokens.accessToken);
+    await s.grants.verifyAccessToken(out.tokens.accessToken, { resource: RESOURCE });
+    await s.grants.verifyAccessToken(out.tokens.accessToken, { resource: RESOURCE });
     expect(s.store.rows()[0].version).toBe(before);
     expect(s.store.rows()[0].calls).toBe(2);
   });
@@ -179,13 +181,13 @@ describe("connector grants: identity checks and ends", () => {
     const { code } = await s.allow();
     const out = await s.exchange(code);
     if (!out.ok) throw new Error("exchange");
-    expect((await s.grants.verifyAccessToken(out.tokens.accessToken)).ok).toBe(true);
+    expect((await s.grants.verifyAccessToken(out.tokens.accessToken, { resource: RESOURCE })).ok).toBe(true);
     roles.roles = [];
     roles.lookupFailed = true;
-    expect(await s.grants.verifyAccessToken(out.tokens.accessToken)).toEqual({ ok: false, reason: "retry" });
+    expect(await s.grants.verifyAccessToken(out.tokens.accessToken, { resource: RESOURCE })).toEqual({ ok: false, reason: "retry" });
     expect(s.store.rows()[0].revokedAt).toBeNull();
     roles.lookupFailed = false;
-    expect(await s.grants.verifyAccessToken(out.tokens.accessToken)).toEqual({ ok: false, reason: "ended" });
+    expect(await s.grants.verifyAccessToken(out.tokens.accessToken, { resource: RESOURCE })).toEqual({ ok: false, reason: "ended" });
     expect(s.store.rows()[0].revokedReason).toBe("role-gone");
     expect(s.told.at(-1)?.reason).toBe("role-gone");
   });
@@ -195,7 +197,7 @@ describe("connector grants: identity checks and ends", () => {
     const { code } = await s.allow();
     const out = await s.exchange(code);
     if (!out.ok) throw new Error("exchange");
-    expect(await s.grants.verifyAccessToken(out.tokens.accessToken)).toEqual({ ok: false, reason: "retry" });
+    expect(await s.grants.verifyAccessToken(out.tokens.accessToken, { resource: RESOURCE })).toEqual({ ok: false, reason: "retry" });
     expect(s.store.rows()[0].revokedAt).toBeNull();
   });
 
@@ -244,5 +246,57 @@ describe("connector grants: identity checks and ends", () => {
     await expect(grants.endGrants({ all: true }, "admin", null)).resolves.toHaveLength(1);
     expect(log).toHaveBeenCalledTimes(2);
     expect(log.mock.calls[0][0]).toContain("TypeError");
+  });
+});
+
+describe("connector grants: round-1 fixes", () => {
+  const memberCheck = (answer: () => ClaudeMembership): ClaudeMemberCheck => ({ configured: true, membership: async () => answer(), reset: () => {} });
+
+  it("refuses an access token issued for another endpoint (audience)", async () => {
+    const s = setup();
+    const { code } = await s.allow();
+    const out = await s.exchange(code);
+    if (!out.ok) throw new Error("exchange");
+    expect(await s.grants.verifyAccessToken(out.tokens.accessToken, { resource: "https://other.netlify.app/api/mcp" })).toEqual({ ok: false, reason: "invalid" });
+    expect((await s.grants.verifyAccessToken(out.tokens.accessToken, { resource: RESOURCE })).ok).toBe(true);
+  });
+
+  it("refuses a client id signed with another hub's key", () => {
+    const other = issueClientId({ redirectUris: [callback], name: "Claude" }, { secret: "z".repeat(32), label: "test" });
+    const check = checkAuthorize(
+      { client_id: other, redirect_uri: callback, response_type: "code", code_challenge: challenge, code_challenge_method: "S256", resource: RESOURCE },
+      { key: KEY, resource: RESOURCE, issuer: ISSUER },
+    );
+    expect(check.ok).toBe(false);
+  });
+
+  it("a throwing sign-in check answers retry and ends nothing", async () => {
+    let fail = false;
+    const s = setup({ signInAllowed: () => { if (fail) throw new Error("graph"); return true; } });
+    const first = await s.allow();
+    const out = await s.exchange(first.code);
+    if (!out.ok) throw new Error("exchange");
+    fail = true;
+    expect(await s.grants.verifyAccessToken(out.tokens.accessToken, { resource: RESOURCE })).toEqual({ ok: false, reason: "retry" });
+    expect((await s.refresh(out.tokens.refreshToken)).ok).toBe(false);
+    const second = await s.allow();
+    expect(await s.exchange(second.code)).toMatchObject({ ok: false });
+    expect(s.store.rows().every((r) => r.revokedAt === null)).toBe(true);
+    expect(s.told).toHaveLength(0);
+  });
+
+  it("a person off the Claude member list is refused at the code swap", async () => {
+    const s = setup({}, memberCheck(() => "not-member"));
+    const { code } = await s.allow();
+    expect((await s.exchange(code)).ok).toBe(false);
+    expect(s.store.rows()[0].revokedReason).toBe("not-claude-member");
+    expect(s.told.at(-1)?.reason).toBe("not-claude-member");
+  });
+
+  it("an unreadable member list never ends a connection", async () => {
+    const s = setup({}, memberCheck(() => "unavailable"));
+    const { code } = await s.allow();
+    expect((await s.exchange(code)).ok).toBe(true);
+    expect(s.store.rows()[0].revokedAt).toBeNull();
   });
 });
