@@ -18,6 +18,12 @@ import { useFitInViewport } from "./useFitInViewport";
 // stays in the input; each option has an id). The active row is a visible
 // ring, the chosen option carries a check mark, and both survive Windows High
 // Contrast (UX audit 2026-10-21, FND-3 / FND-4).
+//
+// Long names are read whole (Project Hub, 2026-11-04 — "When we have
+// dropdowns, I can't expand it out to read the full text … Can you make the
+// display window wider"): the list opens at least 24rem wide (never wider
+// than the window), and every label and sublabel wraps instead of being cut
+// off with "…" — in the list and on the chosen card alike.
 
 const BORDER = "border border-zinc-300 dark:border-zinc-700";
 const optionId = (listboxId: string, index: number) => `${listboxId}-opt-${index}`;
@@ -57,8 +63,8 @@ export function SearchCombobox({
   const errorId = `${listboxId}-error`;
   const inputRef = useRef<HTMLInputElement>(null);
   const [open, setOpen] = useState(false);
-  // The list is min 16rem wide, so a narrow field near the window edge would
-  // otherwise open past it.
+  // The list is min 24rem wide (or the window, less its gutters), so a narrow
+  // field near the window edge would otherwise open past it.
   const listRef = useFitInViewport<HTMLUListElement>(open && !disabled);
   const [query, setQuery] = useState("");
   const [activeIndex, setActiveIndex] = useState(0);
@@ -116,8 +122,8 @@ export function SearchCombobox({
       {selected && !open ? (
         <div className={`${hideLabel ? "" : "mt-0.5 "}flex items-center justify-between gap-2 rounded-md ${BORDER} bg-brand-surface px-2 py-1.5`}>
           <div className="min-w-0">
-            <div className="truncate text-sm font-medium text-brand-navy">{selected.label}</div>
-            {selected.sublabel && <div className="truncate text-xs text-brand-muted">{selected.sublabel}</div>}
+            <div className="break-words text-sm font-medium text-brand-navy">{selected.label}</div>
+            {selected.sublabel && <div className="break-words text-xs text-brand-muted">{selected.sublabel}</div>}
           </div>
           {!disabled && (
             <div className="flex shrink-0 items-center gap-2 text-xs">
@@ -158,7 +164,7 @@ export function SearchCombobox({
       )}
       {open && !disabled && (
         <ul ref={listRef} id={listboxId} role="listbox" aria-label={`${label} options`}
-          className={`absolute z-20 mt-1 max-h-72 w-full min-w-[16rem] overflow-y-auto rounded-md ${BORDER} bg-white p-1 shadow-lg dark:bg-zinc-900`}>
+          className={`absolute z-20 mt-1 max-h-72 w-full min-w-[min(24rem,calc(100vw-1rem))] overflow-y-auto rounded-md ${BORDER} bg-white p-1 shadow-lg dark:bg-zinc-900`}>
           {visible.length === 0 && (
             <li className="px-2 py-2 text-sm text-brand-muted">No matches for “{query}”.</li>
           )}
@@ -188,8 +194,8 @@ export function SearchCombobox({
                       onMouseDown={(e) => { e.preventDefault(); choose(o); }}>
                       <span aria-hidden className="w-4 shrink-0 text-sm text-brand">{chosen ? "✓" : ""}</span>
                       <span className="min-w-0">
-                        <span className={`block truncate text-sm text-zinc-900 dark:text-zinc-100 ${chosen ? "font-semibold" : ""}`}>{o.label}</span>
-                        {o.sublabel && <span className="block truncate text-xs text-brand-muted">{o.sublabel}</span>}
+                        <span className={`block break-words text-sm text-zinc-900 dark:text-zinc-100 ${chosen ? "font-semibold" : ""}`}>{o.label}</span>
+                        {o.sublabel && <span className="block break-words text-xs text-brand-muted">{o.sublabel}</span>}
                       </span>
                     </li>
                   );

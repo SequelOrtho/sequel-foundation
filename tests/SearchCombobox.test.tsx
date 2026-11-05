@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { SearchCombobox } from "../ui/SearchCombobox";
 
@@ -100,5 +100,36 @@ describe("SearchCombobox", () => {
     const cls = screen.getByRole("listbox").className;
     expect(cls).toContain("border-zinc-300");
     expect(cls).not.toContain("${");
+  });
+
+  // Project Hub, 2026-11-04: long Key Initiative and project names were cut
+  // off with "…" in a list as narrow as its box.
+  it("opens a list wider than a narrow box and wraps long names instead of cutting them off", () => {
+    const long = [
+      { id: 1, label: "Physician & APP Onboarding and Credentialing Acceleration", sublabel: "Grow Core Provider Base Organically · $1.2M" },
+      { id: 2, label: "Zed" },
+    ];
+    const first = render(<SearchCombobox options={long} value={null} onChange={() => {}} label="Key Initiative" />);
+    fireEvent.focus(screen.getByRole("combobox", { name: "Key Initiative" }));
+    const list = screen.getByRole("listbox");
+    expect(list.className).toContain("min-w-[min(24rem,calc(100vw-1rem))]");
+    expect(list.innerHTML).not.toContain("truncate");
+    expect(screen.getByRole("option", { name: /Onboarding and Credentialing Acceleration/ }).textContent).toContain(
+      "Physician & APP Onboarding and Credentialing Acceleration",
+    );
+    // Every name line wraps: never cut off, never held to one line.
+    const wraps = (el: HTMLElement) => {
+      expect(el.className).toContain("break-words");
+      expect(el.className).not.toMatch(/truncate|whitespace-nowrap|text-ellipsis/);
+    };
+    wraps(within(list).getByText("Physician & APP Onboarding and Credentialing Acceleration"));
+    wraps(within(list).getByText("Grow Core Provider Base Organically · $1.2M"));
+    // The chosen card wraps too.
+    first.unmount();
+    render(<SearchCombobox options={long} value={1} onChange={() => {}} label="Key Initiative" />);
+    expect(screen.queryByRole("listbox")).toBeNull();
+    const card = screen.getByText("Physician & APP Onboarding and Credentialing Acceleration");
+    wraps(card);
+    wraps(screen.getByText("Grow Core Provider Base Organically · $1.2M"));
   });
 });
