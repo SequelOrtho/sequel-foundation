@@ -25,7 +25,7 @@ That single constant drives the theme (`<html data-entity>`), the header logo, f
 **1. Install** (public repo — no tokens needed anywhere):
 
 ```bash
-npm i "@sequel/foundation@github:SequelOrtho/sequel-foundation#v0.34.1"
+npm i "@sequel/foundation@github:SequelOrtho/sequel-foundation#v0.35.0"
 ```
 
 ```ts
@@ -54,6 +54,7 @@ transpilePackages: ["@sequel/foundation"],
 | `…/brand/palette` | The brand palette as JavaScript, per entity — for charts and exporters, which can't take a Tailwind class. Kept in sync with `theme.css` by a test that parses the CSS |
 | `…/llm` | Claude client seam (hard timeout budget + retries), per-task model configuration with fallback, locked to the approved models (v0.34.0: `withModelFallback` refuses any model outside `APPROVED_MODELS` before the call, with a 503 the screen shows as written, and never tries an unapproved fallback; env vars choose only among approved models), streaming that survives serverless timeouts and narrates progress stages, deterministic input gate (size cap + secret/PII redaction), output-contract parsing (`parseLlmJson` — never raw `JSON.parse` on model text), identity-aware rate-limit core (your app supplies the one-method store), per-request trace records (your app supplies the sink), golden-set runner (your app supplies the cases) |
 | `…/assistant` (+ `/server`, `/panel`) | Ask the Hub: the header button and side panel where a signed-in person asks a question and Claude answers from read-only tools with links into the hub. The foundation gives the conversation parser, the step loop (step budget, last-step no tools, nothing logged), the request reader, the rate budget, the off switch and `AskHubPanel`; your hub writes its tools (each through its page's own access rule), its prompt and its help text, and a route in the order 404 off → 401 → 413/422 → 429 → `streamJob(runAssistantStep)`; every step is held to the family `APPROVED_MODELS`, and a hub may pass a narrower `allowedModels`; a tool that leaves fields out by rule returns `withheld(fields, howToSee?)`, and `AskHubPanel` shows a standing `privacyNote` under the question box saying details are left out on purpose (on by default; a hub may pass its own sentence, or `false` to hide it) — AI-CRAFT §2.6 (v0.33.0; lock, `allowedModels`, `withheld` and `privacyNote` v0.34.0) |
+| `…/connector` (+ `/server`) | The Claude connector: people use the hub's read tools from their own Claude. The foundation gives the OAuth server pieces (signed client ids, PKCE, codes, rotating refresh tokens, reuse detection), the connection rules over your store, the MCP server, the scope that makes `auth()` answer as the connected person, the notices and an optional Claude member check; your hub writes the routes, the consent page, the grant table and the tools. See "Adding the Claude connector" below (AI-CRAFT §2.7, v0.35.0) |
 | `…/access` | The no-role sign-in policy for apps on Microsoft sign-in: the family "no role yet" message, the 403 page body with a **Request access** button, the access-request log (your app supplies the one store), and the once-a-day email to every System Administrator (your app supplies its mail sender). Wiring: DESIGN-CONVENTIONS §4 "No role, no entry" |
 | `…/session` | One sign-out flow for every hub: the header Sign Out button, the `/auth/sign-out` route, the proxy's answer when a session has ended (back to the same page after signing in, a clean 401 for background fetches), and a "You've been signed out" dialog for other open tabs. On Auth.js, wrap the proxy as `export default bypassOnSignOut(auth(…))` or Sign Out silently fails on Netlify. Wiring: DESIGN-CONVENTIONS §4 "Signing out and ended sessions" Pass `idleTimeoutSeconds` to `SessionWatch` for the two-minute warning before an idle sign-out (v0.29.0). |
 | `…/testing/a11y` | The shared rules for a CI accessibility + dead-link check: which WCAG tags axe scans, what fails the build, readable reports, same-origin link collection, and a light/dark theme pin for Playwright. Your app's Playwright test brings `@axe-core/playwright` |
@@ -65,6 +66,38 @@ transpilePackages: ["@sequel/foundation"],
 | `…/docs-kit/*` | Word/Excel brand constants and styles (per entity: `docxBrand(entity)`, `headerFill(entity)`), clickable-contents machinery for generated guides |
 
 The full subpath reference and consumption details are in the [README](README.md).
+
+## Adding the Claude connector
+
+The connector lets a person ask the hub's read tools from their own Claude. The hub is its own OAuth server, so Entra needs no change. Nothing can be changed from Claude: every tool is read-only. Project Hub has the first working copy; port from it.
+
+**Your hub supplies three things to `createConnectorGrants`** (from `@sequel/foundation/connector/server`):
+
+- A `GrantStore`. One row per connection, tokens kept only as SHA-256 hashes. `update` writes only while the row's `version` still matches, and bumps it. `touch` counts a call and leaves `version` alone. The three ends touch only live rows (`isGrantLive`, written as a where clause) and return the rows they ended. `createMemoryGrantStore()` is the reference and the test store.
+- An `IdentityAdapter`. `signInAllowed(email)` (your domain allow-list) and, optionally, `hubRoles(addresses)`. Read hub roles only, never an Entra claim. With `hubRoles`, a connection whose chosen role is gone ends. A failed lookup answers "retry" and ends nothing.
+- A `NoticeAdapter`. `audit(event)` writes your audit row. `tell(ended, reason)` sends the bell and email, worded by `noticeFor`. The module audits first, then tells. It never tells about the person's own end, and a failed notice is logged, never thrown.
+
+**Routes** (defaults in `DEFAULT_CONNECTOR_PATHS`):
+
+- `/.well-known/oauth-protected-resource/api/mcp` and `/.well-known/oauth-authorization-server`: `protectedResourceMetadata` and `authorizationServerMetadata`.
+- `POST /api/connector/register`: `checkRegistration`, then `registrationResponse`. It writes nothing.
+- `/connect/authorize`: the consent page, on the hub's own address, behind sign-in, never framed. Run `checkAuthorize`, name the person, warn about links sent by others, ask for a role the person holds and a company-account confirmation (`companyAccountLabel`). Its Allow post runs the member check when one is set (`members.membership`; `"not-member"` and `"unavailable"` refuse), calls `createGrant` and redirects with `withParams`. Send a refusal back to the page with `consentPath`.
+- `POST /api/connector/token`: `exchangeCode` or `refresh`, answered with `tokenResponse`.
+- `POST /api/mcp`: `verifyAccessToken(token, { resource: <this endpoint's MCP address> })` (a token issued for another hub's endpoint is refused), then `answerMcp` inside `runAsConnector`. Answer a bad token with 401 and `bearerChallenge`; a `retry` answer (the sign-in check couldn't run) is a 503, never an ended connection. Pass `onToolError` to log a tool that throws (its name only); the model gets a fixed "didn't work" line. GET and DELETE answer 405.
+- A Connections page: `listGrants` and `endOwnGrant`, plus the admin ends.
+
+**Proxy.** Let through exactly what `isConnectorOpenRequest(method, path)` allows. The consent page and its post stay behind sign-in.
+
+**Auth.** Wrap your `auth` with `scopedAuth`, so a bare `auth()` call inside `runAsConnector` answers with the connected person. Every role, scope and page rule then reads from your database as it does for a browser.
+
+**Environment:**
+
+- `CONNECTOR_ENABLED`: true, 1, on or yes switches it on. Off by default.
+- `AUTH_SECRET`: signs the client ids. Without it the connector stays off.
+- `CONNECTOR_ORIGIN`: optional. Only http on localhost or https on a `*.netlify.app` host is used. Otherwise the address is `https://<SITE_NAME>.netlify.app`, never the custom domain, which Cloudflare fronts.
+- `CLAUDE_COMPLIANCE_API_KEY` and `CLAUDE_ORG_ID`: optional. With both set, `claudeMemberCheckFromEnv` checks that the person holds a seat in the company's Claude. The key needs a scope that also reads the organization's chats, so most hubs leave it off. Unset, the check answers "not-configured" and the hub's own checks decide.
+
+Test on a draft deploy before switching it on.
 
 ## House rules
 
@@ -78,7 +111,7 @@ The full subpath reference and consumption details are in the [README](README.md
 - **Every action confirms; no page dead-ends.** Mutations pop a `toastSaved` confirmation — with an action link (`{ action: { label, href } }`) when there's a natural next step, or `toastUndo(message, restore)` when the action is reversible — and every leaf page links onward. Before shipping a PR that adds or moves a screen, run the §5a nav/flow review checklist in DESIGN-CONVENTIONS.md.
 - **An in-flight button says busy.** A button whose request is on its way uses `<Button busy>` or sets `aria-busy` next to `disabled` — never `disabled` alone. From v0.30.0 a disabled button that isn't busy turns grey (a neutral zinc ground, muted label), so after taking this pin a `disabled={saving}` control without `aria-busy` greys out while it saves: grep your app for `disabled={saving` / `disabled={busy` / `disabled={pending` on `buttonClasses` or `Button` and switch them to `busy` (or add `aria-busy`). §1 in DESIGN-CONVENTIONS.md.
 - **Never copy foundation code into your app.** To change anything shared, make the change in this repo with a version bump (CI tags the release on merge), then bump the pin in each app with `scripts/pin-foundation.sh <app-dir> vX.Y.Z`. That's what keeps every tool consistent.
-- **Pin a tag, not main.** Your `package.json` references a version tag (e.g. `#v0.34.1`), so foundation changes never reach your app until you choose to take them.
+- **Pin a tag, not main.** Your `package.json` references a version tag (e.g. `#v0.35.0`), so foundation changes never reach your app until you choose to take them.
 - **AI calls follow the pattern.** Models come from configuration (`modelFor` + `withModelFallback`), input passes the gate (`gateLlmInput`) before the call, responses stream with progress stages (`streamJob` / `consumeLlmStream`), structured output passes the contract (`parseLlmJson` + your type guard), errors are typed, and every call has a time budget. The template's `ai-demo` route is the reference. Before an AI feature reaches beta, it passes the 5-gate audit in [AI-CRAFT.md](docs/AI-CRAFT.md) — identity-filtered retrieval, a golden eval set (`runGoldenSet` + your cases), a rendered failure path, known unit economics with the route metered (`checkRateBudget` + your store), and replayable traces (`startLlmTrace` + your sink).
 
 ## Links
