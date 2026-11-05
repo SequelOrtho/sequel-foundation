@@ -79,6 +79,18 @@ A header button and side panel where a signed-in person asks a question in plain
 
 Route order in a hub: 404 off → 401 signed out → `readStepRequest` (413 / 422) → 429 budget → `streamJob(() => runAssistantStep(…))` (a hub may answer `assistantModelIssue(…)` first, and may pass a narrower `allowedModels`).
 
+### 2.7 The Claude connector (code: `connector/`, v0.35.0)
+
+The connector offers Ask the Hub's read tools to a person's own Claude, through a remote MCP server. The rules:
+
+- **Read-only.** Only tools that read are offered. Changes stay in the hub, confirmed by a click.
+- **The person, not the token.** Each call runs inside `runAsConnector`, so the hub's own role, scope and page rules decide what the answer holds. The role is the one picked at consent, and only while it is still held. Hub roles only, never an identity-provider claim.
+- **Short lives.** A code lasts five minutes and works once. An access token lasts an hour. A connection ends after a week unused, or two weeks after it was allowed.
+- **Reuse ends it.** A code or refresh token used twice ends the connection and tells the person. A retry inside the grace window is only refused.
+- **Consent phishing is the main risk.** The consent page names the person and warns them. Every new connection is audited and announced.
+- **Fixed addresses.** Claude's two callbacks only. The issuer and endpoints sit on the site's netlify.app address, never the request's host.
+- **Off by default**, and one switch ends it.
+
 ## 3. The six debts — what generated code omits
 
 The audit list for any prototype (or any existing feature) headed to customers. Each debt, its production symptom, and the foundation defense:
