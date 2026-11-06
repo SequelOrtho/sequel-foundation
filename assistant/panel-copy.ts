@@ -2,6 +2,7 @@ import { LlmStreamError } from "../llm/stream-client";
 import type { LlmRedactionKind } from "../llm/input-gate";
 import type { Message } from "./conversation";
 import { ASSISTANT_MODEL_NOT_APPROVED_MESSAGE, MODEL_NOT_APPROVED_MESSAGE, MODEL_NOT_APPROVED_STATUS } from "./approved-models";
+import { ASSISTANT_DEFAULT_NAME } from "./withheld";
 
 // The Ask the Hub panel's pure half: what it stores for the tab, how it reads
 // that back, and the words it shows when a step fails. Kept out of the React
@@ -16,23 +17,32 @@ export const conversationKey = (role: string) => `assistant.${role}`;
 
 /** The browser gives up on a step a little before the host's 60 s cap. */
 export const STEP_TIMEOUT_MS = 55_000;
-export const STEP_RETRY_LATER = "Ask the Hub didn't answer just now. Try again in a moment.";
+/** The retry line for an assistant named `name` (v0.37.0). */
+export const stepRetryLater = (name: string = ASSISTANT_DEFAULT_NAME) => `${name} didn't answer just now. Try again in a moment.`;
+export const STEP_RETRY_LATER = stepRetryLater();
 export const STEP_TOO_LONG = "That took too long. Try a narrower question.";
 /** The model lock's refusals, shown word for word (any other 503 stays generic). */
 const MODEL_LOCK_MESSAGES = new Set([ASSISTANT_MODEL_NOT_APPROVED_MESSAGE, MODEL_NOT_APPROVED_MESSAGE]);
 /** Statuses a step route answers with its own plain sentence. */
 const PLAIN_STATUSES = new Set([401, 413, 422, 429]);
 
-/** What the panel says when a step fails: the route's own words, never a browser's or the AI service's raw error text. */
-export function stepErrorMessage(err: unknown): string {
+/**
+ * What the panel says when a step fails: the route's own words, never a
+ * browser's or the AI service's raw error text. `name` is what the hub calls
+ * its assistant (v0.37.0): the retry line and the model lock's refusal say it
+ * in place of "Ask the Hub".
+ */
+export function stepErrorMessage(err: unknown, name: string = ASSISTANT_DEFAULT_NAME): string {
   if (err instanceof DOMException && (err.name === "TimeoutError" || err.name === "AbortError")) return STEP_TOO_LONG;
   if (err instanceof LlmStreamError) {
     if (err.status === 504) return STEP_TOO_LONG;
     // The model lock's refusal (AI-CRAFT §1, §2.6 rule 5) is shown as written; any other 503 stays generic.
-    if (err.status === MODEL_NOT_APPROVED_STATUS && MODEL_LOCK_MESSAGES.has(err.message)) return err.message;
+    if (err.status === MODEL_NOT_APPROVED_STATUS && MODEL_LOCK_MESSAGES.has(err.message)) {
+      return err.message === ASSISTANT_MODEL_NOT_APPROVED_MESSAGE ? err.message.replace(ASSISTANT_DEFAULT_NAME, name) : err.message;
+    }
     if (PLAIN_STATUSES.has(err.status) && err.message && !/^Failed \(/.test(err.message)) return err.message;
   }
-  return STEP_RETRY_LATER;
+  return stepRetryLater(name);
 }
 
 const REDACTION_WORDS: Record<LlmRedactionKind, string> = {

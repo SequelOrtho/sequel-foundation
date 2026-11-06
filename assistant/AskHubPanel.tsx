@@ -8,7 +8,7 @@ import { useRememberedState } from "../ui/useRememberedState";
 import { consumeLlmStream } from "../llm/stream-client";
 import { compactHistory, exchanges, MAX_QUESTION_CHARS, MAX_STEPS, type Message } from "./conversation";
 import { renderAnswer, type Inline } from "./render";
-import { DEFAULT_PRIVACY_NOTE } from "./withheld";
+import { ASSISTANT_DEFAULT_NAME, assistantPrivacyNote } from "./withheld";
 import {
   ASK_BUTTON_CLASS,
   conversationKey,
@@ -55,6 +55,12 @@ export type AskHubPanelProps = {
   buttonTitle: string;
   /** The hub's step route. */
   endpoint?: string;
+  /**
+   * What this hub calls its assistant (v0.37.0) — the button, the heading, the
+   * default privacy line and the error lines say it. Title Case, like a button
+   * ("Ask the Directory"); defaults to "Ask the Hub".
+   */
+  name?: string;
   /**
    * The standing line under the input saying some details are left out on
    * purpose (AI-CRAFT §2.6 "withheld on purpose is said in words"; owner
@@ -109,11 +115,11 @@ function Answer({ text, links, onNavigate }: { text: string; links: ReadonlySet<
   );
 }
 
-/** The panel's privacy line: the family sentence unless the hub names its own or passes `false`. */
-export function privacyNoteText(privacyNote: string | boolean | undefined): string | null {
+/** The panel's privacy line: the family sentence (naming the assistant) unless the hub names its own or passes `false`. */
+export function privacyNoteText(privacyNote: string | boolean | undefined, name: string = ASSISTANT_DEFAULT_NAME): string | null {
   if (privacyNote === false) return null;
   if (typeof privacyNote === "string" && privacyNote.trim()) return privacyNote.trim();
-  return DEFAULT_PRIVACY_NOTE;
+  return assistantPrivacyNote(name);
 }
 
 export function AskHubPanel({
@@ -124,8 +130,9 @@ export function AskHubPanel({
   buttonTitle,
   endpoint = "/api/assistant/step",
   privacyNote,
+  name = ASSISTANT_DEFAULT_NAME,
 }: AskHubPanelProps) {
-  const privacyText = privacyNoteText(privacyNote);
+  const privacyText = privacyNoteText(privacyNote, name);
   const [open, setOpen] = useState(false);
   const [stored, setStored, resetStored] = useRememberedState(
     conversationKey(role),
@@ -205,7 +212,7 @@ export function AskHubPanel({
         if (out.done) break;
       }
     } catch (err) {
-      setError(stepErrorMessage(err));
+      setError(stepErrorMessage(err, name));
     } finally {
       setBusy(false);
       setStatus(null);
@@ -242,7 +249,7 @@ export function AskHubPanel({
         <svg aria-hidden="true" viewBox="0 0 20 20" className="h-4 w-4" fill="currentColor">
           <path d="M10 1.5l1.7 4.8 4.8 1.7-4.8 1.7L10 14.5l-1.7-4.8L3.5 8l4.8-1.7zM16 12.5l.8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8z" />
         </svg>
-        <span className="sr-only lg:not-sr-only">Ask the Hub</span>
+        <span className="sr-only lg:not-sr-only">{name}</span>
       </button>
       {open && (
         <dialog
@@ -267,7 +274,7 @@ export function AskHubPanel({
             <div className="flex items-start justify-between gap-3 border-b border-zinc-200 px-4 py-3 dark:border-zinc-700">
               <div>
                 <h2 id={titleId} className="text-lg font-semibold text-brand-navy dark:text-zinc-100">
-                  Ask the Hub
+                  {name}
                 </h2>
                 <p className="text-xs text-brand-muted">{intro}</p>
               </div>

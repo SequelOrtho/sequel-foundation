@@ -9,10 +9,12 @@ import {
   EMPTY_CONVERSATION,
   readStoredConversation,
   redactionNotice,
+  STEP_RETRY_LATER,
   stepErrorMessage,
 } from "../assistant/panel-copy";
+import { ASSISTANT_MODEL_NOT_APPROVED_MESSAGE } from "../assistant/approved-models";
 import { exchanges } from "../assistant/conversation";
-import { DEFAULT_PRIVACY_NOTE } from "../assistant/withheld";
+import { assistantPrivacyNote, DEFAULT_PRIVACY_NOTE } from "../assistant/withheld";
 
 // The family Ask the Hub panel (ported from the Missed Punch Hub's
 // tests/components/ask-hub.test.tsx). Wrong versions this catches: the browser
@@ -50,22 +52,25 @@ const Panel = ({
   role = "member",
   starters = STARTERS,
   privacyNote,
+  name,
 }: {
   role?: string;
   starters?: string[];
   privacyNote?: string | boolean;
+  name?: string;
 }) => (
   <AskHubPanel
     role={role}
     starters={starters}
     privacyNote={privacyNote}
+    name={name}
     intro="Answers come only from what you can open. It never changes anything."
     placeholder="Ask a question"
     buttonTitle="Ask a question about this hub"
   />
 );
 
-const open = () => fireEvent.click(screen.getByRole("button", { name: "Ask the Hub" }));
+const open = (name = "Ask the Hub") => fireEvent.click(screen.getByRole("button", { name }));
 const askTyped = (text: string) => {
   fireEvent.change(screen.getByLabelText("Your question"), { target: { value: text } });
   fireEvent.click(screen.getByRole("button", { name: "Ask" }));
@@ -342,5 +347,33 @@ describe("AskHubPanel privacy note", () => {
     render(<Panel privacyNote="   " />);
     open();
     expect(screen.getByText(DEFAULT_PRIVACY_NOTE)).toBeTruthy();
+  });
+});
+
+// A hub may call its assistant something else (v0.37.0; Outreach Directory
+// owner ask 2026-11-06: "let's call it 'Ask the Directory'").
+describe("AskHubPanel name", () => {
+  it("names the button, the heading and the privacy line", () => {
+    render(<Panel name="Ask the Directory" />);
+    expect(screen.getByRole("button", { name: "Ask the Directory" })).toBeTruthy();
+    open("Ask the Directory");
+    expect(screen.getByRole("heading", { name: "Ask the Directory" })).toBeTruthy();
+    expect(screen.getByText(assistantPrivacyNote("Ask the Directory"))).toBeTruthy();
+    expect(screen.queryByText(/Ask the Hub/)).toBeNull();
+  });
+
+  it("keeps the family name by default", () => {
+    render(<Panel />);
+    expect(screen.getByRole("button", { name: "Ask the Hub" })).toBeTruthy();
+    expect(assistantPrivacyNote()).toBe(DEFAULT_PRIVACY_NOTE);
+  });
+
+  it("says the name in the retry line and the model lock's refusal", () => {
+    expect(stepErrorMessage(new TypeError("Failed to fetch"), "Ask the Directory")).toBe(
+      "Ask the Directory didn't answer just now. Try again in a moment.",
+    );
+    expect(stepErrorMessage(new TypeError("Failed to fetch"))).toBe(STEP_RETRY_LATER);
+    const lock = stepErrorMessage(new LlmStreamError(ASSISTANT_MODEL_NOT_APPROVED_MESSAGE, 503), "Ask the Directory");
+    expect(lock.startsWith("Ask the Directory is switched off on this site")).toBe(true);
   });
 });
