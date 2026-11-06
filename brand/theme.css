@@ -10,9 +10,10 @@
  *   @source "../node_modules/@sequel/foundation";   // scan package components for classes
  *
  * The app still owns:
- *   - Fonts: load Montserrat + Geist Mono via next/font/google in the root
- *     layout with variables --font-montserrat / --font-geist-mono (this file
- *     references those variables).
+ *   - Fonts: load Montserrat + Geist Mono with next/font/local (files from
+ *     @fontsource-variable/montserrat and geist/font/mono — never
+ *     next/font/google) in app/fonts.ts, with variables --font-montserrat /
+ *     --font-geist-mono on <body> (this file references those variables).
  *   - Theme init: render THEME_INIT_SCRIPT (from @sequel/foundation/theme) as
  *     the first element of <body> so <html data-theme="…"> is stamped before
  *     first paint, and mount <ThemeToggle/> in the header.

@@ -15,7 +15,30 @@ The UX rules that make Project Hub and the Acquisition Hub feel like one product
 - **The theme layer owns the page ground** (code: `theme.css`): `body` background/color come from `--background`/`--foreground` (in `@layer base`, so an app's own body utilities still win), and `color-scheme` tracks `data-theme` so native scrollbars, pickers, and form controls follow the theme. Apps do not need — and template apps should not add — body-level color classes. `color-scheme` is not enough for native `<select>` popups on Chrome/Edge (Windows), which paint the open list on a light ground while each `<option>` inherits the dark `--foreground` — white-on-white whenever the select is `dark:bg-transparent`; so `theme.css` also gives `option`/`optgroup` the `--brand-surface` ground under `[data-theme="dark"]` (unlayered, v0.15.1). Hubs must not carry their own copy of that rule.
 - **Muted/helper text is a token, never a raw gray** (code: `ui/Field.tsx` hint, `ui/SaveState.tsx`): use `text-brand-muted` (light `#707372` SEQ / `#5B6964` FVO / `#63666A` ON, dark `#a1a1aa` — all AA on their grounds) for hints, captions, secondary labels, empty states, and char counts. A raw `text-zinc-500` with no `dark:` pair is the single most common dark-mode bug across the hubs.
 - **Contrast rescue is a net, not a license** (code: `theme.css` "Dark-mode contrast rescue"): in dark mode, un-darkened mid-gray text and light-gray border utilities are remapped to legible values — but only on elements with no `dark:text-*` / `dark:border-*` of their own. It exists so a missed pair degrades to "slightly generic" instead of "invisible"; new code still uses tokens or real `dark:` pairs, and rescued grays should be retired in sweeps.
-- **Typefaces follow the entity** (code: `theme.css` `--brand-font-body` / `--brand-font-heading`, `ENTITIES[k].fonts`). Sequel Ortho and OrthoNebraska: Montserrat everywhere in the UI (ON's Gotham is licensed; its guide names Montserrat as the web alternative). Fox Valley Orthopedics: **Montserrat for headings, Open Sans for body** — `h1`–`h6` and the `font-heading` utility take the heading face automatically, so FVO apps load Open Sans (`--font-open-sans`) next to Montserrat. Generated documents: Montserrat (SEQ), Montserrat headings + Open Sans body (FVO), Arial (ON — its guide reserves Arial/Georgia for internal communications and presentations, and forbids Montserrat in print). Decks keep the template master's Montserrat. Monospace is Geist Mono everywhere. Load all of them via `next/font/google` with `--font-montserrat` / `--font-open-sans` / `--font-geist-mono` variables.
+- **Typefaces follow the entity** (code: `theme.css` `--brand-font-body` / `--brand-font-heading`, `ENTITIES[k].fonts`). Sequel Ortho and OrthoNebraska: Montserrat everywhere in the UI (ON's Gotham is licensed; its guide names Montserrat as the web alternative). Fox Valley Orthopedics: **Montserrat for headings, Open Sans for body** — `h1`–`h6` and the `font-heading` utility take the heading face automatically, so FVO apps load Open Sans (`--font-open-sans`) next to Montserrat. Generated documents: Montserrat (SEQ), Montserrat headings + Open Sans body (FVO), Arial (ON — its guide reserves Arial/Georgia for internal communications and presentations, and forbids Montserrat in print). Decks keep the template master's Montserrat. Monospace is Geist Mono everywhere. Load all of them with `next/font/local` (next rule) with `--font-montserrat` / `--font-open-sans` / `--font-geist-mono` variables.
+- **Fonts are local** (code: `testing/fonts` `findGoogleFontImports`; v0.36.0; owner request 2026-11-06, Mike). No `next/font/google`, anywhere: it downloads every font file from Google during `next build`, and when that download blips the build fails ("Module not found: Can't resolve '@vercel/turbopack-next/internal/font/google/font'", "next/font/google queries have exactly one entry") — it has broken hub CI and deploys many times. Load the faces with `next/font/local` from npm packages that ship the files: **Montserrat** from `@fontsource-variable/montserrat`, **Open Sans** (FVO) from `@fontsource-variable/open-sans`, **Geist Mono** from `geist/font/mono` (the `geist` package; already `next/font/local`, sets `--font-geist-mono`) or `@fontsource-variable/geist-mono`. Keep the CSS variable names the theme reads (`--font-montserrat`, `--font-open-sans`, `--font-geist-mono`), weights 400–700 and `display: "swap"`. Put the definitions in one `app/fonts.ts` that `app/layout.tsx` and `app/global-error.tsx` both import, and apply the `.variable`s on `<body>` (see "A custom property resolves its `var()`s where it is declared"):
+
+  ```ts
+  // app/fonts.ts
+  import localFont from "next/font/local";
+  export { GeistMono as geistMono } from "geist/font/mono"; // --font-geist-mono, swap
+
+  export const montserrat = localFont({
+    src: "../node_modules/@fontsource-variable/montserrat/files/montserrat-latin-wght-normal.woff2",
+    weight: "400 700",
+    variable: "--font-montserrat",
+    display: "swap",
+  });
+  // FVO only — its body face:
+  export const openSans = localFont({
+    src: "../node_modules/@fontsource-variable/open-sans/files/open-sans-latin-wght-normal.woff2",
+    weight: "400 700",
+    variable: "--font-open-sans",
+    display: "swap",
+  });
+  ```
+
+  `src` is resolved relative to `app/fonts.ts` and must be a plain string literal (Next reads font-loader arguments at compile time; no variables or template expressions). `next/font/local` has to be called from the app's own code, so the foundation can't ship the call — it ships the guard instead: a unit test in every hub, `const hits = findGoogleFontImports(collectSourceFiles(process.cwd(), ["app", "components", "lib"])); expect(hits, formatGoogleFontImports(hits)).toEqual([])` (`@sequel/foundation/testing/fonts`; flags static, side-effect, re-export, dynamic `import()` and `require()` forms in any quote style, plus the legacy `@next/font/google`; comments and plain strings are ignored; a reasoned `allow` map exists for a migration in flight).
 
 ## 2. Color semantics
 
