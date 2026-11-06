@@ -61,7 +61,7 @@ All text roles are WCAG AA on their grounds (FVO primary 5.9:1, ON primary 4.9:1
 | **FVO** | **Montserrat headings, Open Sans body** | Montserrat headings, Open Sans body | Montserrat (headlines/subheads — never body copy); Open Sans (body). Hierarchy: headline Montserrat ExtraBold, subhead Montserrat Bold, intro/body/footnote Open Sans Regular |
 | **ON** | Montserrat (Gotham's web alternative); Arvo for any serif accent | **Arial** (Georgia for serif) | Gotham (primary, logo face) and Archer (serif, never in a logo) are licensed; Montserrat & Arvo are web-only (never print); Arial & Georgia for internal communications and presentations |
 
-`theme.css` carries the roles as `--brand-font-body` / `--brand-font-heading` (`font-sans` / `font-heading` utilities). Load via `next/font/google`: Montserrat → `--font-montserrat`, Open Sans → `--font-open-sans` (FVO), Geist Mono → `--font-geist-mono` (code/tabular, every entity). Decks keep the template master's Montserrat for all three entities.
+`theme.css` carries the roles as `--brand-font-body` / `--brand-font-heading` (`font-sans` / `font-heading` utilities). Load via `next/font/local` from npm (`@fontsource-variable/montserrat`, `@fontsource-variable/open-sans`, `geist/font/mono` — never `next/font/google`, DESIGN-CONVENTIONS §1 "Fonts are local"): Montserrat → `--font-montserrat`, Open Sans → `--font-open-sans` (FVO), Geist Mono → `--font-geist-mono` (code/tabular, every entity). Decks keep the template master's Montserrat for all three entities.
 
 ## Logos
 

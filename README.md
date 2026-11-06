@@ -32,6 +32,7 @@ Three documents carry the accumulated know-how; read them before building anythi
 | `@sequel/foundation/undo/postgres` | Server-only Postgres snapshot engine: `captureDelete(exec, table, key)` before the delete (cascade tree + SET NULL links, read from the live foreign keys), `restoreSnapshot(exec, snapshot)` to put it back, `isRestoreConflict` — driver-agnostic over a `SqlExecutor` (Prisma: `tx.$queryRawUnsafe`) |
 | `@sequel/foundation/testing/a11y` | CI accessibility and link checks (DESIGN-CONVENTIONS §8): `A11Y_TAGS` (WCAG 2.0–2.2 A/AA for axe), `blockingViolations` (serious + critical fail; exceptions need a reason) + `formatViolations`, `sameOriginLinks` / `findBrokenLinks` / `formatBrokenLinks`, `themeInitFor` (scan in light and dark). No Playwright or axe dependency — the app's own Playwright test supplies them |
 | `@sequel/foundation/testing/scrollers` | The scrolling-table rule as a unit-test check (DESIGN-CONVENTIONS §3 "A scrolling wrapper is positioned", v0.30.0): `findUnpositionedScrollers` (class strings with an `overflow-x-auto` / `overflow-auto` / `overflow-x-scroll` / `overflow-scroll` and no `relative` / `absolute` / `fixed` / `sticky`; `vertical` and a reasoned `allow` map optional) + `formatUnpositionedScrollers`, `collectSourceFiles` (reads `app/` and `components/` into `{ path, source }`) |
+| `@sequel/foundation/testing/fonts` | The "Fonts are local" rule as a unit-test check (DESIGN-CONVENTIONS §1, v0.36.0): `findGoogleFontImports` (every `next/font/google` / `@next/font/google` module reference — static, side-effect, re-export, dynamic `import()`, `require()`, any quotes; comments ignored; reasoned `allow` optional) + `formatGoogleFontImports`; re-exports `collectSourceFiles` |
 | `@sequel/foundation/testing/model-lock` | The model lock as a unit-test check (AI-CRAFT §2.4, v0.34.0): `findUnlockedModelCalls(collectSourceFiles(root, dirs), { allow, lockWrappers })` lists every Anthropic SDK call (`messages.create` / `parse` / `stream` / `toolRunner`, `batches.create`, `.mts` functions included) that is not inside a `withModelFallback` callback — or a declared wrapper such as `tracedModelCall` whose definition hands its callback to it — or whose `model` isn't that callback's (or could be replaced by a later spread, second key or reassignment); `formatUnlockedModelCalls` names the fix. Every hub runs it in its unit suite |
 | `@sequel/foundation/testing/unread-badge` | Test-only UnreadBadge helpers (v0.31.0): `resetUnreadBadgeForTests` (forget the badge's module state between tests — never in app code, where it would let a count back onto a signed-out tab) and `rememberBadgedTitleForTests` (mark a hand-set "(N) …" title as one the badge wrote, for a restore test through `stripShownBadge`) |
 | `@sequel/foundation/holidays` | US observed company-holiday calendar — pure, no `Date.now()`; fixed-date holidays shift Sat/Sun to the nearest weekday, floating (Monday/Thursday-anchored) holidays never shift |
@@ -48,7 +49,7 @@ Three documents carry the accumulated know-how; read them before building anythi
    ```jsonc
    // package.json
    "dependencies": {
-     "@sequel/foundation": "github:SequelOrtho/sequel-foundation#v0.35.0"
+     "@sequel/foundation": "github:SequelOrtho/sequel-foundation#v0.36.0"
    }
    ```
 
@@ -71,18 +72,16 @@ Three documents carry the accumulated know-how; read them before building anythi
 3. **Layout** — entity, fonts, theme init, toggle, logo:
 
    ```tsx
-   import { Montserrat, Open_Sans, Geist_Mono } from "next/font/google";
+   import { montserrat, openSans, geistMono } from "./fonts"; // next/font/local — DESIGN-CONVENTIONS §1 "Fonts are local"
    import { EntityLogo } from "@sequel/foundation/brand/EntityLogo";
    import { themeInitScript } from "@sequel/foundation/theme";
    import { ThemeToggle } from "@sequel/foundation/theme/ThemeToggle";
 
    const ENTITY = "FVO"; // "SEQ" | "FVO" | "ON" — the app's one entity (template: lib/entity.ts)
-   const montserrat = Montserrat({ subsets: ["latin"], variable: "--font-montserrat" });
-   const openSans = Open_Sans({ subsets: ["latin"], variable: "--font-open-sans" }); // FVO body face
-   const geistMono = Geist_Mono({ subsets: ["latin"], variable: "--font-geist-mono" });
    const THEME_KEY = "myapp.theme"; // per-app; existing hubs keep pi.theme / hub.theme
 
    <html lang="en" data-entity={ENTITY} suppressHydrationWarning>
+   <body className={`${montserrat.variable} ${openSans.variable} ${geistMono.variable}`}>
    // in <body>, first element:
    <script dangerouslySetInnerHTML={{ __html: themeInitScript(THEME_KEY) }} />
    // in the header:
