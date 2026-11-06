@@ -17,9 +17,16 @@
 /** What a tool says when it doesn't name how to see the rest. */
 export const WITHHELD_DEFAULT_HOW_TO_SEE = "Open the linked page to see them.";
 
+/** The assistant's family name; a hub may call its panel something else (`AskHubPanel` `name`, v0.37.0). */
+export const ASSISTANT_DEFAULT_NAME = "Ask the Hub";
+
+/** The panel's standing line for an assistant named `name` (v0.37.0). */
+export function assistantPrivacyNote(name: string = ASSISTANT_DEFAULT_NAME): string {
+  return `${name} leaves out some details on purpose to protect privacy. Open a record to see everything you have access to.`;
+}
+
 /** The panel's standing line: shown unless a hub passes its own sentence or `privacyNote: false`. */
-export const DEFAULT_PRIVACY_NOTE =
-  "Ask the Hub leaves out some details on purpose to protect privacy. Open a record to see everything you have access to.";
+export const DEFAULT_PRIVACY_NOTE = assistantPrivacyNote();
 
 /**
  * The fixed system-prompt block `runAssistantStep` appends after the hub's own

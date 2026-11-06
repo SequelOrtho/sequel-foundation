@@ -42,6 +42,7 @@ export {
   conversationKey,
   STEP_TIMEOUT_MS,
   STEP_RETRY_LATER,
+  stepRetryLater,
   STEP_TOO_LONG,
   stepErrorMessage,
   redactionNotice,
@@ -62,4 +63,6 @@ export {
   WITHHELD_DEFAULT_HOW_TO_SEE,
   DEFAULT_PRIVACY_NOTE,
   ASSISTANT_PRIVACY_PROMPT,
+  ASSISTANT_DEFAULT_NAME,
+  assistantPrivacyNote,
 } from "./withheld";
