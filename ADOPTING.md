@@ -65,7 +65,7 @@ transpilePackages: ["@sequel/foundation"],
 | `…/undo` + `…/undo/postgres` | Undo for deletes: the 30-minute window and its one restore rule (only the person who deleted, once), the delete-route ticket, and — for Postgres hubs — a snapshot engine that records everything a delete removes (cascades and unlinked references) and puts it back. Pair with `offerUndo` from `…/ui` (the `ToastViewport` docks the strip) |
 | `…/deck-kit` | Branded PowerPoint engine (approved template, native editable charts, auto-slimming) |
 | `…/docs-kit/*` | Word/Excel brand constants and styles (per entity: `docxBrand(entity)`, `headerFill(entity)`), clickable-contents machinery for generated guides |
-| `review-gate/` (not an import) | The review gate: a commit status, `independent-review`, on every pull request, green only when a finished independent review covers the exact head — so a pull request can't merge unreviewed without it showing. Add it with `scripts/pin-review-gate.sh <your-app> v0.38.0` from a checkout of the foundation, then paste the working rules into your `CLAUDE.md` — [docs/REVIEW-GATE.md](docs/REVIEW-GATE.md) (v0.38.0) |
+| `review-gate/` (not an import) | The review gate: a commit status, `independent-review`, on every pull request, green only when a finished independent review covers the exact head — so a pull request can't merge unreviewed without it showing. Add it by copying `review-gate/caller.yml` to your `.github/workflows/review-gate.yml`, then paste the working rules into your `CLAUDE.md` — [docs/REVIEW-GATE.md](docs/REVIEW-GATE.md) (v0.38.0) |
 
 The full subpath reference and consumption details are in the [README](README.md).
 

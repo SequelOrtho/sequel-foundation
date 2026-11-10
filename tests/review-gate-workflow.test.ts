@@ -7,6 +7,7 @@ import { describe, expect, it } from "vitest";
 // request's head, an install step, an input that says which pull request to
 // judge, a wider token, or a checkout that falls back to a branch.
 const code = (path: string) => readFileSync(path, "utf8").replace(/^\s*#.*$/gm, "");
+const version = JSON.parse(readFileSync("package.json", "utf8")).version as string;
 
 describe("the reusable review-gate workflow", () => {
   const src = code(".github/workflows/review-gate.yml");
@@ -68,18 +69,21 @@ describe("the caller a hub copies (review-gate/caller.yml)", () => {
     expect(perms.trim().split("\n").map((l) => l.trim())).toEqual(["permissions:", "contents: read", "pull-requests: read", "issues: read", "statuses: write"]);
   });
 
-  // The wrong versions: a pin on a tag or a branch (either can be moved by
-  // anyone with write access here, and the hub then runs other code with a
-  // token that sets its review status), or a template that already names a
-  // real commit a hub could copy without choosing a release.
-  it("is pinned by commit id, and the template carries a placeholder that runs nothing", () => {
+  // The wrong versions: a pin on a branch (it moves with every merge), on a
+  // release from before the gate existed or one not cut yet, or docs that show
+  // a different pin from the file hubs copy. Tags are safe to pin because
+  // release tags are protected (docs/REVIEW-GATE.md); the docs must say so.
+  it("pins an exact release that carries the gate, the same one the docs show", () => {
     const pins = [...src.matchAll(/\n    uses: (\S+)@(\S+)/g)];
     expect(pins).toHaveLength(1);
     expect(pins[0][1]).toBe("SequelOrtho/sequel-foundation/.github/workflows/review-gate.yml");
-    expect(pins[0][2]).toBe("0".repeat(40));
+    const m = /^v(\d+)\.(\d+)\.(\d+)$/.exec(pins[0][2]);
+    expect(m, pins[0][2]).not.toBeNull();
+    const num = (v: string[]) => Number(v[0]) * 1e6 + Number(v[1]) * 1e3 + Number(v[2]);
+    expect(num(m!.slice(1, 4))).toBeGreaterThanOrEqual(num(["0", "38", "0"]));
+    expect(num(m!.slice(1, 4))).toBeLessThanOrEqual(num(version.split(".")));
     const docs = readFileSync("docs/REVIEW-GATE.md", "utf8");
-    expect(docs).toMatch(/review-gate\.yml@<the release's 40-character commit id> # v\d+\.\d+\.\d+/);
-    expect(docs).not.toMatch(/review-gate\.yml@v\d/);
-    expect(docs).toContain("scripts/pin-review-gate.sh");
+    expect(docs).toContain(`review-gate.yml@${pins[0][2]}`);
+    expect(docs).toMatch(/tag ruleset/);
   });
 });

@@ -14,23 +14,8 @@ app="${1:?usage: pin-foundation.sh <app-dir> <vX.Y.Z|sha>}"
 ref="${2:?usage: pin-foundation.sh <app-dir> <vX.Y.Z|sha>}"
 spec="github:SequelOrtho/sequel-foundation#$ref"
 
-here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$app"
 [ -f package.json ] || { echo "no package.json in $app" >&2; exit 1; }
-
-# A hub that has the review gate's caller keeps it on the same release as the
-# package (docs/REVIEW-GATE.md), and it moves FIRST: if the caller can't be
-# moved, nothing here has changed yet. A release from before the gate, or a
-# bare commit, leaves the caller where it is and says so — pointing it at a
-# release with no gate would stop the gate without a word.
-gate=".github/workflows/review-gate.yml"
-if [ ! -f "$gate" ]; then
-  echo "note: this app has no review gate caller ($gate); scripts/pin-review-gate.sh adds one"
-elif node "$here/../review-gate/pin-cli.mjs" --carries "$ref"; then
-  "$here/pin-review-gate.sh" . "$ref"
-else
-  echo "note: $gate keeps its pin — $ref is not a release that has the review gate"
-fi
 
 # Resolve the ref to the commit the lockfile must end up on.
 if [[ "$ref" =~ ^[0-9a-f]{40}$ ]]; then
@@ -61,4 +46,3 @@ if [ "$got" != "$want" ]; then
   exit 1
 fi
 echo "pinned @sequel/foundation → $spec (resolved $got)"
-
