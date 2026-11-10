@@ -25,7 +25,7 @@ cd "$app"
 # release with no gate would stop the gate without a word.
 gate=".github/workflows/review-gate.yml"
 if [ -f "$gate" ] && grep -q 'sequel-foundation/.github/workflows/review-gate.yml@' "$gate"; then
-  if node -e 'import(process.argv[1]).then((m) => process.exit(m.carriesGate(process.argv[2]) ? 0 : 1))' "$here/../review-gate/pin.mjs" "$ref"; then
+  if node "$here/../review-gate/pin.mjs" --carries "$ref"; then
     "$here/pin-review-gate.sh" . "$ref"
   else
     echo "note: $gate keeps its pin — $ref is not a release that has the review gate"

@@ -43,10 +43,17 @@ export function pinCaller(text, tag, sha) {
   return String(text).replace(PIN, (_, head) => `${head}${sha} # ${tag}`);
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+// The command line. `--carries <tag>` answers by exit code (0 yes, 1 no) for
+// the shell scripts; otherwise `<caller-file> <tag> <sha>` writes the pin.
+// (Guarded by the path, so importing this file runs nothing.)
+const invoked = process.argv[1] && import.meta.url === new URL(`file://${process.argv[1]}`).href;
+if (invoked) {
+  const args = process.argv.slice(2);
+  if (args[0] === "--carries") process.exit(args.length === 2 && carriesGate(args[1]) ? 0 : 1);
   const { readFileSync, writeFileSync } = await import("node:fs");
-  const [file, tag, sha] = process.argv.slice(2);
+  const [file, tag, sha] = args;
   try {
+    if (args.length !== 3) throw new Error("usage: pin.mjs <caller-file> <vX.Y.Z> <40-character commit id>");
     writeFileSync(file, pinCaller(readFileSync(file, "utf8"), tag, sha));
     console.log(`pinned the review gate caller → ${sha} (${tag})`);
   } catch (err) {

@@ -14,7 +14,7 @@ tag="${2:?usage: pin-review-gate.sh <app-dir> <vX.Y.Z>}"
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 gate="$app/.github/workflows/review-gate.yml"
 
-if ! node -e 'import(process.argv[1]).then((m) => process.exit(m.carriesGate(process.argv[2]) ? 0 : 1))' "$here/review-gate/pin.mjs" "$tag"; then
+if ! node "$here/review-gate/pin.mjs" --carries "$tag"; then
   echo "review gate: $tag is not a release that has the gate — $gate is left as it is" >&2
   exit 1
 fi
