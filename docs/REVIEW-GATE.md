@@ -42,16 +42,24 @@ sequel-foundation").
      names that release's merge commit on `main`:
 
      ```bash
-     git ls-remote --tags https://github.com/SequelOrtho/sequel-foundation vX.Y.Z
+     git ls-remote --tags https://github.com/SequelOrtho/sequel-foundation refs/tags/vX.Y.Z
      ```
 
      ```bash
-     git ls-remote https://github.com/SequelOrtho/sequel-foundation main
+     git ls-remote https://github.com/SequelOrtho/sequel-foundation refs/heads/main
      ```
 
-     The first id must be a commit in `main`'s history whose message is that release's
-     (`git log -1 <id>` in a checkout: the squash-merge of the pull request that set the version).
-     For the newest release it is the same id as `main`, until the next merge.
+     Ask for the full name, `refs/tags/vX.Y.Z`, and read only the line whose name is exactly
+     that: a short name also lists look-alikes such as `refs/tags/a/vX.Y.Z`, which could be made
+     to point at the right commit while the real tag does not. No line at all means the release
+     is not out: stop. For the newest release the tag's id is the same as `main`'s, until the
+     next merge. For an older one, check in a checkout of this repository that the id is in
+     `main`'s history and is that release's merge (the squash-merge of the pull request that set
+     the version):
+
+     ```bash
+     git merge-base --is-ancestor <id> origin/main && git log -1 --format=%s <id>
+     ```
 
    Never pin a branch.
 2. Add the "Working with the gate" rules below to the hub's `CLAUDE.md`, so a session knows to run
