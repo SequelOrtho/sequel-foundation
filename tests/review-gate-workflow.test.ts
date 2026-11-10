@@ -88,11 +88,12 @@ describe("the caller a hub copies (review-gate/caller.yml)", () => {
     // The ruleset stops a tag being moved, not being created early on the
     // wrong commit: the docs must carry the check that catches that, and the
     // hub's own copy must send its reader to both (independent review).
-    // By the tag's full name: a short name also lists look-alike tags
-    // (refs/tags/a/vX.Y.Z) that could point at the right commit instead.
-    expect(docs).toMatch(/git ls-remote --tags https:\/\/github\.com\/SequelOrtho\/sequel-foundation refs\/tags\/vX\.Y\.Z/);
-    expect(docs).not.toMatch(/ls-remote --tags \S+ vX\.Y\.Z/);
-    expect(docs).toMatch(/git merge-base --is-ancestor <id> origin\/main/);
+    // Both refs by their full names, fetched, never read off a listing: a
+    // listing also shows look-alike names (refs/tags/a/vX.Y.Z,
+    // a/refs/heads/main) that could be made to point at the right commit.
+    expect(docs).toContain('git fetch origin "+refs/heads/main:refs/remotes/origin/main" "+refs/tags/vX.Y.Z:refs/tags/vX.Y.Z"');
+    expect(docs).toContain('git merge-base --is-ancestor "refs/tags/vX.Y.Z^{commit}" refs/remotes/origin/main');
+    expect(docs).not.toMatch(/```bash\s+git ls-remote/);
     expect(docs).toMatch(/does not stop[\s\S]{0,120}creating a release's tag early/);
     expect(readFileSync("review-gate/caller.yml", "utf8")).toMatch(/safe only while release\s+#?\s*tags there are protected/);
   });

@@ -39,27 +39,23 @@ sequel-foundation").
    - **A check each time a hub pins or moves to a release**, because that ruleset does not stop
      someone with write access here from creating a release's tag early, on a commit of their
      own (the release job leaves an existing tag alone). Before pinning `vX.Y.Z`, confirm the tag
-     names that release's merge commit on `main`:
+     names that release's merge commit on `main`, in a checkout of this repository:
 
      ```bash
-     git ls-remote --tags https://github.com/SequelOrtho/sequel-foundation refs/tags/vX.Y.Z
+     git fetch origin "+refs/heads/main:refs/remotes/origin/main" "+refs/tags/vX.Y.Z:refs/tags/vX.Y.Z"
      ```
 
      ```bash
-     git ls-remote https://github.com/SequelOrtho/sequel-foundation refs/heads/main
+     git merge-base --is-ancestor "refs/tags/vX.Y.Z^{commit}" refs/remotes/origin/main && git log -1 --format='%H %s' "refs/tags/vX.Y.Z^{commit}"
      ```
 
-     Ask for the full name, `refs/tags/vX.Y.Z`, and read only the line whose name is exactly
-     that: a short name also lists look-alikes such as `refs/tags/a/vX.Y.Z`, which could be made
-     to point at the right commit while the real tag does not. No line at all means the release
-     is not out: stop. For the newest release the tag's id is the same as `main`'s, until the
-     next merge. For an older one, check in a checkout of this repository that the id is in
-     `main`'s history and is that release's merge (the squash-merge of the pull request that set
-     the version):
-
-     ```bash
-     git merge-base --is-ancestor <id> origin/main && git log -1 --format=%s <id>
-     ```
+     The fetch names both refs in full, so it takes exactly `main` and exactly that tag and
+     nothing that merely ends the same way (a listing such as `git ls-remote … main` also shows
+     look-alike names like `a/refs/heads/main`, and is not a safe way to compare). If the fetch
+     fails, the release is not out: stop. The second command must succeed, which says the tag's
+     commit is in `main`'s history, and the line it prints must be that release's merge: the
+     squash-merge of the pull request that set the version (`… (vX.Y.Z) (#N)`). Anything else:
+     do not pin, and tell the owner.
 
    Never pin a branch.
 2. Add the "Working with the gate" rules below to the hub's `CLAUDE.md`, so a session knows to run
