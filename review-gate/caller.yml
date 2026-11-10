@@ -1,0 +1,56 @@
+name: Review gate
+
+# Sets the commit status `independent-review` on a pull request's head: green
+# only when an independent review record (the PR comment the
+# sequel-hub-independent-review skill posts) covers that exact commit and
+# shows a finished, passing review. The gate itself lives in sequel-foundation
+# (docs/REVIEW-GATE.md there; this file is its review-gate/caller.yml, copied
+# to .github/workflows/review-gate.yml). CLAUDE.md says how to work with it.
+#
+# It runs when the pull request changes and when a comment on it is posted,
+# edited or deleted (the record is a comment, so posting it turns the status
+# green without a push).
+#
+# `pull_request_target`, not `pull_request`: the workflow file of the default
+# branch runs, so a pull request that edits this file is still judged by the
+# copy on the default branch. The called workflow checks out sequel-foundation
+# only and runs no code from this repository. NEVER add a step, a checkout, an
+# install or a `workflow_dispatch` trigger here.
+#
+# To make it block the merge button, require the `independent-review` status
+# in the default branch's protection (ruleset).
+
+on:
+  pull_request_target:
+    # Only pull requests into the default branch: this event runs the workflow
+    # file of the pull request's BASE branch. In a repository whose default
+    # branch is not main, this line names that branch (the one edit a copy of
+    # this file may need).
+    branches: [main]
+    types: [opened, reopened, synchronize, ready_for_review]
+  issue_comment:
+    types: [created, edited, deleted]
+
+permissions: {}
+
+# One run at a time per pull request; a newer event replaces a waiting one.
+concurrency:
+  group: review-gate-${{ github.event.pull_request.number || github.event.issue.number }}
+  cancel-in-progress: false
+
+jobs:
+  gate:
+    # Comments on plain issues are not pull requests.
+    if: github.event_name == 'pull_request_target' || github.event.issue.pull_request
+    permissions:
+      contents: read
+      pull-requests: read
+      issues: read
+      statuses: write
+    # The pin is an exact release tag of sequel-foundation, never a branch:
+    # this job runs that release's code with a token that sets this
+    # repository's independent-review status. That is safe only while release
+    # tags there are protected by a tag ruleset, and only for a tag checked to
+    # name the release's merge commit: sequel-foundation's docs/REVIEW-GATE.md
+    # has both checks. Do them before adding this file or moving this line.
+    uses: SequelOrtho/sequel-foundation/.github/workflows/review-gate.yml@v0.38.0

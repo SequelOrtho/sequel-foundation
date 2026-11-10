@@ -1,0 +1,68 @@
+name: Review gate (reusable)
+
+# The family's review gate, called by each hub (docs/REVIEW-GATE.md has the
+# caller to copy: review-gate/caller.yml). It sets the commit status
+# `independent-review` on the calling repository's pull request: green only
+# when an independent review record (the PR comment the
+# sequel-hub-independent-review skill posts) covers that exact head commit and
+# shows a finished, passing review. The rules are in review-gate/review-gate.mjs.
+#
+# What keeps it safe: the caller runs on `pull_request_target` and PR comments,
+# so the hub's default branch decides which version of this workflow runs, and
+# this job checks out ONLY this repository, at the commit of this workflow
+# file that the hub pinned. It never checks out the calling repository, so it
+# runs no pull-request code. NEVER add a checkout of the calling repository or
+# of a pull request's head, an `npm install`, an input, or a secret here: the
+# job holds a token that can write commit statuses on the hub.
+
+on:
+  workflow_call:
+
+permissions: {}
+
+jobs:
+  gate:
+    name: Set the independent-review status
+    runs-on: ubuntu-24.04
+    # review-gate.mjs stops reading after three minutes so that its error
+    # status still fits inside this limit; keep the two in step.
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
+      issues: read
+      statuses: write
+    steps:
+      # Which commit of the gate to run: the one this workflow file was loaded
+      # from. If GitHub does not say (or names another repository), stop here:
+      # a checkout with an empty ref would quietly take the default branch.
+      - name: Pin the gate to this workflow's own commit
+        id: pin
+        env:
+          GATE_REPOSITORY: ${{ job.workflow_repository }}
+          GATE_SHA: ${{ job.workflow_sha }}
+        run: |
+          if [ "$GATE_REPOSITORY" != "SequelOrtho/sequel-foundation" ]; then
+            echo "::error::The review gate must run from SequelOrtho/sequel-foundation, not '$GATE_REPOSITORY'."
+            exit 1
+          fi
+          if ! printf '%s' "$GATE_SHA" | grep -Eq '^[0-9a-f]{40}$'; then
+            echo "::error::Could not tell which commit of the review gate to run ('$GATE_SHA')."
+            exit 1
+          fi
+          echo "sha=$GATE_SHA" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@v4
+        with:
+          repository: SequelOrtho/sequel-foundation
+          ref: ${{ steps.pin.outputs.sha }}
+          persist-credentials: false
+          sparse-checkout: review-gate
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node review-gate/review-gate.mjs
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number || github.event.issue.number }}
+          # Only pull requests into this branch are judged, on either trigger.
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}

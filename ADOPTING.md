@@ -25,7 +25,7 @@ That single constant drives the theme (`<html data-entity>`), the header logo, f
 **1. Install** (public repo — no tokens needed anywhere):
 
 ```bash
-npm i "@sequel/foundation@github:SequelOrtho/sequel-foundation#v0.37.0"
+npm i "@sequel/foundation@github:SequelOrtho/sequel-foundation#v0.38.0"
 ```
 
 ```ts
@@ -65,6 +65,7 @@ transpilePackages: ["@sequel/foundation"],
 | `…/undo` + `…/undo/postgres` | Undo for deletes: the 30-minute window and its one restore rule (only the person who deleted, once), the delete-route ticket, and — for Postgres hubs — a snapshot engine that records everything a delete removes (cascades and unlinked references) and puts it back. Pair with `offerUndo` from `…/ui` (the `ToastViewport` docks the strip) |
 | `…/deck-kit` | Branded PowerPoint engine (approved template, native editable charts, auto-slimming) |
 | `…/docs-kit/*` | Word/Excel brand constants and styles (per entity: `docxBrand(entity)`, `headerFill(entity)`), clickable-contents machinery for generated guides |
+| `review-gate/` (not an import) | The review gate: a commit status, `independent-review`, on every pull request, green only when a finished independent review covers the exact head — so a pull request can't merge unreviewed without it showing. Add it by copying `review-gate/caller.yml` to your `.github/workflows/review-gate.yml`, then paste the working rules into your `CLAUDE.md` — [docs/REVIEW-GATE.md](docs/REVIEW-GATE.md) (v0.38.0) |
 
 The full subpath reference and consumption details are in the [README](README.md).
 
@@ -112,7 +113,7 @@ Test on a draft deploy before switching it on.
 - **Every action confirms; no page dead-ends.** Mutations pop a `toastSaved` confirmation — with an action link (`{ action: { label, href } }`) when there's a natural next step, or `toastUndo(message, restore)` when the action is reversible — and every leaf page links onward. Before shipping a PR that adds or moves a screen, run the §5a nav/flow review checklist in DESIGN-CONVENTIONS.md.
 - **An in-flight button says busy.** A button whose request is on its way uses `<Button busy>` or sets `aria-busy` next to `disabled` — never `disabled` alone. From v0.30.0 a disabled button that isn't busy turns grey (a neutral zinc ground, muted label), so after taking this pin a `disabled={saving}` control without `aria-busy` greys out while it saves: grep your app for `disabled={saving` / `disabled={busy` / `disabled={pending` on `buttonClasses` or `Button` and switch them to `busy` (or add `aria-busy`). §1 in DESIGN-CONVENTIONS.md.
 - **Never copy foundation code into your app.** To change anything shared, make the change in this repo with a version bump (CI tags the release on merge), then bump the pin in each app with `scripts/pin-foundation.sh <app-dir> vX.Y.Z`. That's what keeps every tool consistent.
-- **Pin a tag, not main.** Your `package.json` references a version tag (e.g. `#v0.37.0`), so foundation changes never reach your app until you choose to take them.
+- **Pin a tag, not main.** Your `package.json` references a version tag (e.g. `#v0.38.0`), so foundation changes never reach your app until you choose to take them.
 - **AI calls follow the pattern.** Models come from configuration (`modelFor` + `withModelFallback`), input passes the gate (`gateLlmInput`) before the call, responses stream with progress stages (`streamJob` / `consumeLlmStream`), structured output passes the contract (`parseLlmJson` + your type guard), errors are typed, and every call has a time budget. The template's `ai-demo` route is the reference. Before an AI feature reaches beta, it passes the 5-gate audit in [AI-CRAFT.md](docs/AI-CRAFT.md) — identity-filtered retrieval, a golden eval set (`runGoldenSet` + your cases), a rendered failure path, known unit economics with the route metered (`checkRateBudget` + your store), and replayable traces (`startLlmTrace` + your sink).
 
 ## Links

@@ -41,6 +41,7 @@ Three documents carry the accumulated know-how; read them before building anythi
 | `@sequel/foundation/docs-kit/docx-brand` | Shared docx brand constants (NAVY/BLUE/LIME/GREY/CRITICAL/FONT — Sequel) + `docxBrand(entity)` for FVO / ON (colors + document faces) |
 | `@sequel/foundation/docs-kit/xlsx-brand` | Shared ExcelJS styles — brand-navy header standard (`headerFill(entity)` / `blueHeaderFill(entity)` per entity), status fills, `addHeader(sheet, titles, entity?)`/`titleBlock`/`workbookToBuffer` |
 | `@sequel/foundation/scripts/*` | `clean-icloud-dups.sh`, `preseed-deck-template.mjs`, `render-verify.mjs`, `extract-entity-logos.py` (rebuilds `brand/assets/{fvo,on}` from a guide PDF) |
+| `review-gate/` + `.github/workflows/review-gate.yml` (not an import) | The review gate (v0.38.0): the commit status `independent-review` a hub sets on its pull requests, green only when a finished independent review record covers the exact head. `review-gate/review-gate.mjs` holds the rules, the reusable workflow runs them for a hub, and `review-gate/caller.yml` is the file a hub copies, pinned to an exact release tag (safe only while release tags are protected by the `v*` tag ruleset, and after checking the tag names the release's merge commit — both in the guide). Guide: [docs/REVIEW-GATE.md](docs/REVIEW-GATE.md) |
 
 ## Consuming from a Next.js app
 
@@ -49,7 +50,7 @@ Three documents carry the accumulated know-how; read them before building anythi
    ```jsonc
    // package.json
    "dependencies": {
-     "@sequel/foundation": "github:SequelOrtho/sequel-foundation#v0.37.0"
+     "@sequel/foundation": "github:SequelOrtho/sequel-foundation#v0.38.0"
    }
    ```
 
