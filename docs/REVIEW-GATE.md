@@ -26,13 +26,34 @@ sequel-foundation").
        uses: SequelOrtho/sequel-foundation/.github/workflows/review-gate.yml@v0.38.0
    ```
 
-   **The pin is safe only because release tags here are protected.** The called workflow runs
-   with a token that sets the hub's `independent-review` status and can read the hub, so whoever
-   could move a release tag could change what every hub runs. The owner's ruling (2026-11-10,
-   asked whether to protect them: "yes I want protected v* tags") is a tag ruleset on this
-   repository for `v*` that blocks updating and deleting. It is a repository setting only the
-   owner can apply: **check it is in place before the first hub adds the caller** (Settings →
-   Rules → Rulesets). Never pin a branch.
+   **The pin is safe only while release tags here are protected, and only for a tag that names
+   the release's real commit.** The called workflow runs with a token that sets the hub's
+   `independent-review` status and can read the hub, so whoever could change what a release tag
+   names could change what every hub runs. Two things cover that:
+
+   - **A tag ruleset on this repository for `v*` that blocks updating and deleting** (owner,
+     2026-11-10, asked whether to protect release tags: "yes I want protected v* tags"; then "I
+     added the tag ruleset"). It is a repository setting that cannot be seen from the code: look
+     at Settings → Rules → Rulesets before relying on it, and keep its bypass list empty. Once a
+     release tag exists, it cannot be moved.
+   - **A check each time a hub pins or moves to a release**, because that ruleset does not stop
+     someone with write access here from creating a release's tag early, on a commit of their
+     own (the release job leaves an existing tag alone). Before pinning `vX.Y.Z`, confirm the tag
+     names that release's merge commit on `main`:
+
+     ```bash
+     git ls-remote --tags https://github.com/SequelOrtho/sequel-foundation vX.Y.Z
+     ```
+
+     ```bash
+     git ls-remote https://github.com/SequelOrtho/sequel-foundation main
+     ```
+
+     The first id must be a commit in `main`'s history whose message is that release's
+     (`git log -1 <id>` in a checkout: the squash-merge of the pull request that set the version).
+     For the newest release it is the same id as `main`, until the next merge.
+
+   Never pin a branch.
 2. Add the "Working with the gate" rules below to the hub's `CLAUDE.md`, so a session knows to run
    the review, what the record must carry and what red means.
 3. The gate judges a pull request only once the caller is on the hub's default branch, so the pull
@@ -120,7 +141,8 @@ gate.
 The gate ships with the package: a change here is a normal release (version bump, CI tags it).
 A hub keeps running the release its caller pins until a pull request in that hub changes the
 pin: one line, by hand, normally in the same pin-bump pull request that moves the package
-(`scripts/pin-foundation.sh` moves the package only). Move it only to a release that has the gate
+(`scripts/pin-foundation.sh` moves the package only), after the check in "Adding it to a hub"
+step 1 that the tag names the release's merge commit. Move it only to a release that has the gate
 (v0.38.0 or later); a release from before it has no workflow to call, and the status would stop
 being set. Keep `review-gate/caller.yml` on the newest release that changed the gate.
 

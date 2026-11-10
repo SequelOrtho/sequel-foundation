@@ -85,5 +85,11 @@ describe("the caller a hub copies (review-gate/caller.yml)", () => {
     const docs = readFileSync("docs/REVIEW-GATE.md", "utf8");
     expect(docs).toContain(`review-gate.yml@${pins[0][2]}`);
     expect(docs).toMatch(/tag ruleset/);
+    // The ruleset stops a tag being moved, not being created early on the
+    // wrong commit: the docs must carry the check that catches that, and the
+    // hub's own copy must send its reader to both (independent review).
+    expect(docs).toMatch(/git ls-remote --tags https:\/\/github\.com\/SequelOrtho\/sequel-foundation vX\.Y\.Z/);
+    expect(docs).toMatch(/does not stop[\s\S]{0,120}creating a release's tag early/);
+    expect(readFileSync("review-gate/caller.yml", "utf8")).toMatch(/safe only while release\s+#?\s*tags there are protected/);
   });
 });

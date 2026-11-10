@@ -49,7 +49,8 @@ jobs:
       statuses: write
     # The pin is an exact release tag of sequel-foundation, never a branch:
     # this job runs that release's code with a token that sets this
-    # repository's independent-review status. Release tags there are protected
-    # (they can't be moved or deleted), so the code changes only when a pull
-    # request here changes this line.
+    # repository's independent-review status. That is safe only while release
+    # tags there are protected by a tag ruleset, and only for a tag checked to
+    # name the release's merge commit: sequel-foundation's docs/REVIEW-GATE.md
+    # has both checks. Do them before adding this file or moving this line.
     uses: SequelOrtho/sequel-foundation/.github/workflows/review-gate.yml@v0.38.0
