@@ -46,3 +46,23 @@ if [ "$got" != "$want" ]; then
   exit 1
 fi
 echo "pinned @sequel/foundation → $spec (resolved $got)"
+
+# The review gate's caller pins the same release (docs/REVIEW-GATE.md): move it
+# with the package so a hub never runs one release's gate beside another's
+# package. Only an exact tag is written; a SHA pin leaves the caller alone.
+gate=".github/workflows/review-gate.yml"
+if [ -f "$gate" ] && grep -q 'sequel-foundation/.github/workflows/review-gate.yml@' "$gate"; then
+  if [[ "$ref" =~ ^v[0-9]+[.][0-9]+[.][0-9]+$ ]]; then
+    node -e '
+      const fs = require("fs");
+      const [file, ref] = process.argv.slice(1);
+      const before = fs.readFileSync(file, "utf8");
+      const after = before.replace(/(sequel-foundation\/\.github\/workflows\/review-gate\.yml@)\S+/g, "$1" + ref);
+      if (!after.includes("review-gate.yml@" + ref + "\n")) { console.error("could not move the review gate pin in " + file + " to " + ref); process.exit(1); }
+      fs.writeFileSync(file, after);
+    ' "$gate" "$ref"
+    echo "pinned the review gate caller → $ref"
+  else
+    echo "note: $gate keeps its pin (a tag is needed to move it; got $ref)"
+  fi
+fi
