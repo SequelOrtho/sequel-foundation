@@ -42,20 +42,22 @@ sequel-foundation").
      names that release's merge commit on `main`, in a checkout of this repository:
 
      ```bash
-     git fetch origin "+refs/heads/main:refs/remotes/origin/main" "+refs/tags/vX.Y.Z:refs/tags/vX.Y.Z"
+     git fetch --prune origin "+refs/heads/main:refs/remotes/origin/main" "+refs/tags/*:refs/gatecheck/tags/*"
      ```
 
      ```bash
-     git merge-base --is-ancestor "refs/tags/vX.Y.Z^{commit}" refs/remotes/origin/main && git log -1 --format='%H %s' "refs/tags/vX.Y.Z^{commit}"
+     git merge-base --is-ancestor "refs/gatecheck/tags/vX.Y.Z^{commit}" refs/remotes/origin/main && git log -1 --format='%H %s' "refs/gatecheck/tags/vX.Y.Z^{commit}"
      ```
 
-     The fetch names both refs in full, so it takes exactly `main` and exactly that tag and
-     nothing that merely ends the same way (a listing such as `git ls-remote … main` also shows
-     look-alike names like `a/refs/heads/main`, and is not a safe way to compare). If the fetch
-     fails, the release is not out: stop. The second command must succeed, which says the tag's
-     commit is in `main`'s history, and the line it prints must be that release's merge: the
-     squash-merge of the pull request that set the version (`… (vX.Y.Z) (#N)`). Anything else:
-     do not pin, and tell the owner.
+     The fetch copies every tag, under its exact name, into a namespace of its own
+     (`refs/gatecheck/tags/`), so `refs/gatecheck/tags/vX.Y.Z` is the tag named exactly
+     `vX.Y.Z` and nothing else. (Asking git for one tag by name is not safe here: when that tag
+     does not exist yet, git quietly takes a branch or tag whose name merely ends the same way.
+     A listing such as `git ls-remote` shows such look-alikes too.) The second command must
+     succeed and print a line. If it fails, either the release's tag does not exist yet or its
+     commit is not in `main`'s history: stop. The line it prints must be that release's merge,
+     the squash-merge of the pull request that set the version (`… (vX.Y.Z) (#N)`). Anything
+     else: do not pin, and tell the owner.
 
    Never pin a branch.
 2. Add the "Working with the gate" rules below to the hub's `CLAUDE.md`, so a session knows to run

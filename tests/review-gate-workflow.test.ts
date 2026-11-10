@@ -88,12 +88,15 @@ describe("the caller a hub copies (review-gate/caller.yml)", () => {
     // The ruleset stops a tag being moved, not being created early on the
     // wrong commit: the docs must carry the check that catches that, and the
     // hub's own copy must send its reader to both (independent review).
-    // Both refs by their full names, fetched, never read off a listing: a
-    // listing also shows look-alike names (refs/tags/a/vX.Y.Z,
-    // a/refs/heads/main) that could be made to point at the right commit.
-    expect(docs).toContain('git fetch origin "+refs/heads/main:refs/remotes/origin/main" "+refs/tags/vX.Y.Z:refs/tags/vX.Y.Z"');
-    expect(docs).toContain('git merge-base --is-ancestor "refs/tags/vX.Y.Z^{commit}" refs/remotes/origin/main');
+    // The tag is checked under its exact name: every tag is fetched into a
+    // namespace of its own and the one named vX.Y.Z is tested. The wrong
+    // versions: ids read off a listing, or one tag fetched by name — both can
+    // be satisfied by a look-alike ref (refs/tags/a/vX.Y.Z,
+    // refs/heads/refs/tags/vX.Y.Z) while the real tag is absent or elsewhere.
+    expect(docs).toContain('git fetch --prune origin "+refs/heads/main:refs/remotes/origin/main" "+refs/tags/*:refs/gatecheck/tags/*"');
+    expect(docs).toContain('git merge-base --is-ancestor "refs/gatecheck/tags/vX.Y.Z^{commit}" refs/remotes/origin/main');
     expect(docs).not.toMatch(/```bash\s+git ls-remote/);
+    expect(docs).not.toMatch(/refs\/tags\/vX\.Y\.Z:refs\/tags\/vX\.Y\.Z/);
     expect(docs).toMatch(/does not stop[\s\S]{0,120}creating a release's tag early/);
     expect(readFileSync("review-gate/caller.yml", "utf8")).toMatch(/safe only while release\s+#?\s*tags there are protected/);
   });
