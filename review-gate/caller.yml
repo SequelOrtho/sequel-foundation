@@ -46,5 +46,10 @@ jobs:
       pull-requests: read
       issues: read
       statuses: write
-    # scripts/pin-foundation.sh moves this pin with the package's.
-    uses: SequelOrtho/sequel-foundation/.github/workflows/review-gate.yml@v0.38.0
+    # The pin is a release's COMMIT, never its tag or a branch: this job runs
+    # that commit's code with a token that sets this repository's
+    # independent-review status. sequel-foundation's scripts/pin-review-gate.sh
+    # writes it (pin-foundation.sh moves it with the package's pin); a pull
+    # request that changes it by hand needs the same care as one that changes
+    # the gate. All zeros is the template's placeholder and runs nothing.
+    uses: SequelOrtho/sequel-foundation/.github/workflows/review-gate.yml@0000000000000000000000000000000000000000 # set by scripts/pin-review-gate.sh

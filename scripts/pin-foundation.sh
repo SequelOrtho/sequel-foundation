@@ -14,8 +14,23 @@ app="${1:?usage: pin-foundation.sh <app-dir> <vX.Y.Z|sha>}"
 ref="${2:?usage: pin-foundation.sh <app-dir> <vX.Y.Z|sha>}"
 spec="github:SequelOrtho/sequel-foundation#$ref"
 
+here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$app"
 [ -f package.json ] || { echo "no package.json in $app" >&2; exit 1; }
+
+# A hub that has the review gate's caller keeps it on the same release as the
+# package (docs/REVIEW-GATE.md), and it moves FIRST: if the caller can't be
+# moved, nothing here has changed yet. A release from before the gate, or a
+# bare commit, leaves the caller where it is and says so — pointing it at a
+# release with no gate would stop the gate without a word.
+gate=".github/workflows/review-gate.yml"
+if [ -f "$gate" ] && grep -q 'sequel-foundation/.github/workflows/review-gate.yml@' "$gate"; then
+  if node -e 'import(process.argv[1]).then((m) => process.exit(m.carriesGate(process.argv[2]) ? 0 : 1))' "$here/../review-gate/pin.mjs" "$ref"; then
+    "$here/pin-review-gate.sh" . "$ref"
+  else
+    echo "note: $gate keeps its pin — $ref is not a release that has the review gate"
+  fi
+fi
 
 # Resolve the ref to the commit the lockfile must end up on.
 if [[ "$ref" =~ ^[0-9a-f]{40}$ ]]; then
@@ -47,22 +62,3 @@ if [ "$got" != "$want" ]; then
 fi
 echo "pinned @sequel/foundation → $spec (resolved $got)"
 
-# The review gate's caller pins the same release (docs/REVIEW-GATE.md): move it
-# with the package so a hub never runs one release's gate beside another's
-# package. Only an exact tag is written; a SHA pin leaves the caller alone.
-gate=".github/workflows/review-gate.yml"
-if [ -f "$gate" ] && grep -q 'sequel-foundation/.github/workflows/review-gate.yml@' "$gate"; then
-  if [[ "$ref" =~ ^v[0-9]+[.][0-9]+[.][0-9]+$ ]]; then
-    node -e '
-      const fs = require("fs");
-      const [file, ref] = process.argv.slice(1);
-      const before = fs.readFileSync(file, "utf8");
-      const after = before.replace(/(sequel-foundation\/\.github\/workflows\/review-gate\.yml@)\S+/g, "$1" + ref);
-      if (!after.includes("review-gate.yml@" + ref + "\n")) { console.error("could not move the review gate pin in " + file + " to " + ref); process.exit(1); }
-      fs.writeFileSync(file, after);
-    ' "$gate" "$ref"
-    echo "pinned the review gate caller → $ref"
-  else
-    echo "note: $gate keeps its pin (a tag is needed to move it; got $ref)"
-  fi
-fi

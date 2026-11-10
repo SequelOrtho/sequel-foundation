@@ -15,17 +15,34 @@ sequel-foundation").
   `tests/review-gate.test.ts`. Every rule fails closed: what can't be read is a reason for red.
 - The workflow hubs call: [`.github/workflows/review-gate.yml`](../.github/workflows/review-gate.yml).
 - The file a hub copies: [`review-gate/caller.yml`](../review-gate/caller.yml).
+- The scripts that install and move a hub's pin: `scripts/pin-review-gate.sh` (and
+  `review-gate/pin.mjs`, tested by `tests/review-gate-pin.test.ts`); `scripts/pin-foundation.sh`
+  calls it.
 
 ## Adding it to a hub
 
-1. Copy `review-gate/caller.yml` to the hub's `.github/workflows/review-gate.yml`. If the hub's
-   default branch is not `main`, change `branches: [main]` to its name. Change nothing else. Its
-   last line is the pin:
+1. From a checkout of this repository, run the script with the hub's folder and the release:
 
-   ```yaml
-       uses: SequelOrtho/sequel-foundation/.github/workflows/review-gate.yml@v0.38.0
+   ```bash
+   scripts/pin-review-gate.sh ../<hub> v0.38.0
    ```
 
+   It copies `review-gate/caller.yml` to the hub's `.github/workflows/review-gate.yml` and sets
+   its last line, the pin, to the **commit** of that release, with the tag in a comment:
+
+   ```yaml
+       uses: SequelOrtho/sequel-foundation/.github/workflows/review-gate.yml@<the release's 40-character commit id> # v0.38.0
+   ```
+
+   If the hub's default branch is not `main`, change `branches: [main]` to its name. Change
+   nothing else.
+
+   **Why a commit and not the tag:** the called workflow runs with a token that sets the hub's
+   `independent-review` status and can read the hub. A tag can be moved or re-created by anyone
+   with write access to this repository; a commit id cannot, so the code a hub runs changes only
+   through a pull request in that hub. Treat a pull request that changes the pin by hand like one
+   that changes the gate, and check the id against the release
+   (`git ls-remote --tags https://github.com/SequelOrtho/sequel-foundation vX.Y.Z`).
 2. Add the "Working with the gate" rules below to the hub's `CLAUDE.md`, so a session knows to run
    the review, what the record must carry and what red means.
 3. The gate judges a pull request only once the caller is on the hub's default branch, so the pull
@@ -36,7 +53,7 @@ sequel-foundation").
 
 The caller runs on `pull_request_target` (pull requests into the default branch) and on PR
 comments, so the hub's default branch decides which copy runs, and the called workflow checks out
-`sequel-foundation` only, at the commit of the release the hub pinned. No code from the hub or from
+`sequel-foundation` only, at the commit the hub pinned. No code from the hub or from
 a pull request runs, and the job's token can write commit statuses and nothing else. Never add a
 step, a checkout, an install or a `workflow_dispatch` trigger to the caller.
 
@@ -107,16 +124,18 @@ gate.
 ## Releasing a change to the gate
 
 The gate ships with the package: a change here is a normal release (version bump, CI tags it).
-Each hub's caller pins a release tag, and `scripts/pin-foundation.sh <app-dir> vX.Y.Z` moves that
-pin together with the package's, so one pin-bump pull request per hub carries both. A hub keeps
-running the release it pinned until then. Keep `review-gate/caller.yml` on the newest release
-that changed the gate.
+Each hub's caller pins the release's commit, and `scripts/pin-foundation.sh <app-dir> vX.Y.Z`
+moves that pin together with the package's (the caller first, so a caller that can't be moved
+stops the bump before anything changes), so one pin-bump pull request per hub carries both. A hub
+keeps running the commit it pinned until then. Rolling the package back to a release from before
+the gate (below v0.38.0) leaves the caller where it is and says so: pointing it at a release with
+no gate workflow would stop the status being set at all.
 
 ## Taking it out
 
 - **One hub:** remove any branch-protection requirement on `independent-review` first (or every
   pull request waits forever for a status nothing sets), then delete the hub's
   `.github/workflows/review-gate.yml`. Statuses already posted stay; they are harmless.
-- **Reverting it here** does not stop hubs that pinned a release: the tag still points at a commit
-  that has the workflow. Take it out hub by hub as above. A reverted release's tag also stays, so
+- **Reverting it here** does not stop hubs that pinned a release: the commit they pinned still
+  has the workflow. Take it out hub by hub as above. A reverted release's tag also stays, so
   the next release takes the next version number, never the reverted one again.
