@@ -23,6 +23,10 @@ The version bump **is** the release. Everything else is automatic or scripted (`
 4. **Fleet pin-bumps** go through `scripts/pin-foundation.sh <app-dir> vX.Y.Z`, which runs the explicit `npm install "@sequel/foundation@github:…#vX.Y.Z"` and fails unless the lockfile re-resolved to the tag's SHA. A plain `npm install` after a hand-edited spec reports "up to date" and silently keeps the old SHA.
 5. **Rulesets require up-to-date branches**: a green PR whose branch is behind main is refused with "Required status check 'test' is expected" — merge `origin/main` into the branch (merge commit, never rebase a shared branch), let CI re-run, then merge.
 
+## The review gate
+
+`independent-review` is a commit status every hub sets on its pull requests: green only when a finished independent review record covers the exact head. The rules live here once ([review-gate/review-gate.mjs](review-gate/review-gate.mjs), `tests/review-gate.test.ts`), hubs call the reusable workflow [.github/workflows/review-gate.yml](.github/workflows/review-gate.yml) from a copy of [review-gate/caller.yml](review-gate/caller.yml) pinned to a release tag, and `scripts/pin-foundation.sh` moves that pin with the package's. **[docs/REVIEW-GATE.md](docs/REVIEW-GATE.md) is the whole guide** (adding it to a hub, the rules a hub's `CLAUDE.md` carries, what it cannot catch, taking it out). The workflow holds a token that can write statuses on a hub, on `pull_request_target`: never add a checkout of the calling repository or a pull request's head, an install, an input or a secret to it (`tests/review-gate-workflow.test.ts`). This repository's own pull requests are not judged by it (the owner's list of repositories for the gate, 2026-11-10, does not include it).
+
 ## The fleet (apps pinning this package)
 
 A shared-behavior change is one PR here + tag, then one pin-bump PR per app, each validated with that app's `npm run build`. The template repo is part of the fleet — fix it in the same sweep so new apps inherit.
