@@ -15,9 +15,9 @@ sequel-foundation").
   `tests/review-gate.test.ts`. Every rule fails closed: what can't be read is a reason for red.
 - The workflow hubs call: [`.github/workflows/review-gate.yml`](../.github/workflows/review-gate.yml).
 - The file a hub copies: [`review-gate/caller.yml`](../review-gate/caller.yml).
-- The scripts that install and move a hub's pin: `scripts/pin-review-gate.sh` (and
-  `review-gate/pin.mjs`, tested by `tests/review-gate-pin.test.ts`); `scripts/pin-foundation.sh`
-  calls it.
+- The script that writes a hub's caller and its pin: `scripts/pin-review-gate.sh` (it runs
+  `review-gate/pin-cli.mjs`; the logic is `review-gate/pin.mjs`, tested by
+  `tests/review-gate-pin.test.ts`). `scripts/pin-foundation.sh` calls it.
 
 ## Adding it to a hub
 
@@ -27,22 +27,30 @@ sequel-foundation").
    scripts/pin-review-gate.sh ../<hub> v0.38.0
    ```
 
-   It copies `review-gate/caller.yml` to the hub's `.github/workflows/review-gate.yml` and sets
-   its last line, the pin, to the **commit** of that release, with the tag in a comment:
+   It writes the hub's `.github/workflows/review-gate.yml` from `review-gate/caller.yml`, with its
+   last line, the pin, set to the **commit** of that release and the tag in a comment:
 
    ```yaml
        uses: SequelOrtho/sequel-foundation/.github/workflows/review-gate.yml@<the release's 40-character commit id> # v0.38.0
    ```
 
-   If the hub's default branch is not `main`, change `branches: [main]` to its name. Change
-   nothing else.
+   Run it from a checkout of that same release (it refuses otherwise), so the file written is the
+   one that release was reviewed with. If the hub's default branch is not `main`, give its name as
+   a third argument. **Never edit the file by hand:** the script writes it whole every time, so a
+   hand edit is lost at the next pin bump, and nothing else in it is meant to differ between hubs.
 
    **Why a commit and not the tag:** the called workflow runs with a token that sets the hub's
-   `independent-review` status and can read the hub. A tag can be moved or re-created by anyone
-   with write access to this repository; a commit id cannot, so the code a hub runs changes only
-   through a pull request in that hub. Treat a pull request that changes the pin by hand like one
-   that changes the gate, and check the id against the release
+   `independent-review` status and can read the hub. A tag can be moved or re-created by someone
+   with write access to this repository; a commit id cannot, so the gate's own code changes for a
+   hub only through a pull request in that hub. Treat a pull request that changes the pin like
+   one that changes the gate, and check the id against the release
    (`git ls-remote --tags https://github.com/SequelOrtho/sequel-foundation vX.Y.Z`).
+
+   **Release tags here are also to be protected** (owner, 2026-11-10, asked whether to protect
+   them: "yes I want protected v* tags"): a tag ruleset on this repository for `v*` that blocks
+   updating and deleting. It is a repository setting the owner applies; the commit pin does not
+   depend on it.
+
 2. Add the "Working with the gate" rules below to the hub's `CLAUDE.md`, so a session knows to run
    the review, what the record must carry and what red means.
 3. The gate judges a pull request only once the caller is on the hub's default branch, so the pull
@@ -117,6 +125,10 @@ gate.
   that stops at "Pin the gate to this workflow's own commit" leaves the status from the earlier
   run in place. **A red "Review gate" run must be re-run before a green `independent-review` is
   trusted.**
+- **A change to the two GitHub actions the job uses.** `actions/checkout@v4` and
+  `actions/setup-node@v4` are pinned by GitHub's own major-version tags, as in every other
+  workflow in the family, and setup-node downloads Node at run time. Whoever controls those runs
+  code in the gate's job. The commit pin covers the gate's own code, not these.
 - **Two open pull requests at the same commit** share one status (a status belongs to a commit;
   owner, asked whether that is acceptable: "yes").
 - **A merge while the status is red**, until the hub's branch protection requires it.
@@ -125,8 +137,10 @@ gate.
 
 The gate ships with the package: a change here is a normal release (version bump, CI tags it).
 Each hub's caller pins the release's commit, and `scripts/pin-foundation.sh <app-dir> vX.Y.Z`
-moves that pin together with the package's (the caller first, so a caller that can't be moved
-stops the bump before anything changes), so one pin-bump pull request per hub carries both. A hub
+rewrites the caller for that release together with the package's pin (the caller first, so a
+caller that can't be written stops the bump before anything changes), so one pin-bump pull
+request per hub carries both: `package.json`, the lockfile and `.github/workflows/review-gate.yml`.
+Run it from a checkout of the release being pinned. A hub
 keeps running the commit it pinned until then. Rolling the package back to a release from before
 the gate (below v0.38.0) leaves the caller where it is and says so: pointing it at a release with
 no gate workflow would stop the status being set at all.

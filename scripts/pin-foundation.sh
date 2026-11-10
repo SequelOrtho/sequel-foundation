@@ -24,12 +24,12 @@ cd "$app"
 # bare commit, leaves the caller where it is and says so — pointing it at a
 # release with no gate would stop the gate without a word.
 gate=".github/workflows/review-gate.yml"
-if [ -f "$gate" ] && grep -q 'sequel-foundation/.github/workflows/review-gate.yml@' "$gate"; then
-  if node "$here/../review-gate/pin.mjs" --carries "$ref"; then
-    "$here/pin-review-gate.sh" . "$ref"
-  else
-    echo "note: $gate keeps its pin — $ref is not a release that has the review gate"
-  fi
+if [ ! -f "$gate" ]; then
+  echo "note: this app has no review gate caller ($gate); scripts/pin-review-gate.sh adds one"
+elif node "$here/../review-gate/pin-cli.mjs" --carries "$ref"; then
+  "$here/pin-review-gate.sh" . "$ref"
+else
+  echo "note: $gate keeps its pin — $ref is not a release that has the review gate"
 fi
 
 # Resolve the ref to the commit the lockfile must end up on.

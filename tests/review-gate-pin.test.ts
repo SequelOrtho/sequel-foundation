@@ -1,16 +1,18 @@
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, mkdirSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
-import { carriesGate, FIRST_GATE_RELEASE, pinCaller } from "../review-gate/pin.mjs";
+import { branchOf, carriesGate, FIRST_GATE_RELEASE, renderCaller } from "../review-gate/pin.mjs";
 
-// The pin in a hub's review-gate caller (independent review, 2026-11-10).
+// A hub's review-gate caller is written whole from the template, pinned to a
+// release's commit (independent review of v0.38.0, 2026-11-10, three rounds).
 const SHA = "0123456789abcdef0123456789abcdef01234567";
 const OTHER = "89abcdef0123456789abcdef0123456789abcdef";
-const LINE = "    uses: SequelOrtho/sequel-foundation/.github/workflows/review-gate.yml@";
+const USES = "    uses: SequelOrtho/sequel-foundation/.github/workflows/review-gate.yml@";
 const template = readFileSync("review-gate/caller.yml", "utf8");
-const pinOf = (text: string) => text.match(/review-gate\.yml@(\S+)(?:[ \t]*#[ \t]*([^\r\n]*))?/)!;
+const version = `v${JSON.parse(readFileSync("package.json", "utf8")).version}`;
+const live = (text: string) => text.split("\n").filter((l) => !/^\s*#/.test(l));
 
 describe("which releases carry the gate", () => {
   // The wrong version: any vX.Y.Z is accepted, so rolling the package back to
@@ -23,127 +25,158 @@ describe("which releases carry the gate", () => {
   });
 });
 
-describe("pinning the caller", () => {
-  it("replaces the template's placeholder with the release's commit, the tag in a comment", () => {
-    const out = pinCaller(template, "v0.38.0", SHA);
-    expect(out).toContain(`${LINE}${SHA} # v0.38.0\n`);
+describe("the caller written for a hub", () => {
+  it("is the template with the pin set to the release's commit and the tag in a comment", () => {
+    const out = renderCaller(template, { tag: "v0.38.0", sha: SHA });
+    expect(out).toContain(`${USES}${SHA} # v0.38.0\n`);
     expect(out.replace(`${SHA} # v0.38.0`, "X")).toBe(template.replace(/0{40} # set by scripts\/pin-review-gate\.sh/, "X"));
+    // Exactly one live `uses:` line, and it is the commit: never a tag, a branch or the placeholder.
+    const uses = live(out).filter((l) => /^\s*uses:/.test(l));
+    expect(uses).toEqual([`${USES}${SHA} # v0.38.0`]);
   });
 
-  // The wrong version: a caller already pinned to a commit is rewritten to a
-  // movable tag on the next bump.
-  it("moves a commit pin to the new release's commit, never to a tag", () => {
-    const pinned = pinCaller(template, "v0.38.0", SHA);
-    const moved = pinCaller(pinned, "v0.39.0", OTHER);
-    expect(pinOf(moved).slice(1, 3)).toEqual([OTHER, "v0.39.0"]);
-    expect(moved).not.toContain(SHA);
-    expect(moved).not.toMatch(/review-gate\.yml@v\d/);
-    // An older tag pin (or a branch) is replaced by a commit too.
-    for (const ref of ["v0.38.0", "main"]) expect(pinOf(pinCaller(`${LINE}${ref}\n`, "v0.38.1", OTHER)).slice(1, 3)).toEqual([OTHER, "v0.38.1"]);
+  it("names the hub's default branch when it is not main", () => {
+    const out = renderCaller(template, { tag: "v0.38.0", sha: SHA, branch: "trunk" });
+    expect(live(out).filter((l) => /branches:/.test(l))).toEqual(["    branches: [trunk]"]);
+    expect(out.replace("[trunk]", "[main]")).toBe(renderCaller(template, { tag: "v0.38.0", sha: SHA }));
   });
 
-  // The wrong version: the result is checked for a literal "\n" after the
-  // pin, so a file with CRLF endings, no final newline or a comment after the
-  // pin is refused after the package has already been re-pinned.
-  it("keeps line endings, a missing final newline and the rest of the file", () => {
-    expect(pinCaller(`a: 1\r\n${LINE}v0.38.0\r\nb: 2\r\n`, "v0.38.1", SHA)).toBe(`a: 1\r\n${LINE}${SHA} # v0.38.1\r\nb: 2\r\n`);
-    expect(pinCaller(`${LINE}${OTHER} # v0.38.0`, "v0.38.1", SHA)).toBe(`${LINE}${SHA} # v0.38.1`);
-    expect(pinCaller(`${LINE}v0.38.0   # pinned by hand\n`, "v0.38.1", SHA)).toBe(`${LINE}${SHA} # v0.38.1\n`);
+  it("refuses a release with no gate, a commit id that is not a full one, an odd branch name, or a template it does not know", () => {
+    expect(() => renderCaller(template, { tag: "v0.37.0", sha: SHA })).toThrow(/has no review gate/);
+    expect(() => renderCaller(template, { tag: "main", sha: SHA })).toThrow(/has no review gate/);
+    for (const sha of [SHA.slice(0, 7), SHA.toUpperCase(), "", "v0.38.0", "main", undefined]) expect(() => renderCaller(template, { tag: "v0.38.0", sha: sha as string })).toThrow(/full 40-character/);
+    for (const branch of ["", "a b", "main]\n  pull_request:", "x,y", "-x", "*", "a".repeat(101)]) expect(() => renderCaller(template, { tag: "v0.38.0", sha: SHA, branch }), branch).toThrow(/not a branch name/);
+    expect(() => renderCaller("name: Review gate\n", { tag: "v0.38.0", sha: SHA })).toThrow(/not the template/);
+    expect(() => renderCaller(template + template, { tag: "v0.38.0", sha: SHA })).toThrow(/not the template/);
+    // A caller that is already pinned is not a template: nothing is edited in place.
+    expect(() => renderCaller(renderCaller(template, { tag: "v0.38.0", sha: SHA }), { tag: "v0.39.0", sha: OTHER })).toThrow(/not the template/);
   });
 
-  it("refuses, changing nothing, a release with no gate, a short commit id, or a file without exactly one pin", () => {
-    expect(() => pinCaller(template, "v0.37.0", SHA)).toThrow(/has no review gate/);
-    expect(() => pinCaller(template, "main", SHA)).toThrow(/has no review gate/);
-    for (const sha of [SHA.slice(0, 7), SHA.toUpperCase(), "", undefined]) expect(() => pinCaller(template, "v0.38.0", sha as string)).toThrow(/full 40-character/);
-    expect(() => pinCaller("name: Review gate\n", "v0.38.0", SHA)).toThrow(/found 0/);
-    expect(() => pinCaller(`${LINE}v0.38.0\n${LINE}v0.38.0\n`, "v0.38.0", SHA)).toThrow(/found 2/);
-  });
-
-  it("as a command, --carries answers by exit code", () => {
-    execFileSync("node", ["review-gate/pin.mjs", "--carries", "v0.38.0"]);
-    for (const tag of ["v0.37.0", "main", ""]) expect(() => execFileSync("node", ["review-gate/pin.mjs", "--carries", tag], { stdio: "pipe" }), tag).toThrow();
-  });
-
-  // The command the shell scripts run: a refusal exits 1 and leaves the file.
-  it("as a command, writes the file or exits 1 leaving it untouched", () => {
-    const dir = mkdtempSync(join(tmpdir(), "gate-pin-"));
-    mkdirSync(join(dir, ".github/workflows"), { recursive: true });
-    const file = join(dir, ".github/workflows/review-gate.yml");
-    writeFileSync(file, template);
-    execFileSync("node", ["review-gate/pin.mjs", file, "v0.38.0", SHA]);
-    expect(readFileSync(file, "utf8")).toContain(`${SHA} # v0.38.0`);
-    const before = readFileSync(file, "utf8");
-    expect(() => execFileSync("node", ["review-gate/pin.mjs", file, "v0.37.0", OTHER], { stdio: "pipe" })).toThrow();
-    expect(readFileSync(file, "utf8")).toBe(before);
+  it("reads the default branch back from a caller it wrote, and nothing from a file it can't be sure of", () => {
+    expect(branchOf(renderCaller(template, { tag: "v0.38.0", sha: SHA }))).toBe("main");
+    expect(branchOf(renderCaller(template, { tag: "v0.38.0", sha: SHA, branch: "release/2026" }))).toBe("release/2026");
+    expect(branchOf(renderCaller(template, { tag: "v0.38.0", sha: SHA, branch: "trunk" }).replace(/\n/g, "\r\n"))).toBe("trunk");
+    for (const text of ["", "name: x\n", "    # branches: [main]\n", "    branches: [main, dev]\n", "    branches: [main]\n    branches: [dev]\n", "  branches: [main]\n"]) expect(branchOf(text), text).toBeNull();
   });
 });
 
-// The scripts themselves, with a stand-in `git` that answers ls-remote the way
-// GitHub does for a release (no network). The wrong version (caught by the
-// first review of this fix): the scripts ask "does this release carry the
-// gate" in a way that always answers no, so no hub can ever be pinned.
-describe("scripts/pin-review-gate.sh", () => {
+// The command and the two scripts, run for real against a stand-in `git` that
+// answers ls-remote the way GitHub does (no network).
+describe("the command and the scripts", () => {
   const hub = () => {
     const dir = mkdtempSync(join(tmpdir(), "gate-hub-"));
     const bin = join(dir, "bin");
     mkdirSync(bin);
-    writeFileSync(join(bin, "git"), `#!/usr/bin/env bash\nfor a in "$@"; do case "$a" in refs/tags/v0.38.0|refs/tags/v0.39.0) printf '%s\\trefs/tags/%s\\n' "${SHA}" "\${a#refs/tags/}"; exit 0;; esac; done\nexit 0\n`, { mode: 0o755 });
+    // Answers for this checkout's own release only; also lists a look-alike
+    // ref that ends the same way, which must not be taken.
+    writeFileSync(
+      join(bin, "git"),
+      `#!/usr/bin/env bash\nfor a in "$@"; do if [ "$a" = "refs/tags/${version}" ]; then printf '%s\\trefs/tags/%s\\n' "${SHA}" "${version}"; printf '%s\\tzz/refs/tags/%s\\n' "${OTHER}" "${version}"; exit 0; fi; done\nexit 0\n`,
+      { mode: 0o755 },
+    );
     const app = join(dir, "app");
     mkdirSync(app);
-    return { app, env: { ...process.env, PATH: `${bin}:${process.env.PATH}` }, file: join(app, ".github/workflows/review-gate.yml") };
+    return { dir, app, env: { ...process.env, PATH: `${bin}:${process.env.PATH}` }, file: join(app, ".github/workflows/review-gate.yml") };
   };
-  const run = (script: string, app: string, ref: string, env: NodeJS.ProcessEnv) => execFileSync("bash", [script, app, ref], { env, stdio: "pipe" }).toString();
+  const sh = (script: string, args: string[], env: NodeJS.ProcessEnv) => execFileSync("bash", [script, ...args], { env, stdio: "pipe" }).toString();
+  const failing = (run: () => unknown) => {
+    try {
+      run();
+    } catch (err) {
+      const e = err as { status: number; stdout: Buffer; stderr: Buffer };
+      return { status: e.status, out: `${e.stdout}${e.stderr}` };
+    }
+    throw new Error("expected the command to fail");
+  };
+  const cli = (args: string[], path = "review-gate/pin-cli.mjs") => execFileSync("node", [path, ...args], { stdio: "pipe" }).toString();
 
-  it("installs the caller in a hub that has none, pinned to the release's commit", () => {
-    const { app, env, file } = hub();
-    const out = run("scripts/pin-review-gate.sh", app, "v0.38.0", env);
-    expect(out).toMatch(/copied the review gate caller/);
-    expect(readFileSync(file, "utf8")).toBe(pinCaller(template, "v0.38.0", SHA));
-    // Again, for a later release: the pin moves, nothing else does.
-    run("scripts/pin-review-gate.sh", app, "v0.39.0", env);
-    expect(readFileSync(file, "utf8")).toBe(pinCaller(template, "v0.39.0", SHA));
+  it("--carries answers by exit code, and anything unknown is a usage error", () => {
+    cli(["--carries", "v0.38.0"]);
+    for (const tag of ["v0.37.0", "main", ""]) expect(failing(() => cli(["--carries", tag])).status, tag).toBe(1);
+    for (const args of [[], ["--carries"], ["--carries", "v0.38.0", "x"], ["a", "v0.38.0"], ["--help"], ["a", "v0.38.0", SHA, "main", "extra"]]) expect(failing(() => cli(args)).status, args.join(" ")).toBe(2);
   });
 
-  it("refuses a release with no gate, a tag that does not exist, and anything that is not a release, leaving the hub as it was", () => {
+  // The wrong version (round 2's blocker): the command decides whether it was
+  // "run or imported" by comparing paths, so reached through a symlinked folder
+  // it does nothing and exits 0 — a release with no gate "carries" it, and a
+  // write reports success without writing.
+  it("behaves the same when reached through a symlinked folder", () => {
+    const { dir, app, file } = hub();
+    const link = join(dir, "foundation-link");
+    symlinkSync(resolve("."), link);
+    const through = join(link, "review-gate/pin-cli.mjs");
+    expect(failing(() => cli(["--carries", "v0.37.0"], through)).status).toBe(1);
+    cli(["--carries", "v0.38.0"], through);
+    expect(failing(() => cli([app, "v0.38.0", SHA.slice(0, 7)], through)).status).toBe(1);
+    expect(existsSync(file)).toBe(false);
+    cli([app, "v0.38.0", SHA], through);
+    expect(readFileSync(file, "utf8")).toBe(renderCaller(template, { tag: "v0.38.0", sha: SHA }));
+  });
+
+  it("writes the file whole: a hand-edited caller comes back as the template's, keeping only its default branch", () => {
+    const { app, file } = hub();
+    cli([app, "v0.38.0", SHA, "trunk"]);
+    // Someone edits it: the live pin goes to a branch, the old line stays as a comment.
+    const edited = readFileSync(file, "utf8").replace(`${USES}${SHA} # v0.38.0`, `    # was: uses: SequelOrtho/sequel-foundation/.github/workflows/review-gate.yml@${SHA} # v0.38.0\n    uses: sequelortho/sequel-foundation/.github/workflows/review-gate.yml@main`);
+    writeFileSync(file, edited);
+    cli([app, "v0.39.0", OTHER]);
+    expect(readFileSync(file, "utf8")).toBe(renderCaller(template, { tag: "v0.39.0", sha: OTHER, branch: "trunk" }));
+    // A file whose default branch can't be read is left alone until the branch is given.
+    writeFileSync(file, "name: something else\n");
+    const refused = failing(() => cli([app, "v0.39.0", OTHER]));
+    expect(refused.status).toBe(1);
+    expect(refused.out).toMatch(/can't tell the default branch/);
+    expect(readFileSync(file, "utf8")).toBe("name: something else\n");
+    cli([app, "v0.39.0", OTHER, "main"]);
+    expect(readFileSync(file, "utf8")).toBe(renderCaller(template, { tag: "v0.39.0", sha: OTHER }));
+  });
+
+  it("pin-review-gate.sh installs the caller pinned to the release's commit, taking the exact tag's line", () => {
     const { app, env, file } = hub();
-    run("scripts/pin-review-gate.sh", app, "v0.38.0", env);
+    const out = sh("scripts/pin-review-gate.sh", [app, version], env);
+    expect(out).toMatch(/wrote .*review-gate\.yml: the review gate pinned to/);
+    expect(readFileSync(file, "utf8")).toBe(renderCaller(template, { tag: version, sha: SHA }));
+    sh("scripts/pin-review-gate.sh", [app, version, "trunk"], env);
+    expect(readFileSync(file, "utf8")).toBe(renderCaller(template, { tag: version, sha: SHA, branch: "trunk" }));
+  });
+
+  it("pin-review-gate.sh refuses, leaving the hub as it was: a release with no gate, one this checkout is not on, a missing tag, a commit", () => {
+    const { app, env, file } = hub();
+    sh("scripts/pin-review-gate.sh", [app, version], env);
     const before = readFileSync(file, "utf8");
-    for (const ref of ["v0.37.0", "v0.40.0", "main", SHA]) {
-      expect(() => run("scripts/pin-review-gate.sh", app, ref, env), ref).toThrow();
+    for (const [ref, why] of [["v0.37.0", /not a release that has the gate/], ["v99.0.0", /this checkout is/], ["main", /not a release that has the gate/], [SHA, /not a release that has the gate/]] as const) {
+      const r = failing(() => sh("scripts/pin-review-gate.sh", [app, ref], env));
+      expect(r.status, ref).toBe(1);
+      expect(r.out, ref).toMatch(why);
       expect(readFileSync(file, "utf8")).toBe(before);
     }
+    // A tag GitHub does not have: a stand-in git that answers nothing.
+    const silent = join(app, "..", "silent");
+    mkdirSync(silent);
+    writeFileSync(join(silent, "git"), "#!/usr/bin/env bash\nexit 0\n", { mode: 0o755 });
+    const none = failing(() => sh("scripts/pin-review-gate.sh", [app, version], { ...env, PATH: `${silent}:${process.env.PATH}` }));
+    expect(none.status).toBe(1);
+    expect(none.out).toMatch(/not found on SequelOrtho\/sequel-foundation/);
+    expect(readFileSync(file, "utf8")).toBe(before);
   });
 
-  // pin-foundation.sh: the caller moves before the package is touched (here
-  // the package step then stops, because this stand-in hub has no dependency
-  // on the package — the caller has already moved, package.json has not).
-  it("pin-foundation.sh moves an existing caller for a release with the gate and leaves it for an older one", () => {
+  // pin-foundation.sh: the caller moves before the package is touched. This
+  // stand-in hub does not depend on the package, so the package step stops
+  // the script after the caller step has run and said what it did.
+  it("pin-foundation.sh moves an existing caller first, leaves it for a release without the gate, and says when there is none", () => {
     const { app, env, file } = hub();
-    writeFileSync(join(app, "package.json"), '{"name":"hub","dependencies":{}}\n');
-    run("scripts/pin-review-gate.sh", app, "v0.38.0", env);
-    const at38 = readFileSync(file, "utf8");
-    let out = "";
-    try { run("scripts/pin-foundation.sh", app, "v0.37.0", env); } catch (err) { out = String((err as { stdout: Buffer }).stdout) + String((err as { stderr: Buffer }).stderr); }
-    expect(out).toMatch(/keeps its pin — v0\.37\.0 is not a release that has the review gate/);
-    expect(readFileSync(file, "utf8")).toBe(at38);
-    try { run("scripts/pin-foundation.sh", app, "v0.39.0", env); } catch (err) { out = String((err as { stdout: Buffer }).stdout); }
-    expect(out).toMatch(/pinned the review gate caller → [0-9a-f]{40} \(v0\.39\.0\)/);
-    expect(readFileSync(file, "utf8")).toBe(pinCaller(template, "v0.39.0", SHA));
-    expect(readFileSync(join(app, "package.json"), "utf8")).toBe('{"name":"hub","dependencies":{}}\n');
-  });
-});
-
-// pin-foundation.sh moves the caller before it touches the package, only for
-// a release that has the gate. (Its network steps are not run here.)
-describe("scripts/pin-foundation.sh and the caller", () => {
-  const src = readFileSync("scripts/pin-foundation.sh", "utf8");
-  it("moves the caller first, through pin-review-gate.sh, and only for a release with the gate", () => {
-    const gate = src.indexOf('"$here/pin-review-gate.sh" . "$ref"');
-    expect(gate).toBeGreaterThan(0);
-    expect(gate).toBeLessThan(src.indexOf("fs.writeFileSync(\"package.json\""));
-    expect(gate).toBeLessThan(src.indexOf('npm install "@sequel/foundation@$spec"'));
-    expect(src).toMatch(/pin\.mjs" --carries "\$ref"/);
-    expect(src).toMatch(/note: \$gate keeps its pin/);
-    expect(src).not.toMatch(/review-gate\\?\.yml@\)\[\^/); // no second copy of the rewrite
+    const pkg = '{"name":"hub","dependencies":{}}\n';
+    writeFileSync(join(app, "package.json"), pkg);
+    expect(failing(() => sh("scripts/pin-foundation.sh", [app, version], env)).out).toMatch(/note: this app has no review gate caller/);
+    expect(existsSync(file)).toBe(false);
+    sh("scripts/pin-review-gate.sh", [app, version, "trunk"], env);
+    writeFileSync(file, readFileSync(file, "utf8").replace(SHA, OTHER)); // as if pinned to an earlier release's commit
+    expect(failing(() => sh("scripts/pin-foundation.sh", [app, "v0.37.0"], env)).out).toMatch(/keeps its pin — v0\.37\.0 is not a release that has the review gate/);
+    expect(readFileSync(file, "utf8")).toContain(OTHER);
+    expect(failing(() => sh("scripts/pin-foundation.sh", [app, version], env)).out).toMatch(/rewrote .*review-gate\.yml: the review gate pinned to/);
+    expect(readFileSync(file, "utf8")).toBe(renderCaller(template, { tag: version, sha: SHA, branch: "trunk" }));
+    expect(readFileSync(join(app, "package.json"), "utf8")).toBe(pkg);
+    const src = readFileSync("scripts/pin-foundation.sh", "utf8");
+    expect(src.indexOf('"$here/pin-review-gate.sh" . "$ref"')).toBeLessThan(src.indexOf('fs.writeFileSync("package.json"'));
   });
 });

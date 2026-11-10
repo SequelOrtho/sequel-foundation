@@ -1,22 +1,27 @@
-#!/usr/bin/env node
-// Writes the pin in a hub's review-gate caller (.github/workflows/review-gate.yml):
-// the release's full commit id, with the release's tag in a trailing comment.
+// A hub's review-gate caller (.github/workflows/review-gate.yml), written
+// whole from review-gate/caller.yml with two things filled in: the default
+// branch, and the pin — the release's full commit id, the tag in a comment.
 //
 //   uses: SequelOrtho/sequel-foundation/.github/workflows/review-gate.yml@<40 hex> # vX.Y.Z
 //
-// A commit id, not the tag: a tag can be moved or re-created by anyone with
-// write access to this repository, and the hub would then run other code with
-// a token that can set its `independent-review` status. A commit id only
-// changes through a pull request in the hub (independent review, 2026-11-10).
+// A commit id, not the tag: the called job holds a token that sets the hub's
+// `independent-review` status, and a tag can be moved. And the file is written
+// whole, never edited in place: a tool that rewrites one line of a file a
+// person may have changed has to decide which line is the live one, and two
+// review rounds each found a way for that to go wrong (independent review,
+// 2026-11-10). The caller is not meant to be edited by hand, so the template
+// plus these two values is all there is to keep.
 //
-// Run by scripts/pin-review-gate.sh, which resolves the tag to its commit.
-// `pinCaller` is pure and tested (tests/review-gate-pin.test.ts).
+// This file is a library with no command line of its own (review-gate/pin-cli.mjs
+// is the command); everything here is pure and tested (tests/review-gate-pin.test.ts).
 
 /** The first release whose commit carries the reusable workflow. */
 export const FIRST_GATE_RELEASE = "v0.38.0";
 
 const TAG = /^v(\d+)\.(\d+)\.(\d+)$/;
 const SHA = /^[0-9a-f]{40}$/;
+// A branch name this tool will write into YAML unquoted: plain names only.
+const BRANCH = /^[A-Za-z0-9][A-Za-z0-9._/-]{0,99}$/;
 const order = (tag) => {
   const m = TAG.exec(tag);
   return m ? Number(m[1]) * 1e12 + Number(m[2]) * 1e6 + Number(m[3]) : NaN;
@@ -25,39 +30,30 @@ const order = (tag) => {
 /** Whether the release named by `tag` carries the gate (an exact vX.Y.Z at or after the first one). */
 export const carriesGate = (tag) => typeof tag === "string" && TAG.test(tag) && order(tag) >= order(FIRST_GATE_RELEASE);
 
-// The pin, up to the end of its line: whatever ref is there now (a commit id,
-// a tag, the template's placeholder) and any comment after it.
-const PIN = /(uses:[ \t]*SequelOrtho\/sequel-foundation\/\.github\/workflows\/review-gate\.yml@)[^\s#]*(?:[ \t]*#[^\r\n]*)?/g;
+// The two lines of the template that are filled in, exactly as it carries them.
+const TEMPLATE_BRANCH = "    branches: [main]\n";
+const TEMPLATE_PIN = `@${"0".repeat(40)} # set by scripts/pin-review-gate.sh\n`;
+const once = (text, part) => text.split(part).length === 2;
 
 /**
- * The caller's text with its pin set to `sha # tag`. Throws, changing nothing,
- * when the release has no gate, the commit id is not a full one, or the text
- * has no pin (or more than one) to set. Line endings and a missing final
- * newline are kept as they are.
+ * The caller for a hub: the template with its default branch and its pin set.
+ * Throws when the release has no gate, the commit id is not a full one, the
+ * branch is not a plain name, or the template is not the one this expects.
  */
-export function pinCaller(text, tag, sha) {
-  if (!carriesGate(tag)) throw new Error(`${tag} has no review gate (the first release with it is ${FIRST_GATE_RELEASE}); the caller's pin is left as it is`);
+export function renderCaller(template, { tag, sha, branch = "main" }) {
+  if (!carriesGate(tag)) throw new Error(`${tag} has no review gate (the first release with it is ${FIRST_GATE_RELEASE})`);
   if (typeof sha !== "string" || !SHA.test(sha)) throw new Error(`the commit of ${tag} must be a full 40-character id, got '${sha}'`);
-  const found = [...String(text).matchAll(PIN)];
-  if (found.length !== 1) throw new Error(`expected one review-gate pin in the caller, found ${found.length}`);
-  return String(text).replace(PIN, (_, head) => `${head}${sha} # ${tag}`);
+  if (typeof branch !== "string" || !BRANCH.test(branch)) throw new Error(`'${branch}' is not a branch name this tool will write`);
+  if (typeof template !== "string" || !once(template, TEMPLATE_BRANCH) || !once(template, TEMPLATE_PIN)) throw new Error("review-gate/caller.yml is not the template this tool expects");
+  return template.replace(TEMPLATE_BRANCH, `    branches: [${branch}]\n`).replace(TEMPLATE_PIN, `@${sha} # ${tag}\n`);
 }
 
-// The command line. `--carries <tag>` answers by exit code (0 yes, 1 no) for
-// the shell scripts; otherwise `<caller-file> <tag> <sha>` writes the pin.
-// (Guarded by the path, so importing this file runs nothing.)
-const invoked = process.argv[1] && import.meta.url === new URL(`file://${process.argv[1]}`).href;
-if (invoked) {
-  const args = process.argv.slice(2);
-  if (args[0] === "--carries") process.exit(args.length === 2 && carriesGate(args[1]) ? 0 : 1);
-  const { readFileSync, writeFileSync } = await import("node:fs");
-  const [file, tag, sha] = args;
-  try {
-    if (args.length !== 3) throw new Error("usage: pin.mjs <caller-file> <vX.Y.Z> <40-character commit id>");
-    writeFileSync(file, pinCaller(readFileSync(file, "utf8"), tag, sha));
-    console.log(`pinned the review gate caller → ${sha} (${tag})`);
-  } catch (err) {
-    console.error(`review gate: ${err.message}`);
-    process.exit(1);
-  }
+/**
+ * The default branch an existing caller names, so a move keeps it — or null
+ * when the file does not have exactly one such line the way this tool writes
+ * it (then the branch has to be given).
+ */
+export function branchOf(existing) {
+  const found = [...String(existing).matchAll(/^ {4}branches: \[([^\]\s,]+)\]\r?$/gm)].map((m) => m[1]);
+  return found.length === 1 && BRANCH.test(found[0]) ? found[0] : null;
 }
