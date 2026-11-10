@@ -94,7 +94,11 @@ describe("the caller a hub copies (review-gate/caller.yml)", () => {
     // be satisfied by a look-alike ref (refs/tags/a/vX.Y.Z,
     // refs/heads/refs/tags/vX.Y.Z) while the real tag is absent or elsewhere.
     expect(docs).toContain('git fetch --prune origin "+refs/heads/main:refs/remotes/origin/main" "+refs/tags/*:refs/gatecheck/tags/*"');
-    expect(docs).toContain('git merge-base --is-ancestor "refs/gatecheck/tags/vX.Y.Z^{commit}" refs/remotes/origin/main');
+    // …and read back by `show-ref --verify`, which takes only that full name:
+    // handing the name to merge-base or log lets git fall back to a tag
+    // called refs/gatecheck/tags/vX.Y.Z when the real ref is absent.
+    expect(docs).toContain('T=$(git show-ref --verify --hash refs/gatecheck/tags/vX.Y.Z) && git merge-base --is-ancestor "$T^{commit}" refs/remotes/origin/main && git log -1 --format=\'%H %s\' "$T^{commit}"');
+    expect(docs).not.toMatch(/(merge-base|log)[^\n]*"refs\/gatecheck\/tags\/vX\.Y\.Z/);
     expect(docs).not.toMatch(/```bash\s+git ls-remote/);
     expect(docs).not.toMatch(/refs\/tags\/vX\.Y\.Z:refs\/tags\/vX\.Y\.Z/);
     expect(docs).toMatch(/does not stop[\s\S]{0,120}creating a release's tag early/);

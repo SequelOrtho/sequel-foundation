@@ -46,18 +46,18 @@ sequel-foundation").
      ```
 
      ```bash
-     git merge-base --is-ancestor "refs/gatecheck/tags/vX.Y.Z^{commit}" refs/remotes/origin/main && git log -1 --format='%H %s' "refs/gatecheck/tags/vX.Y.Z^{commit}"
+     T=$(git show-ref --verify --hash refs/gatecheck/tags/vX.Y.Z) && git merge-base --is-ancestor "$T^{commit}" refs/remotes/origin/main && git log -1 --format='%H %s' "$T^{commit}"
      ```
 
      The fetch copies every tag, under its exact name, into a namespace of its own
-     (`refs/gatecheck/tags/`), so `refs/gatecheck/tags/vX.Y.Z` is the tag named exactly
-     `vX.Y.Z` and nothing else. (Asking git for one tag by name is not safe here: when that tag
-     does not exist yet, git quietly takes a branch or tag whose name merely ends the same way.
-     A listing such as `git ls-remote` shows such look-alikes too.) The second command must
-     succeed and print a line. If it fails, either the release's tag does not exist yet or its
-     commit is not in `main`'s history: stop. The line it prints must be that release's merge,
-     the squash-merge of the pull request that set the version (`… (vX.Y.Z) (#N)`). Anything
-     else: do not pin, and tell the owner.
+     (`refs/gatecheck/tags/`), and `git show-ref --verify` then reads the one ref with exactly
+     that full name, or fails. Both halves matter: asked for a tag or a ref by name in the usual
+     way, git quietly falls back to a branch or tag whose name merely ends the same way when the
+     real one does not exist yet, and a listing such as `git ls-remote` shows such look-alikes
+     too. The second command must succeed and print a line. If it fails, either the release's
+     tag does not exist yet or its commit is not in `main`'s history: stop. The line it prints
+     must be that release's merge, the squash-merge of the pull request that set the version
+     (`… (vX.Y.Z) (#N)`). Anything else: do not pin, and tell the owner.
 
    Never pin a branch.
 2. Add the "Working with the gate" rules below to the hub's `CLAUDE.md`, so a session knows to run
