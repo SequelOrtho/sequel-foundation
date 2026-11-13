@@ -69,10 +69,13 @@ export function createAlertsFeed(options: AlertsFeedOptions = {}): AlertsFeed {
   let timer: ReturnType<typeof setInterval> | null = null;
   let lastInput = 0;
   let paused = false;
-  // Counts the receipt writes begun. A poll answered after one began is
-  // dropped: it was served before that receipt landed and would put back
-  // the row the viewer just removed or marked, until the next poll.
+  // Counts the receipt writes begun, and how many are still on their way.
+  // A poll that began or ended while a write was pending, or after one
+  // began, is dropped: it may have been served before that receipt landed
+  // and would put back the row the viewer just removed or marked, until the
+  // next poll. The last write to settle re-reads the feed once.
   let writes = 0;
+  let pending = 0;
 
   function commit(alerts: AlertRow[]) {
     snapshot = { alerts, unread: alerts.filter((a) => !a.read).length, loaded: true };
@@ -81,12 +84,13 @@ export function createAlertsFeed(options: AlertsFeedOptions = {}): AlertsFeed {
 
   async function refreshAlerts(): Promise<void> {
     const begunAfter = writes;
+    if (pending > 0) return;
     try {
       const res = await fetch(feedPath, { cache: "no-store" });
       if (!res.ok) return;
       const body = (await res.json()) as { alerts?: unknown };
       if (!Array.isArray(body.alerts) || !body.alerts.every(isAlertRow)) return;
-      if (writes !== begunAfter) return;
+      if (writes !== begunAfter || pending > 0) return;
       commit(body.alerts);
     } catch {
       // keep the last snapshot
@@ -97,11 +101,14 @@ export function createAlertsFeed(options: AlertsFeedOptions = {}): AlertsFeed {
 
   async function post(path: string, body: unknown): Promise<boolean> {
     writes++;
+    pending++;
     try {
       const res = await fetch(path, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
       return res.ok;
     } catch {
       return false;
+    } finally {
+      pending--;
     }
   }
 

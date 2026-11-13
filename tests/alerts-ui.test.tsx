@@ -71,6 +71,17 @@ describe("the feed", () => {
     // al_1 is still off the list: a second remove finds nothing to post.
     expect((await feed.removeAlerts(["al_1"])).removed).toEqual([]);
     expect(calls(fetchMock, "/api/alerts/dismiss").length).toBe(1);
+    // A poll that begins while a write is still on its way is dropped too,
+    // even when the server answers it before the receipt lands.
+    let answerPost: (r: Response) => void = () => {};
+    fetchMock.mockImplementationOnce(() => new Promise<Response>((resolve) => (answerPost = resolve)));
+    const marking = feed.setAlertsRead(["al_2"], false);
+    fetchMock.mockResolvedValueOnce(jsonResponse(feedBody(alert({ id: "al_2", readBy: [VIEWER], message: "ana marked Work Item: Champions done." }))));
+    await feed.refreshAlerts();
+    answerPost(jsonResponse({}));
+    expect(await marking).toBe(true);
+    expect((await feed.setAlertsRead(["al_2"], false)).valueOf()).toBe(true);
+    expect(calls(fetchMock, "/api/alerts/read").length).toBe(1);
     // The server now agrees; mounting the list polls once more.
     fetchMock.mockResolvedValue(jsonResponse(feedBody(alert({ id: "al_2", readBy: [VIEWER], message: "ana marked Work Item: Champions done." }))));
     render(<AlertsManager feed={feed} tab="all" />);
