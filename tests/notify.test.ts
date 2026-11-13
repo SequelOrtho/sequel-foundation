@@ -94,6 +94,19 @@ describe("deliverEmail", () => {
     expect(await deliverEmail(message, { env: ENV, fetchImpl: fetchMock })).toBe("sent");
     expect(fetchMock).toHaveBeenCalledTimes(4);
   });
+  it("a second refusal inside the minute keeps the token — one extra token request per minute, not per refusal", async () => {
+    const refused = () => new Response(JSON.stringify({ error: { code: "ErrorAccessDenied", message: "denied" } }), { status: 403 });
+    const fetchMock = vi.fn().mockResolvedValueOnce(token()).mockResolvedValueOnce(refused()).mockResolvedValueOnce(token()).mockResolvedValueOnce(refused()).mockResolvedValueOnce(refused());
+    expect(await deliverEmail(message, { env: ENV, fetchImpl: fetchMock })).toBe("failed");
+    expect(await deliverEmail(message, { env: ENV, fetchImpl: fetchMock })).toBe("failed");
+    // token, send, token (forgotten after the first 403), send
+    expect(fetchMock).toHaveBeenCalledTimes(4);
+    expect(await deliverEmail(message, { env: ENV, fetchImpl: fetchMock })).toBe("failed");
+    // the token was kept this time: send only
+    expect(fetchMock).toHaveBeenCalledTimes(5);
+    expect(String(fetchMock.mock.calls[4][0])).toContain("/sendMail");
+    noAddress();
+  });
   it("a refused token request and a network error both read as failed", async () => {
     const fetchMock = vi.fn().mockResolvedValueOnce(new Response(JSON.stringify({ error: "invalid_client", error_description: "x ana@sequelortho.com" }), { status: 401 }));
     expect(await deliverEmail(message, { env: ENV, fetchImpl: fetchMock })).toBe("failed");

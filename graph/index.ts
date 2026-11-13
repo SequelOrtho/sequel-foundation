@@ -9,6 +9,8 @@ export {
   readGraphCreds,
   getGraphToken,
   resetGraphTokenCache,
+  forgetRefusedGraphToken,
+  REFUSAL_RESET_INTERVAL_MS,
   sendMail,
   allDayEventBody,
   createCalendarEvent,
