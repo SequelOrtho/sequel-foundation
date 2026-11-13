@@ -206,6 +206,37 @@ describe("AlertsManager", () => {
       vi.useRealTimers();
     }
   });
+  it("a second removal replaces the strip and restarts its window", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      render(<AlertsManager feed={feed} tab="all" />);
+      await screen.findByRole("link", { name: /RACI matrix/ });
+      await act(async () => {
+        fireEvent.click(screen.getAllByRole("button", { name: "Remove" })[1]);
+      });
+      expect(screen.queryByText("Alert removed from your list")).not.toBeNull();
+      await act(async () => {
+        vi.advanceTimersByTime(UNDO_WINDOW_MS - 60_000);
+      });
+      // The second removal (the one row left) replaces the strip …
+      await act(async () => {
+        fireEvent.click(screen.getAllByRole("button", { name: "Remove" }).at(-1)!);
+      });
+      expect(bodyOf(calls(fetchMock, "/api/alerts/dismiss").at(-1)!)).toEqual({ ids: ["al_2"], dismissed: true });
+      // … and its window starts afresh: still there past the first one's end …
+      await act(async () => {
+        vi.advanceTimersByTime(2 * 60_000);
+      });
+      expect(screen.queryByText("Alert removed from your list")).not.toBeNull();
+      // … and gone once its own 30 minutes are up.
+      await act(async () => {
+        vi.advanceTimersByTime(UNDO_WINDOW_MS);
+      });
+      expect(screen.queryByText("Alert removed from your list")).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
   it("Mark All Read on the list posts every unread id and is disabled once nothing is unread", async () => {
     render(<AlertsManager feed={feed} tab="all" />);
     await screen.findByRole("link", { name: /RACI matrix/ });
