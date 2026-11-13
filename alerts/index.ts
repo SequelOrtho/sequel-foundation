@@ -137,7 +137,12 @@ export const ALERT_RETENTION_DAYS = 90;
 /** The alerts a purge may erase: older than `retentionDays`, or removed by
  *  every recipient. Everything else stays — an alert one recipient still has
  *  on their list is never erased for another's tidying (Sequel_Ortho #235,
- *  F8: a feed that lists every alert on every poll and never purges). */
+ *  F8: a feed that lists every alert on every poll and never purges).
+ *  "Removed by every recipient" compares the recipient keys with the
+ *  dismissal stamps, and a stamp is the identity key; an alert addressed to
+ *  a person's OTHER address (a hub that lets a task name one) is therefore
+ *  held until the retention, never by the dismissal — accepted, since the
+ *  retention erases it either way. */
 export function expiredAlerts<A extends HubAlertBase>(all: readonly A[], now: Date, retentionDays = ALERT_RETENTION_DAYS): A[] {
   const cutoff = now.getTime() - retentionDays * 86_400_000;
   return all.filter((a) => {
@@ -146,3 +151,9 @@ export function expiredAlerts<A extends HubAlertBase>(all: readonly A[], now: Da
     return a.recipients.length > 0 && a.recipients.every((r) => a.dismissedBy.includes(r));
   });
 }
+
+// The feed's row shape and the helpers a server page or route needs
+// (`rowsFor` for the feed route, `pickAlertTab` for the list page) live in
+// ./rows, which carries no "use client" directive.
+export { ALERT_TABS, POLL_IDLE_MS, POLL_MS, alertStamp, isAlertRow, pickAlertTab, pollAllowed, rowsFor } from "./rows";
+export type { AlertRow, AlertTab } from "./rows";

@@ -61,7 +61,13 @@ export function withinAllowedDomains(addresses: readonly string[], domainsConfig
   const domains = parseDomains(domainsConfig);
   if (domains.length === 0) return [...addresses];
   return addresses.filter((a) => {
-    const domain = a.toLowerCase().split("@")[1];
+    // One "@" exactly, with a local part before it and no character a single
+    // bare address never carries: "x@sequelortho.com@evil.com" read as
+    // sequelortho.com when the domain was what followed the FIRST "@", and
+    // a display-name form ("Ana <ana@evil.com>") is not an address at all.
+    const at = a.lastIndexOf("@");
+    if (at <= 0 || a.indexOf("@") !== at || /[\s<>,;"()]/.test(a)) return false;
+    const domain = a.slice(at + 1).toLowerCase();
     return !!domain && domains.includes(domain);
   });
 }

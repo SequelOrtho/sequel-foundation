@@ -3,24 +3,23 @@
 import Link from "next/link";
 import { useState, type ReactNode } from "react";
 import { Button } from "../ui/Button";
+import { Callout } from "../ui/Callout";
 import { Tabs } from "../ui/Tabs";
 import { toastError, toastUndo } from "../ui/toast/store";
-import { alertStamp, type AlertRow, type AlertsFeed } from "./client";
+import type { AlertsFeed } from "./client";
+import { alertStamp, type AlertRow, type AlertTab } from "./rows";
 
 // The full alerts list (DESIGN-CONVENTIONS §3 "In-app alerts", v0.39.0):
 // Unread / All tabs in the URL, checkbox selection with Select all shown,
-// bulk Mark Read / Mark Unread / Remove and the same per row; Remove is
-// undoable (the toast carries Undo) and changes only the reader's own list.
+// bulk Mark Read / Mark Unread / Remove plus Mark All Read, and the same
+// three per row; Remove is undoable — the toast carries Undo, and an inline
+// strip keeps the same Undo on screen past the toast's lifetime — and
+// changes only the reader's own list. `AlertTab`, `ALERT_TABS` and
+// `pickAlertTab` live in ./rows (no "use client"), so a server page can
+// read `?tab=` with them.
 
-export type AlertTab = "unread" | "all";
-
-export const ALERT_TABS: readonly AlertTab[] = ["unread", "all"];
-
-/** The `?tab=` word, held to the allow-list; anything else is "unread". */
-export function pickAlertTab(raw: string | string[] | null | undefined): AlertTab {
-  const v = Array.isArray(raw) ? raw[0] : raw;
-  return v === "all" ? "all" : "unread";
-}
+export { ALERT_TABS, pickAlertTab } from "./rows";
+export type { AlertTab } from "./rows";
 
 const TAB_DEFS = [
   { key: "unread", label: "Unread" },
@@ -37,12 +36,18 @@ export type AlertsManagerProps = {
   emptyHint?: ReactNode;
   /** Formats an alert's time; default `alertStamp` (Central). */
   stamp?: (iso: string) => string;
+  /** The Undo strip's sentence after a removal; default says only the
+   *  reader's own list changed. A hub may name what else is untouched. */
+  removedNote?: ReactNode;
 };
 
-export function AlertsManager({ feed, tab, basePath = "/alerts", emptyHint, stamp = alertStamp }: AlertsManagerProps) {
-  const { alerts, loaded } = feed.useHubAlerts();
+const DEFAULT_REMOVED_NOTE = "Only your list changed — nobody else's alerts and nothing the alert is about were touched.";
+
+export function AlertsManager({ feed, tab, basePath = "/alerts", emptyHint, stamp = alertStamp, removedNote = DEFAULT_REMOVED_NOTE }: AlertsManagerProps) {
+  const { alerts, unread, loaded } = feed.useHubAlerts();
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [busy, setBusy] = useState<"read" | "unread" | "remove" | null>(null);
+  const [busy, setBusy] = useState<"read" | "unread" | "remove" | "all-read" | "undo" | null>(null);
+  const [undo, setUndo] = useState<AlertRow[] | null>(null);
   const rows = tab === "unread" ? alerts.filter((a) => !a.read) : alerts;
   const picked = rows.filter((r) => selected.has(r.id));
   const allPicked = rows.length > 0 && picked.length === rows.length;
@@ -64,6 +69,24 @@ export function AlertsManager({ feed, tab, basePath = "/alerts", emptyHint, stam
     else setSelected(new Set());
   }
 
+  async function markAllRead() {
+    setBusy("all-read");
+    const ok = await feed.markAllAlertsRead();
+    setBusy(null);
+    if (!ok) toastError("Couldn't update the alerts. Try again.");
+    else setSelected(new Set());
+  }
+
+  // The toast carries Undo for its lifetime; the strip below keeps the same
+  // Undo on screen for whoever misses it, until the next removal replaces it.
+  async function restore(rows: AlertRow[]) {
+    setUndo(null);
+    setBusy("undo");
+    const back = await feed.restoreAlerts(rows);
+    setBusy(null);
+    if (!back) toastError("Couldn't put the alerts back.");
+  }
+
   async function remove(target: AlertRow[]) {
     setBusy("remove");
     const { ok, removed } = await feed.removeAlerts(target.map((r) => r.id));
@@ -73,15 +96,23 @@ export function AlertsManager({ feed, tab, basePath = "/alerts", emptyHint, stam
       return;
     }
     setSelected(new Set());
-    toastUndo(removed.length === 1 ? "Alert removed" : `${removed.length} alerts removed`, async () => {
-      const back = await feed.restoreAlerts(removed);
-      if (!back) toastError("Couldn't put the alerts back.");
-    });
+    setUndo(removed);
+    toastUndo(removed.length === 1 ? "Alert removed from your list" : `${removed.length} alerts removed from your list`, () => void restore(removed));
   }
 
   return (
     <div className="mt-4">
       <Tabs basePath={basePath} tabs={[...TAB_DEFS]} active={tab} defaultTab="unread" label="Alert views" />
+      {undo && undo.length > 0 && (
+        <Callout tone="info" className="mt-3" title={undo.length === 1 ? "Alert removed from your list" : `${undo.length} alerts removed from your list`}>
+          <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
+            <span>{removedNote}</span>
+            <Button type="button" size="sm" variant="outline" disabled={busy !== null && busy !== "undo"} busy={busy === "undo"} onClick={() => void restore(undo)}>
+              Undo
+            </Button>
+          </span>
+        </Callout>
+      )}
       <div className="mt-3 flex flex-wrap items-center gap-2">
         <label className="inline-flex items-center gap-2 text-sm">
           <input
@@ -123,6 +154,16 @@ export function AlertsManager({ feed, tab, basePath = "/alerts", emptyHint, stam
             onClick={() => void remove(picked)}
           >
             Remove
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            disabled={unread === 0 || (busy !== null && busy !== "all-read")}
+            busy={busy === "all-read"}
+            onClick={() => void markAllRead()}
+          >
+            Mark All Read
           </Button>
         </span>
       </div>

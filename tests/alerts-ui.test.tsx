@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { AlertsBell, AlertsManager, createAlertsFeed, pickAlertTab, pollAllowed, rowsFor, POLL_IDLE_MS } from "../alerts/ui";
-import type { HubAlertBase } from "../alerts";
+import { AlertsBell, AlertsManager, createAlertsFeed, pickAlertTab, pollAllowed, POLL_IDLE_MS } from "../alerts/ui";
+import { rowsFor, isAlertRow, type AlertRow, type HubAlertBase } from "../alerts";
 import { resetUnreadBadgeForTests } from "../testing/unread-badge";
 
 // The client half (DESIGN-CONVENTIONS §3 "In-app alerts"): the bell and the
@@ -15,6 +15,8 @@ const feed = createAlertsFeed();
 function alert(over: Partial<HubAlertBase> = {}): HubAlertBase {
   return { id: "al_1", createdAt: "2026-11-13T15:00:00.000Z", message: "mike assigned you Work Item: RACI matrix.", href: "/my-tasks", recipients: [VIEWER], readBy: [], dismissedBy: [], ...over };
 }
+/** What the hub's feed route answers: rows made on the server. */
+const feedBody = (...alerts: HubAlertBase[]) => ({ alerts: rowsFor(alerts, VIEWER) });
 const jsonResponse = (body: unknown, ok = true) => ({ ok, status: ok ? 200 : 500, json: async () => body }) as unknown as Response;
 const calls = (fetchMock: ReturnType<typeof vi.fn>, url: string) => fetchMock.mock.calls.filter(([u]) => u === url) as [string, RequestInit][];
 const bodyOf = (c: [string, RequestInit]) => JSON.parse(c[1].body as string);
@@ -23,7 +25,7 @@ let fetchMock: ReturnType<typeof vi.fn>;
 beforeEach(() => {
   feed.resetForTests();
   resetUnreadBadgeForTests();
-  fetchMock = vi.fn().mockResolvedValue(jsonResponse({ alerts: [alert(), alert({ id: "al_2", readBy: [VIEWER], message: "ana marked Work Item: Champions done." })], viewer: VIEWER }));
+  fetchMock = vi.fn().mockResolvedValue(jsonResponse(feedBody(alert(), alert({ id: "al_2", readBy: [VIEWER], message: "ana marked Work Item: Champions done." }))));
   vi.stubGlobal("fetch", fetchMock);
 });
 afterEach(() => {
@@ -32,12 +34,29 @@ afterEach(() => {
 });
 
 describe("the feed", () => {
-  it("turns receipts into the viewer's read flag and polls only after recent input", () => {
-    expect(rowsFor([alert(), alert({ id: "al_2", readBy: [VIEWER] })], VIEWER).map((r) => r.read)).toEqual([false, true]);
+  it("turns receipts into the viewer's read flag on the server, carrying no recipient or receipt, and polls only after recent input", () => {
+    const rows = rowsFor([alert({ recipients: [VIEWER, "mike@sequelortho.com"], readBy: ["mike@sequelortho.com"] }), alert({ id: "al_2", readBy: ["ana.alt@sequelortho.com"] })], [VIEWER, "ana.alt@sequelortho.com"]);
+    expect(rows.map((r) => r.read)).toEqual([false, true]);
+    expect(Object.keys(rows[0]).sort()).toEqual(["createdAt", "href", "id", "message", "read"]);
+    expect(JSON.stringify(rows)).not.toMatch(/mike@|ana\.alt|recipients|readBy|dismissedBy/);
+    expect(isAlertRow(rows[0])).toBe(true);
+    expect(isAlertRow(alert())).toBe(false);
     expect(pollAllowed(1_000_000, 1_000_000 - POLL_IDLE_MS + 1)).toBe(true);
     expect(pollAllowed(1_000_000, 1_000_000 - POLL_IDLE_MS)).toBe(false);
     expect(pickAlertTab("all")).toBe("all");
     expect(pickAlertTab("x")).toBe("unread");
+  });
+  it("ignores a feed answer that is not rows (the old `{ alerts, viewer }` shape included) and keeps the last snapshot", async () => {
+    await feed.refreshAlerts();
+    fetchMock.mockResolvedValueOnce(jsonResponse({ alerts: [alert({ id: "al_9" })], viewer: VIEWER }));
+    await feed.refreshAlerts();
+    fetchMock.mockResolvedValueOnce(jsonResponse({ alerts: "x" }));
+    await feed.refreshAlerts();
+    render(<AlertsBell feed={feed} />);
+    expect(await screen.findByRole("button", { name: "Alerts — 1 unread" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Alerts — 1 unread" }));
+    expect(screen.queryByText(/al_9/)).toBeNull();
+    expect(screen.getAllByRole("listitem").length).toBe(2);
   });
   it("a refused receipt rolls back", async () => {
     await feed.refreshAlerts();
@@ -54,6 +73,10 @@ describe("the feed", () => {
     expect(bodyOf(calls(fetchMock, "/api/alerts/dismiss")[0])).toEqual({ ids: ["al_1"], dismissed: true });
     expect(await feed.restoreAlerts(removed)).toBe(true);
     expect(bodyOf(calls(fetchMock, "/api/alerts/dismiss").at(-1)!)).toEqual({ ids: ["al_1"], dismissed: false });
+    // Removing counted as having read, so the row comes back read — as the
+    // next poll shows it — and the count stays at zero until it is re-read.
+    render(<AlertsBell feed={feed} />);
+    expect(await screen.findByRole("button", { name: "Alerts" })).toBeTruthy();
   });
 });
 
@@ -78,6 +101,7 @@ describe("AlertsBell", () => {
   it("Mark All Read posts every unread id; Escape closes the list and returns focus to the bell", async () => {
     render(<AlertsBell feed={feed} />);
     const bell = await screen.findByRole("button", { name: "Alerts — 1 unread" });
+    expect(screen.getByText("Alerts: 1 unread")).toBeTruthy();
     fireEvent.click(bell);
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "Mark All Read" }));
@@ -104,9 +128,30 @@ describe("AlertsManager", () => {
     });
     expect(bodyOf(calls(fetchMock, "/api/alerts/dismiss")[0])).toEqual({ ids: ["al_1"], dismissed: true });
     expect(screen.getAllByRole("listitem").length).toBe(1);
+    // The strip keeps the same Undo on screen past the toast and says only
+    // the reader's own list changed; Undo puts the row back (read).
+    const strip = screen.getByRole("status", { name: "" });
+    expect(strip.textContent).toContain("Alert removed from your list");
+    expect(strip.textContent).toContain("Only your list changed");
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Undo" }));
+    });
+    expect(bodyOf(calls(fetchMock, "/api/alerts/dismiss").at(-1)!)).toEqual({ ids: ["al_1"], dismissed: false });
+    expect(screen.getAllByRole("listitem").length).toBe(2);
+    expect(screen.queryByText("Only your list changed", { exact: false })).toBeNull();
+  });
+  it("Mark All Read on the list posts every unread id and is disabled once nothing is unread", async () => {
+    render(<AlertsManager feed={feed} tab="all" />);
+    await screen.findByRole("link", { name: /RACI matrix/ });
+    const all = screen.getByRole("button", { name: "Mark All Read" });
+    await act(async () => {
+      fireEvent.click(all);
+    });
+    expect(bodyOf(calls(fetchMock, "/api/alerts/read")[0])).toEqual({ ids: ["al_1"], read: true });
+    expect((screen.getByRole("button", { name: "Mark All Read" }) as HTMLButtonElement).disabled).toBe(true);
   });
   it("the unread tab's empty state carries the hub's hint", async () => {
-    fetchMock.mockResolvedValue(jsonResponse({ alerts: [alert({ readBy: [VIEWER] })], viewer: VIEWER }));
+    fetchMock.mockResolvedValue(jsonResponse(feedBody(alert({ readBy: [VIEWER] }))));
     render(<AlertsManager feed={feed} tab="unread" emptyHint="See My Tasks." />);
     expect((await screen.findByText(/Nothing unread\./)).textContent).toContain("See My Tasks.");
   });

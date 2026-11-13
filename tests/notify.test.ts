@@ -46,6 +46,9 @@ describe("resolveDeliveryMode / lists", () => {
     expect(parseAddressList(" a@x.co, ,b@x.co ")).toEqual(["a@x.co", "b@x.co"]);
     expect(withinAllowedDomains(["a@x.co", "b@y.co"], undefined)).toEqual(["a@x.co", "b@y.co"]);
     expect(withinAllowedDomains(["a@x.co", "B@Y.CO", "bad"], "y.co, Z.co")).toEqual(["B@Y.CO"]);
+    // The domain is what follows the one "@": a second "@", a display-name
+    // form or a space is not one address inside the list.
+    expect(withinAllowedDomains(["x@y.co@evil.co", "Ana <ana@y.co>", "a b@y.co", "@y.co", '"a@y.co"@evil.co', "ok@y.co"], "y.co")).toEqual(["ok@y.co"]);
   });
   it("graphSendIssue names the setting to fix", () => {
     expect(graphSendIssue({})).toBe("NOTIFY_MODE=graph but NOTIFY_FROM is not set");

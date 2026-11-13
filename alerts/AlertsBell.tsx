@@ -100,7 +100,7 @@ export function AlertsBell({
         )}
       </IconButton>
       <span aria-live="polite" className="sr-only">
-        {unread} unread alerts
+        {title}: {unread} unread
       </span>
       {open && (
         <div

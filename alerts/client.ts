@@ -1,7 +1,7 @@
 "use client";
 
 import { useSyncExternalStore } from "react";
-import type { HubAlertBase } from "./index";
+import { isAlertRow, pollAllowed, POLL_MS, type AlertRow } from "./rows";
 
 // The in-app alerts feed for the signed-in person, the client half
 // (DESIGN-CONVENTIONS §3 "In-app alerts"; the Missed Punch Hub's
@@ -19,39 +19,15 @@ import type { HubAlertBase } from "./index";
 // and imports it everywhere; the feed holds module state, so two feeds for
 // the same endpoint would poll twice and disagree.
 
-export type AlertRow = {
-  id: string;
-  createdAt: string;
-  message: string;
-  href: string;
-  read: boolean;
-};
+export type { AlertRow } from "./rows";
+export { POLL_MS, POLL_IDLE_MS, pollAllowed, rowsFor, alertStamp } from "./rows";
 
 export type AlertsSnapshot = { alerts: AlertRow[]; unread: number; loaded: boolean };
 
-export const POLL_MS = 60_000;
-export const POLL_IDLE_MS = 10 * 60_000;
-
-/** True while someone has clicked or typed in this tab recently, visible or not. */
-export function pollAllowed(now: number, input: number): boolean {
-  return now - input < POLL_IDLE_MS;
-}
-
-/** The feed's rows for one viewer: a receipt list becomes a flag. The viewer
- *  is the identity key the server stamps receipts under. */
-export function rowsFor<A extends HubAlertBase>(alerts: readonly A[], viewer: string): AlertRow[] {
-  return alerts.map((a) => ({
-    id: a.id,
-    createdAt: a.createdAt,
-    message: a.message,
-    href: a.href,
-    read: a.readBy.includes(viewer),
-  }));
-}
-
 export type AlertsFeedOptions = {
-  /** GET: `{ alerts, viewer }` — the viewer's alerts and the identity key
-   *  their receipts are stamped under. Default "/api/alerts". */
+  /** GET: `{ alerts: AlertRow[] }` — the viewer's own rows, each with
+   *  their read flag, made on the server with `rowsFor` (the feed never
+   *  carries the other recipients or their receipts). Default "/api/alerts". */
   feedPath?: string;
   /** POST `{ ids, read }`. Default "/api/alerts/read". */
   readPath?: string;
@@ -101,9 +77,9 @@ export function createAlertsFeed(options: AlertsFeedOptions = {}): AlertsFeed {
     try {
       const res = await fetch(feedPath, { cache: "no-store" });
       if (!res.ok) return;
-      const body = (await res.json()) as { alerts?: HubAlertBase[]; viewer?: string };
-      if (!Array.isArray(body.alerts) || typeof body.viewer !== "string") return;
-      commit(rowsFor(body.alerts, body.viewer));
+      const body = (await res.json()) as { alerts?: unknown };
+      if (!Array.isArray(body.alerts) || !body.alerts.every(isAlertRow)) return;
+      commit(body.alerts);
     } catch {
       // keep the last snapshot
     }
@@ -151,7 +127,9 @@ export function createAlertsFeed(options: AlertsFeedOptions = {}): AlertsFeed {
     if (rows.length === 0) return true;
     const before = snapshot.alerts;
     const present = new Set(before.map((a) => a.id));
-    const merged = [...before, ...rows.filter((r) => !present.has(r.id))].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    // Removing also counted as having read (the receipt rule), so a row
+    // comes back read, as the next poll would show it.
+    const merged = [...before, ...rows.filter((r) => !present.has(r.id)).map((r) => ({ ...r, read: true }))].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
     commit(merged);
     const ok = await post(dismissPath, { ids: rows.map((a) => a.id), dismissed: false });
     if (!ok) commit(before);
@@ -208,18 +186,4 @@ export function createAlertsFeed(options: AlertsFeedOptions = {}): AlertsFeed {
       snapshot = EMPTY;
     },
   };
-}
-
-const STAMP = new Intl.DateTimeFormat("en-US", {
-  timeZone: "America/Chicago",
-  month: "short",
-  day: "numeric",
-  hour: "numeric",
-  minute: "2-digit",
-});
-
-/** An alert's time, Central, short ("Nov 13, 9:05 AM"); "" for a bad date. */
-export function alertStamp(iso: string): string {
-  const d = new Date(iso);
-  return Number.isNaN(d.getTime()) ? "" : STAMP.format(d);
 }

@@ -7,6 +7,8 @@ import {
   markAlerts,
   readReceiptBody,
   unreadCount,
+  pickAlertTab,
+  rowsFor,
   type AlertStore,
   type HubAlertBase,
 } from "../alerts";
@@ -63,6 +65,15 @@ describe("alertsFor / unreadCount", () => {
     const mine = alertsFor(all, ["ana@x.co", "ana.alt@x.co"]);
     expect(mine.map((a) => a.id)).toEqual(["a2", "a1"]);
     expect(unreadCount(mine, ["ana@x.co", "ana.alt@x.co"])).toBe(1);
+  });
+});
+
+describe("rowsFor / pickAlertTab from the pure barrel", () => {
+  it("are importable without a client directive and read the identity's receipts", () => {
+    const rows = rowsFor([mk("a1", ["ana@x.co", "mike@x.co"], { readBy: ["ana@x.co"] })], "ana@x.co");
+    expect(rows).toEqual([{ id: "a1", createdAt: "2026-11-13T11:00:00.000Z", message: "Alert a1", href: "/my-tasks", read: true }]);
+    expect(pickAlertTab(["all"])).toBe("all");
+    expect(pickAlertTab(undefined)).toBe("unread");
   });
 });
 
