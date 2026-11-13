@@ -1,11 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Button } from "../ui/Button";
 import { Callout } from "../ui/Callout";
 import { Tabs } from "../ui/Tabs";
 import { toastError, toastUndo } from "../ui/toast/store";
+import { UNDO_WINDOW_MS } from "../undo/window";
 import type { AlertsFeed } from "./client";
 import type { AlertRow } from "./index";
 import { alertStamp, type AlertTab } from "./rows";
@@ -14,7 +15,10 @@ import { alertStamp, type AlertTab } from "./rows";
 // Unread / All tabs in the URL, checkbox selection with Select all shown,
 // bulk Mark Read / Mark Unread / Remove plus Mark All Read, and the same
 // three per row; Remove is undoable — the toast carries Undo, and an inline
-// strip keeps the same Undo on screen past the toast's lifetime — and
+// strip keeps the same Undo on screen past the toast's lifetime, until the
+// family Undo window (30 minutes, `UNDO_WINDOW_MS`) closes or the next
+// removal replaces it (owner ruling 2026-11-13, Mike: "1-fix the
+// foundation", asked whether the strip should expire with the window) — and
 // changes only the reader's own list. `AlertTab`, `ALERT_TABS` and
 // `pickAlertTab` live in ./rows (no "use client"), so a server page can
 // read `?tab=` with them.
@@ -79,7 +83,15 @@ export function AlertsManager({ feed, tab, basePath = "/alerts", emptyHint, stam
   }
 
   // The toast carries Undo for its lifetime; the strip below keeps the same
-  // Undo on screen for whoever misses it, until the next removal replaces it.
+  // Undo on screen for whoever misses it, until the next removal replaces it
+  // or the Undo window closes: the hub's purge may erase an alert removed by
+  // everyone once that window has passed, so an older Undo could only fail.
+  useEffect(() => {
+    if (!undo) return;
+    const timer = setTimeout(() => setUndo(null), UNDO_WINDOW_MS);
+    return () => clearTimeout(timer);
+  }, [undo]);
+
   async function restore(rows: AlertRow[]) {
     setUndo(null);
     setBusy("undo");
