@@ -44,6 +44,10 @@ export function AlertsBell({
   stamp = alertStamp,
 }: AlertsBellProps) {
   const { alerts, unread, loaded } = feed.useHubAlerts();
+  // The button and the open list share one name: the title, with the unread
+  // count while there is one (owner ruling 2026-11-13: the popover names the
+  // count too).
+  const name = unread > 0 ? `${title} — ${unread} unread` : title;
   const [open, setOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement | null>(null);
   const panelRef = useFitInViewport<HTMLDivElement>(open);
@@ -82,7 +86,7 @@ export function AlertsBell({
     >
       <UnreadBadge count={unread} />
       <IconButton
-        label={unread > 0 ? `${title} — ${unread} unread` : title}
+        label={name}
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
         aria-controls={open ? panelId : undefined}
@@ -107,7 +111,7 @@ export function AlertsBell({
           ref={panelRef}
           id={panelId}
           role="region"
-          aria-label={title}
+          aria-label={name}
           className="absolute right-0 z-40 mt-2 w-80 rounded-lg border border-zinc-200 bg-white p-3 text-left shadow-lg dark:border-zinc-700 dark:bg-zinc-900"
         >
           <div className="flex items-center justify-between gap-2">

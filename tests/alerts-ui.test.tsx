@@ -125,7 +125,8 @@ describe("AlertsBell", () => {
     const bell = await screen.findByRole("button", { name: "Task alerts — 1 unread" });
     expect(document.title.startsWith("(1)")).toBe(true);
     fireEvent.click(bell);
-    expect(screen.getByRole("region", { name: "Task alerts" })).toBeTruthy();
+    // The open list carries the count in its name too.
+    expect(screen.getByRole("region", { name: "Task alerts — 1 unread" })).toBeTruthy();
     const link = screen.getByRole("link", { name: /RACI matrix/ });
     expect(link.getAttribute("href")).toBe("/my-tasks");
     expect(screen.getByRole("link", { name: "Open My Tasks" }).getAttribute("href")).toBe("/my-tasks");
@@ -134,7 +135,7 @@ describe("AlertsBell", () => {
     await waitFor(() => expect(calls(fetchMock, "/api/alerts/read").length).toBe(1));
     expect(bodyOf(calls(fetchMock, "/api/alerts/read")[0])).toEqual({ ids: ["al_1"], read: true });
     expect(await screen.findByRole("button", { name: "Task alerts" })).toBeTruthy();
-    expect(screen.queryByRole("region", { name: "Task alerts" })).toBeNull();
+    expect(screen.queryByRole("region", { name: /Task alerts/ })).toBeNull();
   });
   it("Mark All Read posts every unread id; Escape closes the list and returns focus to the bell", async () => {
     render(<AlertsBell feed={feed} />);
@@ -145,6 +146,7 @@ describe("AlertsBell", () => {
       fireEvent.click(screen.getByRole("button", { name: "Mark All Read" }));
     });
     expect(bodyOf(calls(fetchMock, "/api/alerts/read")[0])).toEqual({ ids: ["al_1"], read: true });
+    // After Mark All Read nothing is unread, so the list's name is the title alone.
     fireEvent.keyDown(screen.getByRole("region", { name: "Alerts" }), { key: "Escape" });
     expect(screen.queryByRole("region", { name: "Alerts" })).toBeNull();
     expect(document.activeElement).toBe(bell);
