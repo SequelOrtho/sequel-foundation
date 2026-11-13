@@ -1,4 +1,4 @@
-import { getGraphToken, readGraphCreds, resetGraphTokenCache, SEND_BUDGET_MS, sendMail, type GraphCreds } from "../graph/client";
+import { forgetRefusedGraphToken, getGraphToken, readGraphCreds, SEND_BUDGET_MS, sendMail, type GraphCreds } from "../graph/client";
 
 // The family email seam (v0.39.0; the Scheduler Hub's pattern, as carried by
 // the Market Expansion Hub's lib/notify/mail.ts):
@@ -148,10 +148,11 @@ export async function deliverEmail(message: EmailMessage, opts: DeliverOptions =
       { fetchImpl, signal, docsHint: opts.docsHint },
     );
     if (!out.ok) {
-      // A 401 / 403 means the cached app token is no longer good for this —
+      // A 401 / 403 may mean the cached app token is no longer good for this —
       // consent granted after it was issued, or revoked since — so the next
-      // send asks Entra for a fresh one.
-      if (out.status === 401 || out.status === 403) resetGraphTokenCache();
+      // send asks Entra for a fresh one; at most once a minute, so a permission
+      // that is simply missing doesn't cost a token request per refusal.
+      if (out.status === 401 || out.status === 403) forgetRefusedGraphToken();
       // out.message carries the status, Graph's error CODE and the permission
       // to check — never Graph's free text, which can quote a recipient.
       console.warn(`${tag} not sent: "${message.subject}"${ref} to ${count} — ${out.message}`);

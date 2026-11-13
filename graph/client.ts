@@ -85,12 +85,31 @@ export function readGraphCreds(env: Record<string, string | undefined> = process
 type CachedToken = { key: string; token: string; expiresAt: number };
 let cached: CachedToken | null = null;
 
-/** Forget the cached app token. A send answered 401 / 403 calls this, so the
- *  next send asks Entra for a fresh token instead of failing for up to an
- *  hour on a stale one (consent granted after it was issued, or revoked
- *  since — Sequel_Ortho #236, F7); tests call it between cases. */
+/** Forget the cached app token, and the refusal throttle with it; tests
+ *  call it between cases. A refused Graph call goes through
+ *  `forgetRefusedGraphToken` instead. */
 export function resetGraphTokenCache(): void {
   cached = null;
+  lastRefusalReset = 0;
+}
+
+/** A 401 / 403 from Graph may mean the cached app token has gone stale (a
+ *  rotated secret, a consent granted since — Sequel_Ortho #236, F7).
+ *  Forgetting it lets the next call request a fresh one — but a permission
+ *  that is simply missing would then cost an extra token request on every
+ *  refusal, so the forget is throttled to once a minute (Sequel_Ortho #236,
+ *  F11; v0.39.2 — the mail path and the hubs' directory searches share it). */
+export const REFUSAL_RESET_INTERVAL_MS = 60_000;
+
+let lastRefusalReset = 0;
+
+/** Forgets the cached Graph token, at most once per REFUSAL_RESET_INTERVAL_MS.
+ *  Returns whether it did. */
+export function forgetRefusedGraphToken(now = Date.now()): boolean {
+  if (now - lastRefusalReset < REFUSAL_RESET_INTERVAL_MS) return false;
+  lastRefusalReset = now;
+  cached = null;
+  return true;
 }
 
 /** An app-only token, reused across calls until shortly before it expires

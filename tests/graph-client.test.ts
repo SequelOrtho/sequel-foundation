@@ -4,7 +4,9 @@ import {
   createCalendarEvent,
   deleteCalendarEvent,
   errorCodeOf,
+  forgetRefusedGraphToken,
   getGraphToken,
+  REFUSAL_RESET_INTERVAL_MS,
   readGraphCreds,
   resetGraphTokenCache,
   sendMail,
@@ -93,6 +95,26 @@ describe("getGraphToken", () => {
     await getGraphToken(creds, noTtl);
     await getGraphToken(creds, noTtl);
     expect(noTtl).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("forgetRefusedGraphToken", () => {
+  it("forgets the cached token at most once a minute, and resetGraphTokenCache clears the throttle", async () => {
+    const tokenRes = () => new Response(JSON.stringify({ access_token: "tok", expires_in: 3600 }), { status: 200 });
+    const fetchMock = vi.fn().mockImplementation(async () => tokenRes());
+    await getGraphToken(creds, fetchMock);
+    expect(forgetRefusedGraphToken(1_000_000)).toBe(true);
+    await getGraphToken(creds, fetchMock);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    // A second refusal inside the minute keeps the token: no extra request.
+    expect(forgetRefusedGraphToken(1_000_000 + REFUSAL_RESET_INTERVAL_MS - 1)).toBe(false);
+    await getGraphToken(creds, fetchMock);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(forgetRefusedGraphToken(1_000_000 + REFUSAL_RESET_INTERVAL_MS)).toBe(true);
+    await getGraphToken(creds, fetchMock);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    resetGraphTokenCache();
+    expect(forgetRefusedGraphToken(1_000_000 + REFUSAL_RESET_INTERVAL_MS + 1)).toBe(true);
   });
 });
 
