@@ -73,7 +73,7 @@ export function createAlertsFeed(options: AlertsFeedOptions = {}): AlertsFeed {
   // A poll that began or ended while a write was pending, or after one
   // began, is dropped: it may have been served before that receipt landed
   // and would put back the row the viewer just removed or marked, until the
-  // next poll. The last write to settle re-reads the feed once.
+  // next poll; the next tick (a minute at most) reads the feed again.
   let writes = 0;
   let pending = 0;
 
