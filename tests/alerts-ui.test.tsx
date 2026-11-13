@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AlertsBell, AlertsManager, createAlertsFeed, pickAlertTab, pollAllowed, POLL_IDLE_MS } from "../alerts/ui";
 import { rowsFor, isAlertRow, type AlertRow, type HubAlertBase } from "../alerts";
 import { resetUnreadBadgeForTests } from "../testing/unread-badge";
+import { UNDO_WINDOW_MS } from "../undo/window";
 
 // The client half (DESIGN-CONVENTIONS §3 "In-app alerts"): the bell and the
 // list read one feed, read / unread / removed are the viewer's own receipts,
@@ -182,6 +183,28 @@ describe("AlertsManager", () => {
     expect(bodyOf(calls(fetchMock, "/api/alerts/dismiss").at(-1)!)).toEqual({ ids: ["al_1"], dismissed: false });
     expect(screen.getAllByRole("listitem").length).toBe(2);
     expect(screen.queryByText("Only your list changed", { exact: false })).toBeNull();
+  });
+  it("the Undo strip leaves on its own once the 30-minute Undo window closes", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      render(<AlertsManager feed={feed} tab="all" />);
+      await screen.findByRole("link", { name: /RACI matrix/ });
+      await act(async () => {
+        fireEvent.click(screen.getAllByRole("button", { name: "Remove" })[1]);
+      });
+      expect(screen.queryByText("Only your list changed", { exact: false })).not.toBeNull();
+      await act(async () => {
+        vi.advanceTimersByTime(UNDO_WINDOW_MS - 60_000); // a minute short (the fake clock also follows real time)
+      });
+      expect(screen.queryByText("Only your list changed", { exact: false })).not.toBeNull();
+      await act(async () => {
+        vi.advanceTimersByTime(60_000);
+      });
+      expect(screen.queryByText("Only your list changed", { exact: false })).toBeNull();
+      expect(screen.queryByRole("button", { name: "Undo" })).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
   });
   it("Mark All Read on the list posts every unread id and is disabled once nothing is unread", async () => {
     render(<AlertsManager feed={feed} tab="all" />);
