@@ -7,8 +7,10 @@
 // a server page needs are at "@sequel/foundation/alerts".
 export { createAlertsFeed } from "./client";
 export type { AlertsSnapshot, AlertsFeed, AlertsFeedOptions } from "./client";
-export { rowsFor, isAlertRow, pollAllowed, alertStamp, POLL_MS, POLL_IDLE_MS, ALERT_TABS, pickAlertTab } from "./rows";
-export type { AlertRow, AlertTab } from "./rows";
+export { rowsFor, isAlertRow } from "./index";
+export type { AlertRow } from "./index";
+export { pollAllowed, alertStamp, POLL_MS, POLL_IDLE_MS, ALERT_TABS, pickAlertTab } from "./rows";
+export type { AlertTab } from "./rows";
 export { AlertsBell, BELL_PREVIEW } from "./AlertsBell";
 export type { AlertsBellProps } from "./AlertsBell";
 export { AlertsManager } from "./AlertsManager";

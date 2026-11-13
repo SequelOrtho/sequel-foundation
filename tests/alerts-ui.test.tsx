@@ -58,6 +58,33 @@ describe("the feed", () => {
     expect(screen.queryByText(/al_9/)).toBeNull();
     expect(screen.getAllByRole("listitem").length).toBe(2);
   });
+  it("a poll answered after a receipt write began is dropped, and a rollback undoes only its own write", async () => {
+    await feed.refreshAlerts();
+    // A poll in flight, served before the remove lands.
+    let answerPoll: (r: Response) => void = () => {};
+    fetchMock.mockImplementationOnce(() => new Promise<Response>((resolve) => (answerPoll = resolve)));
+    const stale = feed.refreshAlerts();
+    const { ok } = await feed.removeAlerts(["al_1"]);
+    expect(ok).toBe(true);
+    answerPoll(jsonResponse(feedBody(alert(), alert({ id: "al_2", readBy: [VIEWER] }))));
+    await stale;
+    // al_1 is still off the list: a second remove finds nothing to post.
+    expect((await feed.removeAlerts(["al_1"])).removed).toEqual([]);
+    expect(calls(fetchMock, "/api/alerts/dismiss").length).toBe(1);
+    // The server now agrees; mounting the list polls once more.
+    fetchMock.mockResolvedValue(jsonResponse(feedBody(alert({ id: "al_2", readBy: [VIEWER], message: "ana marked Work Item: Champions done." }))));
+    render(<AlertsManager feed={feed} tab="all" />);
+    await screen.findByRole("link", { name: /Champions/ });
+    expect(screen.queryByRole("link", { name: /RACI matrix/ })).toBeNull();
+    // Two writes at once: the second's refusal puts back only its own change.
+    fetchMock.mockResolvedValueOnce(jsonResponse({}, false));
+    const refused = feed.setAlertsRead(["al_2"], false);
+    const restored = feed.restoreAlerts([{ id: "al_1", createdAt: "2026-11-13T15:00:00.000Z", message: "mike assigned you Work Item: RACI matrix.", href: "/my-tasks", read: false }]);
+    expect(await refused).toBe(false);
+    expect(await restored).toBe(true);
+    expect(await screen.findByRole("link", { name: /RACI matrix/ })).toBeTruthy();
+    expect(screen.getByRole("link", { name: /Champions/ }).className).toContain("text-brand-muted");
+  });
   it("a refused receipt rolls back", async () => {
     await feed.refreshAlerts();
     fetchMock.mockResolvedValueOnce(jsonResponse({}, false));
@@ -114,10 +141,13 @@ describe("AlertsBell", () => {
 });
 
 describe("AlertsManager", () => {
-  it("shows the tab's rows, bulk-marks a selection, and Remove offers Undo", async () => {
+  it("shows the tab's rows with a glyph and an sr-only prefix on unread ones, bulk-marks a selection, and Remove offers Undo", async () => {
     render(<AlertsManager feed={feed} tab="all" emptyHint="See My Tasks." />);
-    await screen.findByRole("link", { name: /RACI matrix/ });
+    const unreadLink = await screen.findByRole("link", { name: /RACI matrix/ });
     expect(screen.getAllByRole("listitem").length).toBe(2);
+    expect(unreadLink.textContent).toContain("●");
+    expect(unreadLink.textContent).toContain("Unread: ");
+    expect(screen.getByRole("link", { name: /Champions/ }).textContent).not.toContain("●");
     fireEvent.click(screen.getByLabelText("Select all shown"));
     await act(async () => {
       fireEvent.click(screen.getAllByRole("button", { name: "Mark Unread" })[0]);

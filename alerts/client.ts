@@ -1,7 +1,8 @@
 "use client";
 
 import { useSyncExternalStore } from "react";
-import { isAlertRow, pollAllowed, POLL_MS, type AlertRow } from "./rows";
+import { isAlertRow, type AlertRow } from "./index";
+import { pollAllowed, POLL_MS } from "./rows";
 
 // The in-app alerts feed for the signed-in person, the client half
 // (DESIGN-CONVENTIONS §3 "In-app alerts"; the Missed Punch Hub's
@@ -19,8 +20,9 @@ import { isAlertRow, pollAllowed, POLL_MS, type AlertRow } from "./rows";
 // and imports it everywhere; the feed holds module state, so two feeds for
 // the same endpoint would poll twice and disagree.
 
-export type { AlertRow } from "./rows";
-export { POLL_MS, POLL_IDLE_MS, pollAllowed, rowsFor, alertStamp } from "./rows";
+export type { AlertRow } from "./index";
+export { rowsFor } from "./index";
+export { POLL_MS, POLL_IDLE_MS, pollAllowed, alertStamp } from "./rows";
 
 export type AlertsSnapshot = { alerts: AlertRow[]; unread: number; loaded: boolean };
 
@@ -67,6 +69,10 @@ export function createAlertsFeed(options: AlertsFeedOptions = {}): AlertsFeed {
   let timer: ReturnType<typeof setInterval> | null = null;
   let lastInput = 0;
   let paused = false;
+  // Counts the receipt writes begun. A poll answered after one began is
+  // dropped: it was served before that receipt landed and would put back
+  // the row the viewer just removed or marked, until the next poll.
+  let writes = 0;
 
   function commit(alerts: AlertRow[]) {
     snapshot = { alerts, unread: alerts.filter((a) => !a.read).length, loaded: true };
@@ -74,18 +80,23 @@ export function createAlertsFeed(options: AlertsFeedOptions = {}): AlertsFeed {
   }
 
   async function refreshAlerts(): Promise<void> {
+    const begunAfter = writes;
     try {
       const res = await fetch(feedPath, { cache: "no-store" });
       if (!res.ok) return;
       const body = (await res.json()) as { alerts?: unknown };
       if (!Array.isArray(body.alerts) || !body.alerts.every(isAlertRow)) return;
+      if (writes !== begunAfter) return;
       commit(body.alerts);
     } catch {
       // keep the last snapshot
     }
   }
 
+  const byNewest = (a: AlertRow, b: AlertRow) => b.createdAt.localeCompare(a.createdAt);
+
   async function post(path: string, body: unknown): Promise<boolean> {
+    writes++;
     try {
       const res = await fetch(path, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
       return res.ok;
@@ -97,11 +108,13 @@ export function createAlertsFeed(options: AlertsFeedOptions = {}): AlertsFeed {
   async function setAlertsRead(ids: readonly string[], read: boolean): Promise<boolean> {
     const wanted = new Set(ids);
     const before = snapshot.alerts;
-    const touched = before.filter((a) => wanted.has(a.id) && a.read !== read).map((a) => a.id);
-    if (touched.length === 0) return true;
-    commit(before.map((a) => (wanted.has(a.id) ? { ...a, read } : a)));
-    const ok = await post(readPath, { ids: touched, read });
-    if (!ok) commit(before);
+    const touched = new Set(before.filter((a) => wanted.has(a.id) && a.read !== read).map((a) => a.id));
+    if (touched.size === 0) return true;
+    commit(before.map((a) => (touched.has(a.id) ? { ...a, read } : a)));
+    const ok = await post(readPath, { ids: [...touched], read });
+    // A rollback undoes this write on the snapshot as it is NOW, never by
+    // putting back `before`, which would drop another write made meanwhile.
+    if (!ok) commit(snapshot.alerts.map((a) => (touched.has(a.id) ? { ...a, read: !read } : a)));
     return ok;
   }
 
@@ -119,7 +132,10 @@ export function createAlertsFeed(options: AlertsFeedOptions = {}): AlertsFeed {
     if (removed.length === 0) return { ok: true, removed };
     commit(before.filter((a) => !wanted.has(a.id)));
     const ok = await post(dismissPath, { ids: removed.map((a) => a.id), dismissed: true });
-    if (!ok) commit(before);
+    if (!ok) {
+      const now = new Set(snapshot.alerts.map((a) => a.id));
+      commit([...snapshot.alerts, ...removed.filter((r) => !now.has(r.id))].sort(byNewest));
+    }
     return { ok, removed: ok ? removed : [] };
   }
 
@@ -129,10 +145,13 @@ export function createAlertsFeed(options: AlertsFeedOptions = {}): AlertsFeed {
     const present = new Set(before.map((a) => a.id));
     // Removing also counted as having read (the receipt rule), so a row
     // comes back read, as the next poll would show it.
-    const merged = [...before, ...rows.filter((r) => !present.has(r.id)).map((r) => ({ ...r, read: true }))].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-    commit(merged);
+    const back = rows.filter((r) => !present.has(r.id)).map((r) => ({ ...r, read: true }));
+    commit([...before, ...back].sort(byNewest));
     const ok = await post(dismissPath, { ids: rows.map((a) => a.id), dismissed: false });
-    if (!ok) commit(before);
+    if (!ok) {
+      const putBack = new Set(back.map((r) => r.id));
+      commit(snapshot.alerts.filter((a) => !putBack.has(a.id)));
+    }
     return ok;
   }
 

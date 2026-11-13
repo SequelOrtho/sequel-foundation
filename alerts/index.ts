@@ -61,6 +61,40 @@ export function unreadCount<A extends HubAlertBase>(visible: readonly A[], viewe
   return visible.filter((a) => !anyOf(a.readBy, viewer)).length;
 }
 
+/** What the feed carries to the browser: one row per alert on the viewer's
+ *  list with THEIR read flag. Never the other recipients, their receipts or
+ *  any address — the feed route answers `{ alerts: rowsFor(all, viewer) }`. */
+export type AlertRow = {
+  id: string;
+  createdAt: string;
+  message: string;
+  href: string;
+  read: boolean;
+};
+
+/** The feed's rows for one viewer, made on the server: the viewer's own
+ *  list (`alertsFor` — addressed to them, not removed, newest first, cut at
+ *  the limit; so the whole store may be passed, and an already-scoped list
+ *  comes through unchanged), each alert reduced to the five fields the bell
+ *  and the list render, the receipt lists becoming one read flag. */
+export function rowsFor<A extends HubAlertBase>(all: readonly A[], viewer: Viewer, limit = ALERT_LIST_LIMIT): AlertRow[] {
+  return alertsFor(all, viewer, limit).map((a) => ({
+    id: a.id,
+    createdAt: a.createdAt,
+    message: a.message,
+    href: a.href,
+    read: anyOf(a.readBy, viewer),
+  }));
+}
+
+/** True for a row the feed may show: the fields the bell and the list
+ *  render, each of the type they expect. */
+export function isAlertRow(v: unknown): v is AlertRow {
+  if (!v || typeof v !== "object") return false;
+  const r = v as Record<string, unknown>;
+  return typeof r.id === "string" && typeof r.createdAt === "string" && typeof r.message === "string" && typeof r.href === "string" && typeof r.read === "boolean";
+}
+
 export type Receipt = "read" | "dismissed";
 
 /** How many conditional writes a receipt gets before it is logged as not
@@ -152,8 +186,8 @@ export function expiredAlerts<A extends HubAlertBase>(all: readonly A[], now: Da
   });
 }
 
-// The feed's row shape and the helpers a server page or route needs
-// (`rowsFor` for the feed route, `pickAlertTab` for the list page) live in
-// ./rows, which carries no "use client" directive.
-export { ALERT_TABS, POLL_IDLE_MS, POLL_MS, alertStamp, isAlertRow, pickAlertTab, pollAllowed, rowsFor } from "./rows";
-export type { AlertRow, AlertTab } from "./rows";
+// The helpers a server page needs (`pickAlertTab` for the list page) and
+// the poll and stamp constants live in ./rows, which carries no "use client"
+// directive either.
+export { ALERT_TABS, POLL_IDLE_MS, POLL_MS, alertStamp, pickAlertTab, pollAllowed } from "./rows";
+export type { AlertTab } from "./rows";

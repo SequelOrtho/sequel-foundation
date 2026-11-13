@@ -69,9 +69,11 @@ describe("alertsFor / unreadCount", () => {
 });
 
 describe("rowsFor / pickAlertTab from the pure barrel", () => {
-  it("are importable without a client directive and read the identity's receipts", () => {
-    const rows = rowsFor([mk("a1", ["ana@x.co", "mike@x.co"], { readBy: ["ana@x.co"] })], "ana@x.co");
+  it("are importable without a client directive; rowsFor scopes the whole store to the viewer's list and reads the identity's receipts", () => {
+    const rows = rowsFor([mk("a1", ["ana@x.co", "mike@x.co"], { readBy: ["ana@x.co"] }), mk("a2", ["mike@x.co"]), mk("a3", ["ana@x.co"], { dismissedBy: ["ana@x.co"] })], "ana@x.co");
     expect(rows).toEqual([{ id: "a1", createdAt: "2026-11-13T11:00:00.000Z", message: "Alert a1", href: "/my-tasks", read: true }]);
+    // Already scoped: unchanged; and the limit holds.
+    expect(rowsFor([mk("a1", ["ana@x.co"]), mk("a2", ["ana@x.co"])], "ana@x.co", 1).map((r) => r.id)).toEqual(["a2"]);
     expect(pickAlertTab(["all"])).toBe("all");
     expect(pickAlertTab(undefined)).toBe("unread");
   });

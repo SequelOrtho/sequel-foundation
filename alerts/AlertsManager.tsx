@@ -7,7 +7,8 @@ import { Callout } from "../ui/Callout";
 import { Tabs } from "../ui/Tabs";
 import { toastError, toastUndo } from "../ui/toast/store";
 import type { AlertsFeed } from "./client";
-import { alertStamp, type AlertRow, type AlertTab } from "./rows";
+import type { AlertRow } from "./index";
+import { alertStamp, type AlertTab } from "./rows";
 
 // The full alerts list (DESIGN-CONVENTIONS §3 "In-app alerts", v0.39.0):
 // Unread / All tabs in the URL, checkbox selection with Select all shown,
@@ -187,7 +188,14 @@ export function AlertsManager({ feed, tab, basePath = "/alerts", emptyHint, stam
                   }}
                   className={`text-sm hover:underline ${a.read ? "text-brand-muted" : "font-medium text-zinc-900 dark:text-zinc-100"}`}
                 >
-                  {!a.read && <span className="sr-only">Unread: </span>}
+                  {!a.read && (
+                    <>
+                      <span aria-hidden className="mr-1 text-brand">
+                        ●
+                      </span>
+                      <span className="sr-only">Unread: </span>
+                    </>
+                  )}
                   {a.message}
                 </Link>
                 <p className="text-xs text-brand-muted">{stamp(a.createdAt)}</p>
