@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { Button } from "./Button";
 import { SaveStateIndicator } from "./SaveState";
 import { useUnsavedGuard } from "./unsaved-guard";
@@ -62,6 +62,8 @@ export function useSaveRunner(onSave: () => Promise<boolean | void>): SaveRunner
   return { saving, savedAt, error, run };
 }
 
+const subscribeToNothing = () => () => {};
+
 /**
  * Dirty detection for an uncontrolled form (or one form SECTION): the baseline
  * is the form as the server sent it, recompared on every input/change event.
@@ -80,8 +82,7 @@ export function useSaveRunner(onSave: () => Promise<boolean | void>): SaveRunner
  * reconcile: React puts its state back over an early pick without an event.
  * Read the control's value when the form attaches and adopt it into state, or
  * the pick is lost on screen (it is never saved wrongly). The hook rechecks
- * once after mount, so a pick React has already put back by then does not
- * leave Save on.
+ * just after mount, so a pick React has put back does not leave Save on.
  */
 export function useFormDirty() {
   const formRef = useRef<HTMLFormElement | null>(null);
@@ -92,15 +93,30 @@ export function useFormDirty() {
     if (!el || baseline.current === null) return;
     setDirty(!snapshotEqual(baseline.current, formSnapshot(el)));
   }, []);
-  const attach = useCallback((el: HTMLFormElement | null) => {
-    formRef.current = el;
-    if (el && baseline.current === null) {
-      baseline.current = serverSnapshot(el);
-      if (!snapshotEqual(baseline.current, formSnapshot(el))) setDirty(true);
-    }
-  }, []);
+  // True only while React is hydrating server HTML: the one moment a form can
+  // already hold a value its script never saw. `attach` changes identity when
+  // it turns false; the baseline is taken once, so the second call is a no-op.
+  const hydrating = useSyncExternalStore(
+    subscribeToNothing,
+    () => false,
+    () => true,
+  );
+  const attach = useCallback(
+    (el: HTMLFormElement | null) => {
+      formRef.current = el;
+      if (el && baseline.current === null) {
+        baseline.current = serverSnapshot(el, { hydrating });
+        if (!snapshotEqual(baseline.current, formSnapshot(el))) setDirty(true);
+      }
+    },
+    [hydrating],
+  );
+  // React puts a controlled field's state back over an early pick without an
+  // event, and does it after this effect has run, so look again a tick later.
   useEffect(() => {
     recheck();
+    const later = setTimeout(recheck, 0);
+    return () => clearTimeout(later);
   }, [recheck]);
   const markClean = useCallback(() => {
     const el = formRef.current;

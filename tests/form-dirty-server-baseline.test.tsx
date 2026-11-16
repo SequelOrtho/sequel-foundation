@@ -54,6 +54,7 @@ describe("serverSnapshot", () => {
     const form = formFrom(EVERY_CONTROL);
     expect(serverSnapshot(form)).toEqual(formSnapshot(form));
     expect(snapshotEqual(serverSnapshot(form), formSnapshot(form))).toBe(true);
+    expect(serverSnapshot(form, { hydrating: true })).toEqual(formSnapshot(form));
   });
 
   it("reads a text box holding CRLF as its value reads it", () => {
@@ -66,6 +67,22 @@ describe("serverSnapshot", () => {
     expect(serverSnapshot(form)).toEqual(formSnapshot(form));
     // The control itself is never written.
     expect(box.defaultValue).toBe("a\r\nb");
+  });
+
+  it("reads a select with no option marked by where the form came from", () => {
+    const form = formFrom(`
+      <select name="one"><option value="" disabled>Pick…</option><option value="a">A</option><option value="b">B</option></select>
+      <select name="list" size="4"><option value="a">A</option><option value="b">B</option></select>
+      <select name="many" multiple><option value="1">1</option><option value="2">2</option></select>
+    `);
+    // Untouched server HTML: the browser's own starting selection.
+    expect(serverSnapshot(form, { hydrating: true })).toEqual({ one: "a" });
+    (form.querySelector('[name="one"]') as HTMLSelectElement).value = "b";
+    (form.querySelector('[name="list"]') as HTMLSelectElement).value = "b";
+    (form.querySelector('[name="many"]') as HTMLSelectElement).options[1].selected = true;
+    // From the server, those are early picks; drawn in the browser, the loaded values.
+    expect(serverSnapshot(form, { hydrating: true })).toEqual({ one: "a" });
+    expect(serverSnapshot(form)).toEqual({ one: "b", list: "b", many: "2" });
   });
 
   it("keeps the server's values after every kind of control is changed", () => {
@@ -87,7 +104,7 @@ describe("serverSnapshot", () => {
   });
 });
 
-function Probe({ controlled = false }: { controlled?: boolean }) {
+function Probe({ controlled = false, unmarked = false }: { controlled?: boolean; unmarked?: boolean }) {
   const d = useFormDirty();
   const [type, setType] = useState("Sprint");
   return (
@@ -102,6 +119,12 @@ function Probe({ controlled = false }: { controlled?: boolean }) {
         <select name="type" aria-label="Type" defaultValue="Sprint">
           <option value="Sprint">Sprint</option>
           <option value="JDI">JDI</option>
+        </select>
+      )}
+      {unmarked && (
+        <select name="owner" aria-label="Owner">
+          <option value="">Pick one…</option>
+          <option value="ann">Ann</option>
         </select>
       )}
       <button type="button" disabled={!d.dirty} onClick={d.markClean}>
@@ -149,6 +172,29 @@ describe("useFormDirty", () => {
     // Back to the server's value is now a change from what was saved.
     fireEvent.change(screen.getByLabelText("Type"), { target: { value: "Sprint" } });
     expect(save().disabled).toBe(false);
+  });
+
+  it("counts an early pick on a select with no option marked as selected", async () => {
+    await loadSlowly(<Probe unmarked />, (r) => {
+      (r.querySelector('[name="owner"]') as HTMLSelectElement).value = "ann";
+    });
+    expect(save().disabled).toBe(false);
+  });
+
+  it("a select with no option marked starts clean when untouched", async () => {
+    await loadSlowly(<Probe unmarked />, () => {});
+    expect(save().disabled).toBe(true);
+  });
+
+  it("a controlled field React puts back over an early pick does not leave Save on", async () => {
+    const root = await loadSlowly(<Probe controlled />, (r) => {
+      (r.querySelector('[name="type"]') as HTMLSelectElement).value = "JDI";
+    });
+    await act(async () => {
+      await new Promise((done) => setTimeout(done, 5));
+    });
+    expect((root.querySelector('[name="type"]') as HTMLSelectElement).value).toBe("Sprint");
+    expect(save().disabled).toBe(true);
   });
 
   it("counts text typed before the script loaded as a change", async () => {

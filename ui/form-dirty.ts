@@ -40,8 +40,14 @@ export function formSnapshot(form: HTMLFormElement): FormSnapshot {
  * that are disabled (or inside a disabled fieldset), unnamed controls and
  * buttons are left out; an unticked box or radio adds nothing; a file input
  * adds "".
+ *
+ * Pass `hydrating: true` when the form came from server HTML (`useFormDirty`
+ * knows and does). It decides one case the DOM cannot: a select with no option
+ * marked `selected`. From server HTML its loaded value is the browser's
+ * starting option; drawn in the browser by React with `value=`, it is the live
+ * value. Without the flag the live value is used.
  */
-export function serverSnapshot(form: HTMLFormElement): FormSnapshot {
+export function serverSnapshot(form: HTMLFormElement, opts: { hydrating?: boolean } = {}): FormSnapshot {
   const out: FormSnapshot = {};
   const add = (key: string, value: string) => {
     const seen = out[key];
@@ -60,10 +66,20 @@ export function serverSnapshot(form: HTMLFormElement): FormSnapshot {
     if (!el.name || el.matches(":disabled")) continue;
     if (el instanceof HTMLSelectElement) {
       const marked = Array.from(el.options).filter((o) => o.defaultSelected);
-      // Server HTML marks the loaded option(s). A select drawn in the browser
-      // (a move between pages, with no server HTML to wait on) marks none, and
-      // nobody can have changed it yet: its live value is the loaded one.
-      const chosen = marked.length === 0 ? Array.from(el.selectedOptions) : el.multiple ? marked : marked.slice(-1);
+      let chosen: HTMLOptionElement[];
+      if (marked.length > 0) chosen = el.multiple ? marked : marked.slice(-1);
+      else if (opts.hydrating) {
+        // Server HTML that marks no option (a placeholder first, or a value no
+        // option holds): the browser starts a one-line dropdown on its first
+        // option that is not disabled, and a list box or a multiple select on
+        // nothing. The live selection may already be an early pick.
+        const first = Array.from(el.options).find((o) => !o.disabled);
+        chosen = !el.multiple && el.size <= 1 && first ? [first] : [];
+      } else {
+        // A select drawn in the browser with `value=` marks no option either,
+        // and nobody can have changed it yet: its live value is the loaded one.
+        chosen = Array.from(el.selectedOptions);
+      }
       for (const o of chosen) if (!o.disabled) add(el.name, o.value);
     } else if (el instanceof HTMLTextAreaElement) {
       add(el.name, defaultValueAsRead(el));
