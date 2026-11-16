@@ -22,7 +22,7 @@ export type { IconButtonTone } from "./IconButton";
 // Brand palette for chart/SVG code, which cannot take a Tailwind class and so
 // cannot follow data-theme / data-entity on its own.
 export { useBrandColors, useEntityKey, useSeriesColors, useThemeName } from "./brand-colors";
-export { formSnapshot, snapshotEqual, snapshotChangedKeys, shallowDirty } from "./form-dirty";
+export { formSnapshot, serverSnapshot, snapshotEqual, snapshotChangedKeys, shallowDirty } from "./form-dirty";
 export type { FormSnapshot } from "./form-dirty";
 export { Toast } from "./Toast";
 export type { ToastTone } from "./Toast";
