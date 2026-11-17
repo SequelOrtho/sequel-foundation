@@ -1,7 +1,8 @@
 // Dirty detection for save surfaces (DESIGN-CONVENTIONS §3: "Save is disabled
 // until something actually changed"). Pure snapshot/compare helpers so both
-// controlled forms (compare state objects) and uncontrolled forms (snapshot
-// FormData on mount, compare on input) share one definition of "dirty".
+// controlled forms (compare state objects) and uncontrolled forms (the form as
+// the server sent it, compared with FormData on input) share one definition of
+// "dirty".
 
 export type FormSnapshot = Record<string, string | string[]>;
 
@@ -22,6 +23,90 @@ export function formSnapshot(form: HTMLFormElement): FormSnapshot {
     else out[key] = [seen, value];
   }
   return out;
+}
+
+/**
+ * The form as the SERVER sent it: each control's default (`defaultValue`,
+ * `defaultChecked`, the options marked `selected`), in `formSnapshot`'s shape.
+ *
+ * It is the baseline for "has anything changed?". The live form is the wrong
+ * baseline: a person can pick a value while the page's script is still
+ * loading, and a browser puts earlier picks back after a reload or Back, both
+ * before any hook runs. A baseline read from the live form then counts that
+ * pick as the loaded value, so Save stays off and the pick is never sent
+ * (Project Hub, 2026-11-16: a Type changed to JDI kept coming back as Sprint).
+ *
+ * It follows FormData's rules so an untouched form compares equal: controls
+ * that are disabled (or inside a disabled fieldset), unnamed controls and
+ * buttons are left out; an unticked box or radio adds nothing; a file input
+ * adds "".
+ *
+ * Pass `hydrating: true` when the form came from server HTML (`useFormDirty`
+ * knows and does). It decides one case the DOM cannot: a select with no option
+ * marked `selected`. From server HTML its loaded value is the browser's
+ * starting option; drawn in the browser by React with `value=`, it is the live
+ * value. Without the flag the live value is used.
+ */
+export function serverSnapshot(form: HTMLFormElement, opts: { hydrating?: boolean } = {}): FormSnapshot {
+  const out: FormSnapshot = {};
+  const add = (key: string, value: string) => {
+    const seen = out[key];
+    if (seen === undefined) out[key] = value;
+    else if (Array.isArray(seen)) seen.push(value);
+    else out[key] = [seen, value];
+  };
+  for (const el of Array.from(form.elements)) {
+    if (
+      !(el instanceof HTMLInputElement || el instanceof HTMLSelectElement || el instanceof HTMLTextAreaElement)
+    ) {
+      continue;
+    }
+    // :disabled, not el.disabled: a control inside <fieldset disabled> is left
+    // out of FormData too.
+    if (!el.name || el.matches(":disabled")) continue;
+    if (el instanceof HTMLSelectElement) {
+      const marked = Array.from(el.options).filter((o) => o.defaultSelected);
+      let chosen: HTMLOptionElement[];
+      if (marked.length > 0) chosen = el.multiple ? marked : marked.slice(-1);
+      else if (opts.hydrating) {
+        // Server HTML that marks no option (a placeholder first, or a value no
+        // option holds): the browser starts a one-line dropdown on its first
+        // option that is not disabled, and a list box or a multiple select on
+        // nothing. The live selection may already be an early pick.
+        const first = Array.from(el.options).find((o) => !o.disabled);
+        chosen = !el.multiple && el.size <= 1 && first ? [first] : [];
+      } else {
+        // A select drawn in the browser with `value=` marks no option either,
+        // and nobody can have changed it yet: its live value is the loaded one.
+        chosen = Array.from(el.selectedOptions);
+      }
+      for (const o of chosen) if (!o.disabled) add(el.name, o.value);
+    } else if (el instanceof HTMLTextAreaElement) {
+      add(el.name, defaultValueAsRead(el));
+    } else if (["submit", "button", "reset", "image"].includes(el.type)) {
+      continue;
+    } else if (el.type === "checkbox" || el.type === "radio") {
+      if (el.defaultChecked) add(el.name, el.value);
+    } else if (el.type === "file") {
+      add(el.name, "");
+    } else {
+      add(el.name, defaultValueAsRead(el));
+    }
+  }
+  return out;
+}
+
+/**
+ * A control's default text as its `value` would read it. The two differ: a
+ * text box reads every line break as LF whatever the stored text holds, and a
+ * number or date box reads a default it cannot parse as "". Reading the raw
+ * default would make such a field look changed the first time the form is
+ * touched. A detached copy is asked, so the control itself is never written.
+ */
+function defaultValueAsRead(el: HTMLInputElement | HTMLTextAreaElement): string {
+  const copy = el.cloneNode(false) as HTMLInputElement | HTMLTextAreaElement;
+  copy.value = el.defaultValue;
+  return copy.value;
 }
 
 /** Deep-enough equality for snapshots: same keys, same string(s) per key. */
