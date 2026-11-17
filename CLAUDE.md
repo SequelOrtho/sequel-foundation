@@ -42,8 +42,9 @@ A shared-behavior change is one PR here + tag, then one pin-bump PR per app, eac
 | `incident-event-hub` | Incident & Event Hub | Squash. |
 | `missed-punch-hub` | Missed Punch Hub | Squash. **npm 11 lockfile** — run `pin-foundation.sh` with npm 11 first on PATH (the container ships npm 10, which strips ~48–148 `libc` lines); a correct pin diff is 3 lines. Reference implementation of the in-app alerts inbox (§3). |
 | `sequel-audit-hub` | Audit Hub | Squash. Apex domain is Cloudflare-fronted — validate live via the Netlify deploy permalink. |
-| `workers-comp-portal` | (unnamed) | Outside the multi-hub project's sessions (not in their repository scope); listed so a fleet-wide pin sweep run from elsewhere still covers it. Squash. ★ TEMPLATE checklist never completed — header/CLAUDE.md/README still say "Sequel App Template"; rename pending with the owner. No deploy target yet (template step 7), so nothing to validate live. |
 | `sequel-app-template` | new-app starter | Squash. ADOPTING.md points here for canonical layout wiring — keep `app/layout.tsx` current. |
+
+`workers-comp-portal` is not in the fleet (owner, 2026-11-17, Mike: it "has been moved to a new organization and IP address restricted (it's being managed by a 3rd party offshore) and can be excluded going forward"). Leave it out of pin sweeps and fleet audits.
 
 ## Lessons learned (Aug 2026, HomeLink rollout)
 

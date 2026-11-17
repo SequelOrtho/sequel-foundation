@@ -34,7 +34,7 @@ Expect one line ending in `refs/tags/vX.Y.Z` whose SHA is the squash-merge commi
 
 ## Step 3 — Fleet pin-bump PRs
 
-For every repo in the fleet table (CLAUDE.md), including `sequel-app-template` and `workers-comp-portal`:
+For every repo in the fleet table (CLAUDE.md), including `sequel-app-template`:
 
 1. `git fetch origin main && git checkout -B claude/pin-foundation-vX.Y.Z origin/main`
 2. Check the lockfile's npm major first (`grep -c '"libc"' package-lock.json` > 0 ⇒ npm 11, e.g. `missed-punch-hub`) and put that npm first on PATH. Then `bash <foundation>/scripts/pin-foundation.sh <app-dir> vX.Y.Z` — edits the spec, runs the **explicit** `npm install "@sequel/foundation@github:…#vX.Y.Z"`, and fails unless the lockfile's resolved SHA matches the tag. (A plain `npm install` after a hand-edited spec reports "up to date" and keeps the old SHA — that is why the script exists.) The lockfile diff must be exactly 3 lines (spec, version, resolved); anything larger is the wrong npm — discard and redo.
