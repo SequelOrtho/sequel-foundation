@@ -46,6 +46,16 @@ const ICON: Record<ThemeMode, string> = { light: "☀️", dark: "🌙", system:
 // breakpoint, where the word pushed crowded headers past the screen (UX audit
 // 2026-10-21, FND-17); `true` always icon-only, `false` always the word. The
 // accessible name and tooltip always carry the mode.
+//
+// Wherever the word shows, the button is one fixed width (`w-24`, sized for
+// "Browser", the longest word). Sized to its word, the button grew on Browser
+// and a wrapping header re-flowed on that mode alone (owner report
+// 2026-11-19: "when you go to Browser, the top layout changes"). Icon-only
+// renderings keep the square `min-w-8` box.
+export function themeToggleWidthClass(compact: boolean | "phone"): string {
+  return compact === true ? "" : compact === "phone" ? "sm:w-24" : "w-24";
+}
+
 export function ThemeToggle({
   storageKey = DEFAULT_THEME_STORAGE_KEY,
   compact = "phone",
@@ -89,7 +99,7 @@ export function ThemeToggle({
       onClick={cycle}
       title={`Theme: ${THEME_MODE_LABEL[mode]} (${THEME_MODE_HINT[mode]}) — click to switch`}
       aria-label={`Theme: ${THEME_MODE_LABEL[mode]}. ${THEME_MODE_HINT[mode]}. Activate to switch.`}
-      className="flex min-h-8 min-w-8 shrink-0 items-center justify-center gap-1.5 rounded-md border border-zinc-200 px-2 py-1 text-xs font-medium text-zinc-600 hover:border-brand hover:text-brand dark:border-zinc-700 dark:text-zinc-300"
+      className={`flex min-h-8 min-w-8 shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-md border border-zinc-200 px-2 py-1 text-xs font-medium text-zinc-600 hover:border-brand hover:text-brand dark:border-zinc-700 dark:text-zinc-300 ${themeToggleWidthClass(compact)}`.trimEnd()}
     >
       <span aria-hidden>{ICON[mode]}</span>
       <span aria-hidden className={compact === true ? "sr-only" : compact === "phone" ? "sr-only sm:not-sr-only" : undefined}>
