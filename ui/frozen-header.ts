@@ -14,15 +14,18 @@
 export const FROZEN_KEEP_PX = 44;
 
 /**
- * How far down to move a table's header row. `tableTop` is the table's top
- * edge in the window (negative once it has scrolled above), `tableHeight` the
- * whole table, `headHeight` its header row.
+ * How far down to move a table's header row. `headTop` is the header row's own
+ * top edge in the window, where the table drew it (negative once it has
+ * scrolled above; a caption above the header is not part of it), `bodyHeight`
+ * the table from that edge to its bottom, `headHeight` the header row. `inset`
+ * is the room a bar fixed to the top of the window takes: the header stops
+ * under the bar, not behind it.
  */
-export function frozenOffset(tableTop: number, tableHeight: number, headHeight: number): number {
-  if (!(tableTop < 0)) return 0;
-  const room = tableHeight - headHeight - FROZEN_KEEP_PX;
+export function frozenOffset(headTop: number, bodyHeight: number, headHeight: number, inset = 0): number {
+  if (!(headTop < inset)) return 0;
+  const room = bodyHeight - headHeight - FROZEN_KEEP_PX;
   if (!(room > 0)) return 0;
-  return Math.round(Math.min(-tableTop, room));
+  return Math.round(Math.min(inset - headTop, room));
 }
 
 /**

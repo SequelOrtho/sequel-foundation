@@ -42,6 +42,22 @@ describe("frozen table headers: how far the header row moves", () => {
   });
 });
 
+describe("frozen table headers: under a bar fixed to the top of the window", () => {
+  it("freezes once the header row reaches the bar, and sits under it", () => {
+    expect(frozenOffset(48, 900, 40, 48)).toBe(0);
+    expect(frozenOffset(47, 900, 40, 48)).toBe(1);
+    expect(frozenOffset(-300, 900, 40, 48)).toBe(348);
+  });
+
+  it("still leaves with the table", () => {
+    expect(frozenOffset(-5000, 900, 40, 48)).toBe(900 - 40 - FROZEN_KEEP_PX);
+  });
+
+  it("no bar is the same as an inset of 0", () => {
+    for (const top of [-700, -1, 0, 30]) expect(frozenOffset(top, 900, 40, 0)).toBe(frozenOffset(top, 900, 40));
+  });
+});
+
 describe("frozen table headers: a focused control is never left under the header", () => {
   it("asks for no scroll when the control is clear of the header", () => {
     expect(focusClearance(80, 40)).toBe(0);
