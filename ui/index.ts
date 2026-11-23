@@ -60,6 +60,10 @@ export { HomeLink, toastHomeNav, HOME_TOAST_MESSAGE } from "./HomeLink";
 export { BackToTop } from "./BackToTop";
 export { nextBackToTopState } from "./back-to-top-state";
 export type { BackToTopState } from "./back-to-top-state";
+// Frozen table headers (DESIGN-CONVENTIONS §3 "Table headers follow the
+// page"): mounted once in the root layout; the styling is in brand/theme.css.
+export { FrozenTableHeaders } from "./FrozenTableHeaders";
+export { FROZEN_KEEP_PX, frozenOffset, focusClearance } from "./frozen-header";
 export { Breadcrumbs } from "./Breadcrumbs";
 // Tile iconography (DESIGN-CONVENTIONS §5): the shared line-glyph set every
 // hub tile carries beside its title, and the area tile + grid for hub pages.

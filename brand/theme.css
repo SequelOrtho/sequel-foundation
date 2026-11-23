@@ -374,6 +374,40 @@
   color: var(--foreground);
 }
 
+/* Frozen table headers (ui/FrozenTableHeaders.tsx, mounted once per app):
+ * while a table is crossing the top of the window its header cells are moved
+ * down to stay in view. The cells take an opaque ground of their own, since a
+ * header's tint is usually painted on the row group, which does not move with
+ * them. UNLAYERED so it outranks a cell's own background and z-index
+ * utilities; hubs must not keep their own copy of these rules.
+ *
+ * Stacking: 11 and 12 sit above a held body column (`sticky left-0 z-10`, the
+ * family idiom) and below sticky bars and popovers (z-20 and up). A header
+ * cell that is itself sticky keeps its own position: the component marks it
+ * `data-frozen-sticky` (`data-sticky-column` in the markup works too). */
+thead[data-frozen] > tr > * {
+  transform: translateY(var(--frozen-offset, 0px));
+  background-color: var(--color-white);
+  box-shadow: 0 1px 0 rgb(0 0 0 / 0.14), 0 4px 6px -4px rgb(0 0 0 / 0.18);
+}
+thead[data-frozen] > tr > :not([data-sticky-column], [data-frozen-sticky]) {
+  position: relative;
+  z-index: 11;
+}
+thead[data-frozen] > tr > :is([data-sticky-column], [data-frozen-sticky]) {
+  z-index: 12;
+}
+[data-theme="dark"] thead[data-frozen] > tr > * {
+  background-color: var(--color-zinc-900);
+  box-shadow: 0 1px 0 rgb(255 255 255 / 0.16), 0 4px 6px -4px rgb(0 0 0 / 0.6);
+}
+@media print {
+  thead[data-frozen] > tr > * {
+    transform: none;
+    box-shadow: none;
+  }
+}
+
 /* The theme layer owns the page ground. Before this rule every app had to
  * remember body-level bg/text classes in its own layout; the ones that forgot
  * rendered dark cards on a white canvas and inputs inheriting black text in
