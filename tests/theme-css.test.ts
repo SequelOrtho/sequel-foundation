@@ -30,6 +30,45 @@ describe("theme.css page ground", () => {
   });
 });
 
+// ui/FrozenTableHeaders.tsx sets data-frozen + --frozen-offset; these rules
+// are the other half. Unlayered, like the option rule, so a cell's own
+// bg-* / z-* / sticky utilities (all layered) cannot undo them.
+describe("frozen table headers", () => {
+  const rule = (selector: string) => {
+    const at = css.indexOf(`\n${selector} {`);
+    expect(at, selector).toBeGreaterThan(-1);
+    return css.slice(at, css.indexOf("}", at));
+  };
+
+  it("moves the header cells by the offset, on an opaque ground in both themes", () => {
+    const light = rule("thead[data-frozen] > tr > *");
+    expect(light).toContain("transform: translateY(var(--frozen-offset, 0px))");
+    expect(light).toContain("background-color: var(--color-white)");
+    expect(rule('[data-theme="dark"] thead[data-frozen] > tr > *')).toContain("background-color: var(--color-zinc-900)");
+  });
+
+  it("never repositions a header cell that is itself sticky (a held first column)", () => {
+    const positioned = rule("thead[data-frozen] > tr > :not([data-sticky-column], [data-frozen-sticky])");
+    expect(positioned).toContain("position: relative");
+    expect(rule("thead[data-frozen] > tr > :is([data-sticky-column], [data-frozen-sticky])")).not.toContain("position");
+  });
+
+  it("stacks above a held body column (z-10) and below sticky bars and popovers (z-20)", () => {
+    const z = (s: string) => Number(rule(s).match(/z-index: (\d+)/)?.[1]);
+    const cell = z("thead[data-frozen] > tr > :not([data-sticky-column], [data-frozen-sticky])");
+    const held = z("thead[data-frozen] > tr > :is([data-sticky-column], [data-frozen-sticky])");
+    expect(cell).toBeGreaterThan(10);
+    expect(held).toBeGreaterThan(cell);
+    expect(held).toBeLessThan(20);
+  });
+
+  it("is unlayered, and prints where the table drew it", () => {
+    for (const layer of css.matchAll(/@layer [a-z]+ \{([\s\S]*?)\n\}/g)) expect(layer[1]).not.toContain("data-frozen");
+    const print = css.slice(css.indexOf("thead[data-frozen] > tr > * {", css.indexOf("@media print {\n  thead")));
+    expect(print.slice(0, print.indexOf("}"))).toContain("transform: none");
+  });
+});
+
 describe("entity typography", () => {
   it("body text reads the entity body face, with Montserrat as the default", () => {
     expect(css).toMatch(
