@@ -131,10 +131,6 @@ export function UnsavedLeaveGuard({
   // A release under way: its step back is neither held nor the router's.
   // `late`: the wait ran out before the browser reported the step, which is still to come.
   const releasing = useRef<{ promise: Promise<void>; done: () => void; late: boolean } | null>(null);
-  const dirtyRef = useRef(dirty);
-  useEffect(() => {
-    dirtyRef.current = dirty;
-  }, [dirty]);
 
   const release = useCallback((): Promise<void> => {
     // The editor is moving on by itself (a save, a delete): a question still open is void.
