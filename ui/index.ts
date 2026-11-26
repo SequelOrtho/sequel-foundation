@@ -16,6 +16,10 @@ export type { SaveRunner, DraftSave } from "./SectionSave";
 // Tab-close guard for any surface holding unsaved draft state. useDraftSave
 // wires it automatically; call it directly for hand-rolled dirty state.
 export { useUnsavedGuard, hasUnsavedChanges } from "./unsaved-guard";
+// The in-app half of that guard: a link inside the app, or the browser's Back
+// button, asks before unsaved edits are left (DESIGN-CONVENTIONS §3).
+export { UnsavedLeaveGuard, inAppLeaveHref, samePageFragment } from "./UnsavedLeaveGuard";
+export type { UnsavedLeaveGuardHandle } from "./UnsavedLeaveGuard";
 // Glyph-only control with a real hit area, a focus ring, and a required label.
 export { IconButton, iconButtonClasses } from "./IconButton";
 export type { IconButtonTone } from "./IconButton";
